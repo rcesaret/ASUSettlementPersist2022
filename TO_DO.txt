@@ -1,0 +1,72 @@
+------------------TO DO SCRIPT #3------------------
+Figure outputs
+
+------------------TO DO SCRIPT #4------------------
+
+Fix catchment area script by 
+Catch Lims can go into Lake Texcoco
+--dissolving polygons
+--doParallel
+--ggplot2 with lake map
+--annotate function
+
+Show a raster + poly map of
+--Catchment Area Transport Route Density
+--Catchment Area Demographic Densities
+
+Calculate Peeples neighbor/transport networks for all periods
+--proximal point
+--nearest neighbor
+--beta skeletons
+--Gabrial graphs
+--Delaunay triangulation
+
+---------------TO DO SCRIPT #5------------------------
+
+"I do four things in this R markdown document"
+
+NPP equation from Nick; citations
+
+Relative labor values of AG types; cite; add text 
+
+Relative productivity values of AG types; cite; add text 
+
+code chunk of DATA INPUT for EnvTopo metrics
+--text data reqs
+--to input the relative levels of labor and productivity
+
+Split Up EnvTopo metric raster code chunks for rasters to each subsection
+--ggplot2 maps of rasters; include CatchLims rasters
+
+-----------------TO DO SCRIPT #6----------------------
+
+SettHier_ggplot
+
+SetHierLevel
+
+Distances to 
+--urban settlements
+--next hierarchical level (up and down)
+
+Local Settlement Hierarchy Variables
+
+Fix A-coefficient??? below the zero line area???
+
+A-coef citations and text
+
+
+
+#Name Lists for individual polygons
+
+
+NlistAggr <- list("EF_AggPoly", "EF_MF_AggPoly", "MF_AggPoly", "MF_LF_AggPoly", "LF_AggPoly", "LF_TF_AggPoly", "TF_AggPoly", "TF_CL_AggPoly", "CL_AggPoly", "CL_ET_AggPoly", "ET_AggPoly", "ET_LTAzI_AggPoly", "LTAzI_AggPoly", "LTAzI_EA_AggPoly", "EA_AggPoly", "EA_LA_AggPoly", "LA_AggPoly")
+
+PeriodNums <- list("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17")
+
+for (i in 1:length(All_AggPoly)) {
+
+writeOGR(All_AggPoly[[i]], paste0("C:/Users/rcesaret/Desktop/AggSitePoly/", PeriodNums[[i]], "_", NlistAggr[[i]], ".gpkg"), paste0(PeriodNums[[i]], "_", NlistAggr[[i]]), driver = "GPKG", overwrite_layer=TRUE)
+
+}
+
+rm(NlistAggr, PeriodNums)
