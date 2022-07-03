@@ -1,0 +1,1089 @@
+---
+title: "Settlement Persistence Project, SBOM Script #2:"
+subtitle: "Chronological Refinement and Apportioning"
+author: "Rudolf Cesaretti"
+date: "Last run on `r Sys.Date()`"
+output:
+  html_document: 
+    toc: true
+    df_print: paged
+    number_sections: true
+bibliography: References.bib
+csl: apa.csl
+link-citations: yes
+---
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 300px;
+}
+```
+
+```{r, setup, include=FALSE,echo=FALSE, message=FALSE,warning=FALSE}
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=75),tidy=TRUE)
+#
+rm(list = ls())
+```
+
+I do four things in this R markdown document: 
+
+  1. explain the methods used to enhance the chronological resolution and model site population history using the data produced in Step #1
+  2. provide an example of how to use the enclosed code and attendant functions
+  3. interpret the results/output and their implications within the broader persistence project
+  4. use these results to produce and export the datasets for Step #3
+
+
+# Setup
+
+All of the data and scripts are downloadable from the [new ASU SettlementPersist2022 github repository](https://https://github.com/rcesaret/ASUSettlementPersist2022), which can be downloaded locally as a .zip folder or cloned to your own account.
+
+Either way, once you have done so, you will need to modify the working directory (setwd("C:/...)") path and "dir" variables in the code chunk below to match the repository location on your computer.
+
+```{r, label='Set Local Directory Location', message=FALSE,warning=FALSE}
+
+wd <- list()
+
+#SET YOUR LOCAL DIRECTORY LOCATION HERE:
+wd$dir <- "C:/Users/rcesaret/Dropbox (ASU)/ASUSettlementPersist2022/"
+#wd$dir <- "C:/Users/TJ McMote/Dropbox (ASU)/ASUSettlementPersist2022"
+
+wd$analysis <- paste0(wd$dir,"analysis/")
+wd$data_r <- paste0(wd$dir,"data-raw/")
+wd$data_p <- paste0(wd$dir,"data-processed/")
+wd$data_f <- paste0(wd$dir,"data-final-outputs/")
+wd$figs <- paste0(wd$dir,"figures/")
+wd$funcs <- paste0(wd$dir,"functions/")
+
+```
+
+#### Load R Packages and Custom Functions
+
+```{r, label='Load Libraries', message=FALSE,warning=FALSE}
+
+# Package names
+packages <- c("rgdal", "sp", "sf", "GISTools", "lwgeom", "tidyverse", "tidyr", "era", "ggnewscale", "gridExtra", "cowplot", "datplot", "ggridges", "scales", "ggstatsplot")
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# load packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+rm(packages,installed_packages)
+
+#Read in custom R functions located in the wd$funcs directory folder
+FUNCS <- list("KDProb.R", "spda.R", "spda.ggplot.R")
+invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
+rm(FUNCS)
+
+```
+
+#### Import Data from Step #1
+
+```{r, label='Import Data', message=FALSE,warning=FALSE}
+
+# Read-in the data
+All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggPoly1.gpkg"))
+
+#write.csv(All_AggPoly@data, "All_AggPoly.csv")
+Agg <- All_AggPoly@data[order(All_AggPoly@data$SubOccSeqLoc, 
+                              All_AggPoly@data$PeriodNum),]
+
+```
+
+
+# Introduction
+
+Our task here is to deal with the dilemma posed by Jose -— _can we refine the chronological resolution of the time-series settlement survey data to facilitate further trajectory modelling and analysis?_ If so, this would allow a high level of statistical inference about causality in comparisons across settlements, space and regions.
+
+However, if the available survey data each include somewhere between ~8-12 periods ranging from ~200-800 years each, then the answer is probably "NO." On the other hand, if we were able to double the survey data chronological resolution to ~15-23 periods ranging from ~50-400 years each, then it might be possible to use the resulting data **as a valid basis for** further trajectory modelling and analysis. _By itself, this doubled resolution would still not be sufficient for trajectory analysis._  Further analytical modelling of finer 'intra-period' time series would still be necessary for trajectory analysis (e.g. by testing the time-series data against possible growth curves to determine probable trajectories and their margins of error). The stages of data/analysis are thus as follows:
+
+  1. Original coarse resolution survey data (organized in script #1)
+  2. Chronological refinement of survey data to increase the resolution of the survey data (undertaken here in script #2)
+  3. Analytical modelling of trajectories (work of future post-doc)
+  4. Analysis of survey data trajectories to make causal inferences about settlement dynamics (work of future post-doc)
+
+In order for steps 3 and 4 to be valid, the higher resolution survey data produced in step 2 need to meet a number of criteria. First and foremost, the data need to be theoretically justified calculations derived _entirely_ from empirical observations. In other words, the enhanced chronological resolution data needs to come from archaeological survey metrics and syntheses thereof -- **and not from hypothetical modelling.** If the enhanced resolution time series of stage 2 are not entirely derived from empirical observations, then downstream trajectory modelling derived from this data in stage 3 will lack validity (i.e. a hypothetical model derived from a hypothetical model).
+
+Second, the refined chronology data produced in step 2 need to minimize temporal uncertainty to the greatest degree possible. Trajectory analysis is usually done on a number of independent observations of actual state values at specific points in time. However, the archaeological survey data represent the amalgam of material culture deposited within a time interval. In order for the stage 2 data to be representative of discrete observations in a trajectory, we need to minimize the temporal length of periods (i.e. the margin of error in those point estimates). This is especially the case for long periods, which magnify both the uncertainty of contemporaneity and the possible trajectories that might have produced an observed archaeological assemblage [@Kintigh2020; @Kintigh1994; @Dewar1994; @Dewar1991]. Likewise, we need to focus on estimating _momentary_ observations with more-readily ascertainable locations within a time interval. Estimates should represent a maximum/minimum level actually achieved during a time interval -- more likely to have occurred at the beginning, middle, or end of a period depending on the period-to-period trend -- rather than average/median levels that are more difficult to locate temporally within a time interval.
+
+## The Methodological Approach Taken Here
+
+With these criteria in mind, the characteristics of the available survey data narrow the ideal methods for satisfying them. Outside of the US southwest, the survey data mostly lack data on the abundance of individual ceramic types/wares/variants, instead being broken into discrete (non-overlapping) chronological periods based on surveyors assessments thereof. The temporal periodization of archaeological surveys is widely based on clusters of co-associated ceramic types, which we refer to here as “ceramic complexes.” While the temporal ranges of these periods are traditionally simplified to not overlap, the underlying ceramic complexes almost always do overlap in time. The full temporal ranges these complexes and their relative abundance over time can be obtained from the published literature of each survey region. Overall assemblage sizes for each complex can then be estimated from site size and surveyor estimates of the scale/density of surface remains. 
+
+In this context, the only way we can increase the chronological resolution of the data is by evaluating _spatial_ and _temporal_ overlaps in the data. The temporal overlaps of sequential ceramic complexes yield additional temporal ‘transition’ periods in between the main archaeological ceramic complex periods. This should nearly double the number of chronological "modelling periods" of the survey data. 
+
+The overlap/transition periods can, in-turn, be identified in the archaeological survey data by the spatial overlap of sites belonging to sequential (temporally overlapping) ceramic complexes. As such, the spatial overlap of sites belonging to sequential ceramic complexes thus yield new sites and assemblages for transition periods. More specifically, we can use the overall scale of site’s surface remains for each phase (i.e. ceramic phase assemblage size = site area × surface sherd density) as the type counts apportioned into corresponding modelling periods. _This identification of overlap sites, site areas, and assemblages was already undertaken in Script #1 for this reason._ 
+
+**It is critical to note here that this introduces a critical new data specification for the survey data.** If the key to refining the chronological resolution of the survey data lies in spatial-temporal overlaps, then the survey data must have GIS polygons of site areas belonging to each period (ceramic complex). Without independent spatial data on the distribution of different ceramic complexes (periods), we do not have the data necessary to _empirically_ increase the chronological resolution of the data.
+
+With these inputs, we can refine the temporal resolution of site-level population estimates by adapting well-established archaeological methods of Bayesian chonological modelling from artifact assemblages to our survey data. Region-wide popularity curves for each ceramic complex are estimated in two stages following methods of Fernández-López de Pablo & Barton [-@Fernandez-LopezdePablo2015] and Ortman, Varien, & Gripp [-@Ortman2007]. First, the temporal ranges of each ceramic complex are fitted to a theoretical probability distribution (e.g. truncated normal, beta) parameterized from the published literature, representing the probability of deposition over time [see e.g. @Roberts2012]. Then, aoristically weighted kernel density distributions of the regionally-aggregated assemblages belonging to each ceramic complex and modelling period provide an empirical counterpart to the theoretical probability distributions [see e.g. @Crema2012; @Ratcliffe2021; @Steinmann2021]. Using Bayes theorem, the theoretical and empirical distributions are combined into a single posterior ‘popularity curve’ for each ceramic complex specifying the probability of deposition in each modelling period. Following the methods of Ortman [-@Ortman2016], a Bayesian prior probability is then estimated for each site by apportioning the site-level assemblages of each complex by into each modelling period. The assemblages of overlap sites have a greater chance of representing the deposition of transition period populations, yet the relationship was certainly not one-to-one. There is every reason to believe that other parts of sites were also occupied during transition periods and vice versa. We can arrive at a synthetic, empirically-derived estimate of the occupational probability of each modelling period by simply taking the means of the prior occupational probability the observed site-level assemblage relative frequency in each modelling period. Finally, the resulting occupational probabilities are rescaled to the minimum and maximum surveyor population estimates for each site to yield a demographic time series with roughly doubled chronological resolution. This will be done for all sites in all surveys.
+
+
+# Ceramic Chronology
+
+Treating survey periods as ceramic types is not as ridiculous as it may seem. The periodization of archaeological surveys is widely based on clusters of associated material culture types -- most commonly ceramic types and wares. As such, temporal periods are operationalized as "ceramic complexes" of commonly co-occurring ceramic types with temporal ranges that strongly overlap one another. This was the impetus to calculating our proxies for ceramic sherd density (or 'occupational density') and overall assemblage size in Step 1.
+
+Whereas archaeological periods are traditionally constructed so _not_ to overlap, it is well know that this is a simplification of convenience for a much messier underlying reality in which ceramic types almost always _do_ overlap in time. As such, I have estimated the maximal date ranges for the the ceramic complexes/phases of the SBOM, below.
+
+```{r, 'Ceramic Chronology', message=FALSE, warning=FALSE}
+
+#create table of overlapping chronological periods in the SBOM
+CHRON <- data.frame(Period = c("EF", "MF", "LF", "TF", "CL", "ET", "LTAzI", "EA", "LA"),
+PeriodNum = c(1:9),
+Begin = c(-1600, -1150, -500, -200, 1, 550, 850, 1200, 1350),
+Begin.era = c("BC", "BC", "BC", "BC", "AD", "AD", "AD", "AD", "AD"),
+End = c(-1000, -400, -100, 100, 650, 950, 1250, 1475, 1520),
+End.era = c("BC", "BC", "BC", "AD", "AD", "AD", "AD", "AD", "AD"),
+Mid = c(-1300, -775, -300, -150, 325, 750, 1050, 1337.5, 1435),
+Mid.era = c("BC", "BC", "BC", "BC", "AD", "AD", "AD", "AD", "AD"),
+Chronology = rep_len(1, 9),
+Distribution = rep_len("beta", 9),
+param1 = c(2, 2, 2, 2, 2.1, 2, 2, 2.2, 2.0),
+param2 = c(1.5, 1.5, 2, 2, 1.7, 2, 1.5, 1.7, 1.01))
+
+CHRON
+
+```
+
+
+## From BC to AD
+
+Beyond the small corpus of software for calibrating radiocarbon dates, most software has no need to computationally deal with the reversal of sequence and lack of 'year 0' associated with the transition from years BC to years AD. Most people therefore simply use negative numbers in code to deal with this. However, this leads to the addition of a year zero, which I do not like. I have therefore decided to use the ["era" R package ](https://cran.r-project.org/web/packages/era/index.html) [@Roe2022] to, wherever possible, 
+
+  * convert years BC/AD to years HE ('Holocene Era'), which begins its count in 10,000 BC (i.e. the current year is 12022), for calculations involving time
+  * convert back to years BC/AD after the calculation is finished
+  * use years BC/AD _without negative numbers_ as labels within tables and figures
+
+For this reason, I keep track of all three forms (+/-, absolute value, and years HE) as shown below
+
+```{r, 'Years BC/AD and HE', message=FALSE, warning=FALSE}
+
+CHRON$Start_abs <- abs(CHRON$Begin)
+CHRON$End_abs <- abs(CHRON$End)
+CHRON$Start_HE <- NA
+CHRON$End_HE <- NA
+
+for (i in 1:nrow(CHRON)){
+  CHRON[i,c("Start_HE")] <- yr_transform(yr(CHRON[i,c("Begin")], CHRON[i,c("Begin.era")]), "HE")
+  CHRON[i,c("End_HE")] <- yr_transform(yr(CHRON[i,c("End")], CHRON[i,c("End.era")]), "HE")
+}
+
+```
+
+
+## Modelling Periods
+
+The above temporal overlap between sequential ceramic phases yields an additional (often much shorter) ‘transition’ phase between each archaeological period. In the SBOM, this takes us from 9 periods to 17, as seen in the table below. These 17 temporal intervals will form our 'modelling periods' for all subsequent analyses.
+
+The new 'transition periods' roughly correspond to the overlap sites from Step 1. In general, we can make the assumption that there is a greater chance that the locus of material deposition during transitional phases occurred in overlap sites than in non-overlapping sites This follows from the foundational assumptions of archaeology regarding co-association (i.e. the principles of seriation). As such, when ceramic/material assemblages are mixed at spatially-overlapping sites of sequential ceramic complexes, we can infer a temporal transition at play.
+
+```{r, 'Calculate Modelling Periods', message=FALSE, warning=FALSE}
+
+MP = data.frame(years = c(CHRON$Begin, CHRON$End), era = c(CHRON$Begin.era,CHRON$End.era))
+  MP = MP[!duplicated(MP), ]
+  MP <- MP[order(MP$years),]
+  MyBreaks = MP$years
+  l1 <- paste(abs(MP[which(MP[,2] == "BC"),1]),MP[which(MP[,2] == "BC"),2],sep=" ")
+  l2 <- paste(MP[which(MP[,2] == "AD"),2],MP[which(MP[,2] == "AD"),1],sep=" ")
+  MyLabs = c(l1,l2)
+    
+  MP2 <- data.frame(Begin = c(0), Begin.era=c(0),End=c(0),End.era=c(0))
+  for (i in 1:(nrow(MP)-1)){
+    MP2[i,] = rbind(c(MP[i,],MP[i+1,]))
+  }
+  MP2$Period <- c('EF', "EF_MF", 'MF', "MF_LF", 'LF', "LF_TF", 'TF', "TF_CL", 'CL', "CL_ET", 'ET', "ET_LTAzI", 'LTAzI', "LTAzI_EA", 'EA', "EA_LA", 'LA')
+  MP2 <- MP2 %>% mutate(Mid=(abs(Begin-End)/2)+Begin,
+                        Length = (abs(Begin-End)/2))
+  
+  
+  ## period (column) names for intervals in AD/BC/CE/BCE
+  l1a <- paste(abs(MP2[which(MP2[,2] == "BC" | MP2[,2]=="CE" | MP2[,2]=="BCE"),1]),MP2[which(MP2[,2] == "BC" | MP2[,2]=="CE" | MP2[,2]=="BCE"),2],sep="")
+  l1b <- paste(MP2[which(MP2[,2] == "AD"),2],MP2[which(MP2[,2] == "AD"),1],sep="")
+  l2a <- paste(abs(MP2[which(MP2[,4] == "BC" | MP2[,4]=="CE" | MP2[,4]=="BCE"),3]),MP2[which(MP2[,4] == "BC" | MP2[,4]=="CE" | MP2[,4]=="BCE"),4],sep="")
+  l2b <- paste(MP2[which(MP2[,4] == "AD"),4],MP2[which(MP2[,4] == "AD"),3],sep="")
+  MyColnames <- paste0(c(l1a,l1b),"-",c(l2a,l2b))
+rm(l1, l2,l1a,l1b,l2a,l2b)
+MP2
+```
+
+
+# Methods of Chronological Refinement
+
+I have decided not to simply _apportion_ the estimated ceramic site assemblages into our modelling periods for several reasons. While apportioning has the benefit of simplicity, a major drawback was noted over the course of this analysis. The apportioned assemblages tend to be considerably overfitted to region-wide assumptions about the shape of **"popularity curves"** (a probability distribution model representing the likelihood that diagnostic materials/ceramics were deposited in any given year). This imposes population trajectories onto settlements rather than reconstructing them from the available data. As such, the methods used here are adapted from those of Ortman, Varien, & Gripp [-@Ortman2007] and Ortman [-@Ortman2016] using an R script adapted from [Peeples' implementation of Ortman's (2016) analysis in R](https://github.com/mpeeples2008/UniformProbabilityDensityAnalysis). The goal is to produce The basic idea is to population estimates with sufficient chronological resolution for demographic analysis. The method employs Bayes' theorem to combine prior knowledge about production histories of ceramic types with site-level information about the co-association of types to produce an integrated model of site demography over time. 
+
+Unfortunately, the overlap of ceramic complexes is limited to short transitional periods between sequential phases rather than the abundant overlaps of the underlying ceramic types. This excludes the uniform probability density analysis (UPDA) method of Ortman [-@Ortman2016], which uses uniform distributions as the Bayesian prior representing the probability of deposition for ceramic types over time. This assumption of uniform distributions relies on the majority of types overlapping in concentrated groupings that correspond to our ceramic complexes. By using complexes as single types, uniform distributions result in the transitional overlap phases being demographic peaks rather than troughs.
+
+The effects of uniform priors for ceramic _complexes_ (rather than individual types) for the SBOM survey is shown in the graph below using [Matt Peeples' UPDA function](https://github.com/mpeeples2008/UniformProbabilityDensityAnalysis) implementation of Ortman [-@Ortman2016]. What's happening here is the joint outcome of three factors. The use of sequential ceramic complexes instead of numerous temporally overlapping ceramic types combines with the uniform popularity curves to increase the prior probability of transition periods relative to non-overlapping periods. Then, the conditional probability -- which increases the probability of occupation for periods where extant types share a temporal overlap in proportion to their relative frequencies -- further magnifies the probability of occupation for transition/overlap periods. Taken together, these factors skew the probability of occupation to transition periods as shown below.
+
+```{r, 'UPDF example', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"UPDF_example.png"), FALSE)
+```
+
+Since we know these transitional periods were nadirs in cyclical premodern demographic systems, the UPDA method would produce an empirically and theoretically invalid model of settlement demography. eramic complexes rose and fell in popularity alongside the parallel rise and fall of populations, economies, urban systems and polities, and this cyclical dynamic is what gives coherence to the use of ceramic phases/complexes to operationalize temporal periods. We need a popularity curve model that can deal with the sparseness of ceramic complexes in our data. The most important factor in a valid popularity curve is population because this is the dominant element in the magnitude of deposition. Likewise, the conditional probability used by Ortman [-@Ortman2016] is invalid for our survey data because ceramic complexes are precisely the phenomenon his conditional distributions are trying to capture.
+
+In order to adapt these methods to our survey data, I propose the following two modifications:
+
+  1. The construction of custom unimodal popularity curves from contextual/theoretical information _and_ the observed aggregate regional distribution of ceramic complex assemblages across time (i.e. our 17 modelling periods) to capture relative depositional rates/probabilities
+  2. Instead of theoretical conditional distributions, we can modify regional-scale priors by taking the mean of the prior and the observed assemblage relative frequency distributions for each site. This is the relative assemblage sizes at overlap sites **_as well as_** ceramic phase sites; i.e. non-transition period occupational likelihoods = main phase site assemblage relative frequency; transition period occupational likelihoods = overlap site assemblage relative frequency). These site-level frequencies represent the observed probability of deposition _in each modelling period_. 
+
+The details of these methods are elaborated in the following sections.
+
+
+## Constructing a Regional Popularity Curve
+
+The UPDA methods of Ortman [-@Ortman2016] are very similar to those of Ortman, Varien, & Gripp [-@Ortman2007] and Fernández-López de Pablo & Barton [-@Fernandez-LopezdePablo2015], who construct popularity curves for each individual artifact type from a 'calibration dataset' from sites with abundant data and a high level of chronological control. The empirically-derived popularity curves in their models take the expected unimodal form, and vary based on the specific contours of changing type proportions evident in the archaeological record. Following these examples, I construct popularity curves for each ceramic complex via combination of _theoretical_ information and _empirical_ data. 
+
+## Theoretical Beta Distributions
+
+The theoretical information comes from synthesis from the published literature on the ceramic/occupational/demographic chronology of each period/complex. As such, the theoretical popularity curves are constructed using rescaled beta distributions with variable $\alpha$ and $\beta$ parameters to shape a custom beta distribution for each of the $j = 9$ ceramic complexes. The two beta distribution parameters of each complex are given in the table below as "alpha" and "beta," and their distributions are shown in the adjoining figure
+
+```{r, 'Calculate and Plot Custom Beta Distributions', message=FALSE, warning=FALSE}
+
+Ch <- CHRON %>% select(Period, Begin, End, param1, param2)
+colnames(Ch) <- c("CeramicComplex", "BeginDate", "EndDate", "alpha", "beta")
+Ch
+
+density = list()
+time = list()
+cer.phase = list()
+
+for (i in 1:nrow(CHRON)){
+  density[[i]] <- dbeta(seq(0,1,0.0001), CHRON$param1[i], CHRON$param2[i])
+  t0 <- CHRON$Begin[i]
+  t1 <- CHRON$End[i]
+  time[[i]] <- seq(t0,t1,length.out = 10001)
+  cer.phase[[i]] <- rep(CHRON$Period[i],10001)
+}
+BetaDist <- data.frame(Density = unlist(density), Time = unlist(time), CeramicPhase = unlist(cer.phase))
+BetaDist$Density_freq <- round(BetaDist$Density*100)
+rm(density, t0, t1, time, cer.phase, Ch)
+
+BDistFreq = BetaDist %>%  
+  slice(rep(seq_len(n()), Density_freq)) %>% 
+  select(-Density_freq)
+BDistFreq$CeramicPhase <- factor(BDistFreq$CeramicPhase, levels = c("EF", "MF", "LF", "TF", "CL", "ET","LTAzI", "EA", "LA"))
+
+ggplot() + geom_density(BDistFreq, mapping=aes(Time, ..scaled..*0.00979), fill = "black", alpha=0.35) + 
+    geom_density(BDistFreq, mapping=aes(Time,fill=CeramicPhase), color="black",  alpha=0.65) +
+    geom_vline(data=MP, aes(xintercept = years), linetype = "dashed", alpha=0.6)+
+    labs(title="Custom Beta Distribution Popularity Curves for SBOM Ceramic Complexes", x ="Years BC/AD", y = "Indiv. Phase Density")+
+    scale_y_continuous(name = "Indiv. Phase Density", sec.axis = sec_axis(~./12.5, name="SPD Density"))+
+    guides(fill = guide_legend(nrow = 1))+
+    theme_bw()+
+    scale_x_continuous(breaks = MyBreaks,labels = MyLabs) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, color="black", size=9), 
+          axis.text.y = element_text(color="black"), 
+          axis.title.x = element_text(color="black", size=14, face="bold"),
+          axis.title.y = element_text(color="black", size=14, face="bold"),
+          legend.justification=c(0,1), legend.position=c(0.01,0.97), legend.title=element_blank(),
+          legend.spacing.y = unit(0.1,"line"),legend.key = element_rect(colour = "transparent", fill = "white"), 
+          legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'), plot.title = element_text(hjust = 0.5, face="bold"))
+
+```
+
+
+## Empirical Popularity Curves
+
+### Variant #1: Aggregate Regional Assemblages
+
+The first version of empirical popularity curves is simply the aggregate regional relative frequency of assemblage size for each ceramic complex in each modelling period calculated in Script #1. In other words, the data here are summed assemblages from each type by time interval. Each non-overlapping ceramic "phase" period is represented by the total assemblage of that ceramic complex, while the assemblages in the "transition" periods are represented by the abundance of each ceramic complex in overlap sites with mixed assemblages. Thus, othe methods here assume that
+
+  1. Archaeological periods correspond to "phase sites" and transition periods correspond to "overlap sites"
+  2. Aggregate patterns in assemblages among these sites are proportional to the average regional popularity curve
+
+Total assemblage size (variable "Tot.Assemb") was used instead of the non-overlapping/unmixed assemblage (variable "Net.Assemb") for characterizing the non-overlapping ceramic "phase" periods for a few reasons. First, numerous multi-site-overlaps among adjacent phases mean that  that Net.Assemb != Tot.Assemb - Ovlp.Assemb. Second, the overlap area was probably occupied long before the transition phase, justifying the greater weight afforded the main non-overlapping ceramic phases. 
+
+As shown in the table below, aggregating the assemblages as such yields unimodal distributions divided into 3 bins representing
+
+  * an early overlap/transition period left tail
+  * the non-overlapping ceramic "phase" period
+  * a late overlap/transition period right tail
+
+The exception to this pertains to the beginning and ending boundary periods of the prehispanic sequence in the SBOM (EF and LA), which only have two bins each.
+
+```{r, 'Popularity Curve Variant 1', message=FALSE, warning=FALSE}
+#x = All_AggPoly@data %>% filter(PeriodType != "Overlap") %>% select(SubOccSeqLoc,Period,Assemb)
+Agg <- Agg %>% select(AggID, AggSite, OccSeqLoc, SubOccSeqLoc, Site, East, North, SurvReg, Number, Period, PeriodType, PeriodNum, CerPhase, PeriodLength, PeriodBegin, PeriodEnd, Population, Area_ha, Tot.Assemb, FwOvlp.Assemb, BwOvlp.Assemb, Net.Assemb, SherdDens, PopDens, UrbanScale, UrbanPop, RuralPop, PctUrban, PctRural, AreaBwCont, AreaFwCont, PopBwCont, PopFwCont, FwOvlp.Sites, FwOvlp.Area, FwOvlp.Pop, BwOvlp.Sites, BwOvlp.Area, BwOvlp.Pop, Found, FoundInit, Abandon, Persist, DewarType, OccuIntertia)
+
+CHRON2 <- CHRON %>% select(-PeriodNum)
+
+Agg = left_join(Agg,CHRON2,by="Period")
+
+Agg_NoOvlp <- Agg %>% filter(PeriodType != "Overlap")
+
+rm(CHRON2)
+
+Assembs = Agg_NoOvlp %>% select(AggID, AggSite, OccSeqLoc, SubOccSeqLoc, Period, PeriodNum, Tot.Assemb, FwOvlp.Assemb, BwOvlp.Assemb) %>% mutate(Period2 = Period)
+
+Assembs2 <- Assembs %>% pivot_wider(names_from = Period2, values_from = c(Tot.Assemb, FwOvlp.Assemb, BwOvlp.Assemb), values_fill = 0)
+
+colnames(Assembs2) <-c("AggID","AggSite","OccSeqLoc","SubOccSeqLoc","Period","PeriodNum","3_Tot_MF","17_Tot_LA","5_Tot_LF","7_Tot_TF","15_Tot_EA","13_Tot_LTAzI","9_Tot_CL","11_Tot_ET","1_Tot_EF","4_MF_FwOvlp_LF","FwOvlp.Assemb_LA","6_LF_FwOvlp_TF","8_TF_FwOvlp_CL","16_EA_FwOvlp_LA","14_LTAzI_FwOvlp_EA","10_CL_FwOvlp_ET","12_ET_FwOvlp_LTAzI","2_EF_FwOvlp_MF","2_MF_BwOvlp_EF","16_LA_BwOvlp_EA","4_LF_BwOvlp_MF","6_TF_BwOvlp_LF","14_EA_BwOvlp_LTAzI","12_LTAzI_BwOvlp_ET","8_CL_BwOvlp_TF","10_ET_BwOvlp_CL","BwOvlp.Assemb_EF" )
+
+Assembs2 <- Assembs2 %>% select(AggID, AggSite, OccSeqLoc, SubOccSeqLoc, Period, PeriodNum, `1_Tot_EF`, `2_EF_FwOvlp_MF`, `2_MF_BwOvlp_EF`, `3_Tot_MF`, `4_MF_FwOvlp_LF`, `4_LF_BwOvlp_MF`, `5_Tot_LF`, `6_LF_FwOvlp_TF`, `6_TF_BwOvlp_LF`, `7_Tot_TF`, `8_TF_FwOvlp_CL`, `8_CL_BwOvlp_TF`, `9_Tot_CL`, `10_CL_FwOvlp_ET`, `10_ET_BwOvlp_CL`, `11_Tot_ET`, `12_ET_FwOvlp_LTAzI`, `12_LTAzI_BwOvlp_ET`, `13_Tot_LTAzI`, `14_LTAzI_FwOvlp_EA`, `14_EA_BwOvlp_LTAzI`, `15_Tot_EA`, `16_EA_FwOvlp_LA`, `16_LA_BwOvlp_EA`, `17_Tot_LA` ) %>% group_by(Period,PeriodNum) %>% summarise_at(vars(`1_Tot_EF`:`17_Tot_LA`), sum, na.rm = TRUE)
+
+Assembs2 <- Assembs2[order(Assembs2$PeriodNum),]
+
+Assembs3 <- Assembs2 %>% mutate(
+  `2_EF_MF` = sum(`2_EF_FwOvlp_MF`, `2_MF_BwOvlp_EF`), 
+  `4_MF_LF` = sum(`4_MF_FwOvlp_LF`, `4_LF_BwOvlp_MF`),
+  `6_LF_TF` = sum(`6_LF_FwOvlp_TF`, `6_TF_BwOvlp_LF`),
+  `8_TF_CL` = sum(`8_TF_FwOvlp_CL`, `8_CL_BwOvlp_TF`),
+  `10_CL_ET` = sum(`10_CL_FwOvlp_ET`, `10_ET_BwOvlp_CL`),
+  `12_ET_LTAzI` = sum(`12_ET_FwOvlp_LTAzI`, `12_LTAzI_BwOvlp_ET`),
+  `14_LTAzI_EA` = sum(`14_LTAzI_FwOvlp_EA`, `14_EA_BwOvlp_LTAzI`),
+  `16_EA_LA` = sum(`16_EA_FwOvlp_LA`, `16_LA_BwOvlp_EA`)) %>% select(Period, PeriodNum, `1_Tot_EF`, `2_EF_MF`, `3_Tot_MF`, `4_MF_LF`, `5_Tot_LF`, `6_LF_TF`, `7_Tot_TF`, `8_TF_CL`, `9_Tot_CL`, `10_CL_ET`, `11_Tot_ET`, `12_ET_LTAzI`, `13_Tot_LTAzI`, `14_LTAzI_EA`, `15_Tot_EA`, `16_EA_LA`,`17_Tot_LA`)
+
+Assembs4 <- as.matrix(sweep(Assembs3[,3:19],1,rowSums(Assembs3[,3:19]),'/'))
+Assembs5 <- t(Assembs4)
+colnames(Assembs5) <- Assembs3$Period
+Assembs5 <- as.data.frame(cbind(MP2,Assembs5))
+
+Assembs5
+
+rm(Assembs, Assembs2, Assembs3, Assembs4)
+
+```
+
+You can see from the table above that the proportions of the total ceramic complex assemblages is not even in all 3 periods, but rather tends to skew earlier or later. This skew is compounded by the difference in time length of the various time periods across which each proportion is stretched. This tends to weigh against the longer main ceramic phases, and increase the overall temporal density of deposition in the overlap periods.
+
+Integrating these probabilities with our custom beta distributions involves a few simple steps:
+
+1. calculating the probability under the curve for each beta distribution
+2. distributing these probabilities into a matrix similar to the table above (the transpose of that table without the dates and ceramic type columns)
+3. taking the mean for each cell in the two matricies, such that the resulting probability for each cell is
+
+$$
+P_{ij} = \frac{P_{Aij}(x_{ij_{min}} < x_{ij} < x_{ij_{max}} ) + P_{\beta ij}(x_{ij_{min}} < x_{ij} < x_{ij_{max}} )}{2}
+$$
+where $x$ are time intervals for each of the $i=17$ modelling periods, for each of the $j=9$ ceramic complexes, and $P_{A}$ and $P_{\beta}$ are their respective assemblage and beta distribution probability values.
+
+```{r, 'Popularity Curve Variant 1 part 2', message=FALSE, warning=FALSE}
+
+Complexes <- CHRON$Period
+alpha = CHRON$param1
+beta = CHRON$param2
+
+df.list <- list()
+for (i in 1:length(Complexes)){
+  lims = MP[MP$years <= CHRON[i,c("End")] & MP$years >= CHRON[i,c("Begin")],1]
+  rs.lims = rescale(lims)
+  df <- data.frame(Complex=c(NA),Begin=c(NA),End=c(NA),p=c(NA))
+  for (j in 1:(length(lims)-1)){
+      df[j,1] <- Complexes[i]
+      df[j,2] <- lims[j]
+      df[j,3] <- lims[j+1]
+      df[j,4] <- pbeta(rs.lims[j+1], alpha[i], beta[i], lower.tail=TRUE) - pbeta(rs.lims[j], alpha[i], beta[i], lower.tail=TRUE)
+  }
+  df.list[[i]] <- df
+}
+
+BProbs.df = bind_rows(df.list)
+BProbs.df2 <- as.data.frame(pivot_wider(BProbs.df, names_from = Complex, values_from = p, values_fill = 0)) %>% select(-Begin,-End)
+Bprob.mat = t(as.matrix(BProbs.df2))
+colnames(Bprob.mat) <- MyColnames
+
+Aemp.mat <- t(as.matrix(Assembs5[,-c(1:7)]))
+colnames(Aemp.mat) <- MyColnames
+ar = array(c(Bprob.mat,Aemp.mat),dim = c(9,17,2))
+PC.mat2 = apply(ar, c(1,2), mean, na.rm=TRUE)
+dim(PC.mat2) <- c(nrow(Aemp.mat), ncol(Aemp.mat))
+colnames(PC.mat2) <- MyColnames
+rownames(PC.mat2) <- rownames(Aemp.mat)
+
+rm(ar,BProbs.df,BProbs.df2,Bprob.mat,Aemp.mat,df.list,Complexes,alpha,beta,df,rs.lims,lims,i,j)
+
+```
+
+
+### Variant #2: Aoristic Regional Assemblages
+
+The second version of empirical popularity curves is derived from aoristically weighted kernel density distributions of the regionally summed assemblages used in variant #1 [see e.g. @Crema2012; @aoristic; @datplot; @Verhagen2016; @Johnson2004; @Ratcliffe2002]. This involves kernel density smoothing of interval data, where the overlaps of observations and their density in time are used to 
+
+* distribute the binned data into steps
+* weight observations based on the dating precision of their time intervals
+* perform kernel density of the resulting histograms, yielding PDFs with smoothed contours
+
+```{r, 'Popularity Curve Variant 2', message=FALSE, warning=FALSE}
+
+Assembs5.long <- Assembs5 %>% pivot_longer(
+  cols = EF:LA,
+  names_to = "Ceramics", 
+  values_to = "Prop") %>% filter(Prop > 0) %>% mutate(Freq = round(Prop * 100))
+
+AssembsFreq = Assembs5.long %>%  
+  slice(rep(seq_len(n()), Freq)) %>% 
+  mutate(Number = ave(Ceramics, Ceramics, FUN=seq_along), 
+         ID = paste(Ceramics,Number,sep="_"),
+         Ceramics = as.factor(Ceramics),
+         Ceramics = fct_relevel(Ceramics, "EF","MF","LF","TF","CL","ET","LTAzI","EA","LA" )) %>% 
+  select(ID,Ceramics,Begin,End)  %>%
+  datplot::datsteps(stepsize = 10) %>%
+  datplot::scaleweight(var = 2)
+
+```
+The graphs below show the resulting aoristic distributions, which serve as our as empirical popularity curves. The second figure shows the unweighted unweighted kernel density PDFs for comparison with the the aoristically-weighted PDFs.
+
+
+```{r, 'Popularity Curve Variant 2 Figure', echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot() +
+  geom_density(data = AssembsFreq, aes(fill = variable, x = DAT_step), color = "white", size=0, alpha = 0.5) + 
+  geom_density(data = AssembsFreq, aes(fill = variable, x = DAT_step, weight = weight), color = "white", size = 0, alpha = 0.3)+
+  geom_density(data = AssembsFreq, aes(fill = variable, x = DAT_step), color = "black", size=0.9, alpha = 0.0, show.legend = F) + 
+  geom_density(data = AssembsFreq, aes(fill = variable, x = DAT_step, weight = weight), color = "red3", size = 0.9, alpha = 0.0, show.legend = F)+
+geom_vline(data=MP, aes(xintercept = years), linetype = "dashed", alpha=0.6)+
+    labs(title="Aoristic Assemblage Distributions: With and Without Aoristic Weights", subtitle = "Red = With Weights; Black = Without Weights", x ="Years BC/AD", y = "Probability Density")+
+    guides(fill = guide_legend(nrow = 1))+
+    theme_bw()+
+    scale_x_continuous(limits= c(-1670,1570), breaks = MyBreaks,labels = MyLabs) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, color="black", size=9), 
+          axis.text.y = element_text(color="black"), 
+          axis.title.x = element_text(color="black", size=14, face="bold"),
+          axis.title.y = element_text(color="black", size=14, face="bold"),
+          legend.justification=c(0,1), legend.position=c(0.01,0.97), legend.title=element_blank(),
+          legend.spacing.y = unit(0.1,"line"),legend.key = element_rect(colour = "transparent", fill = "white"), 
+          legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'), 
+          plot.title = element_text(hjust = 0.5, face="bold"), plot.subtitle = element_text(hjust = 0.5, face="bold"))
+
+```
+
+Next, the theoretical and empirical distributions are then combined multiplicatively per Bayes' theorem, producing "posterior" popularity curves for each of the $j=9$ ceramic complexes. Integration of these posterior popularity curves for each of the $i=17$ modelling periods is then performed to obtain the probability of occupation in each modelling period for each of the $j=9$ ceramic complexes.
+
+```{r, 'Calculate Integrated Popularity Curves for Variant 2', message=FALSE, warning=FALSE}
+
+Complexes <- CHRON$Period
+Probs <- list()
+Dens.list <- list()
+Probs <- list()
+
+for (i in 1:length(Complexes)){
+  Beta = BDistFreq %>% filter(CeramicPhase==Complexes[i])
+  Assemb = AssembsFreq %>% filter(variable==Complexes[i])
+  lims = unique(c(Assemb$DAT_min,Assemb$DAT_max))
+  Probs[[i]] <- KDProb(A=Beta$Time, B=Assemb$DAT_step, B.wt = Assemb$weight, 
+                       xlims = c(lims[1], lims[length(lims)]), 
+                       cuts = lims, output = "prob", lab = Complexes[i])
+  PDF <- KDProb(A=Beta$Time, B=Assemb$DAT_step, B.wt = Assemb$weight, 
+                      #xlims = c(lims[1], lims[length(lims)]), 
+                      cuts = lims, output = "dens", lab = Complexes[i])
+  PC <- data.frame(Years = PDF$x, Density = PDF$y, Complex = Complexes[i], Distribution="Posterior")
+  #PC$Complex <- Complexes[i]
+  #PC$Distr <- "Combined"
+  densAssemb = density(Assemb$DAT_step, weights = Assemb$weight)  #, from=lims[1], to=lims[length(lims)])
+  densBeta = density(Beta$Time)  #, from=lims[1], to=lims[length(lims)])
+  Assemb.df <- data.frame(Years = densAssemb$x, Density = densAssemb$y, Complex = Complexes[i], Distribution="Aoristic")
+  Beta.df <- data.frame(Years = densBeta$x, Density = densBeta$y, Complex = Complexes[i], Distribution="Beta")
+  tmp <- rbind(Assemb.df, Beta.df, PC)
+  Dens.list[[i]] <- tmp
+  
+}
+
+Probs.df = bind_rows(Probs)
+
+Dens.df = bind_rows(Dens.list)
+Dens.df$Complex <- factor(Dens.df$Complex, levels= c("LA","EA","LTAzI","ET","CL","TF","LF","MF","EF"))
+Dens.df$Distribution <- factor(Dens.df$Distribution, levels= c("Beta","Aoristic","Posterior"))
+
+Probs.df <- Probs.df %>% select(-Prob1,-Prob2,-Diff)
+colnames(Probs.df) <- c("lab", "Begin", "End", "p")
+Probs.df2 <- as.data.frame(pivot_wider(Probs.df, names_from = lab, values_from = p, values_fill = 0)) %>% select(-Begin,-End)
+PC.mat = t(as.matrix(Probs.df2))
+colnames(PC.mat) <- MyColnames
+
+```
+
+
+From the table below, we can see that different numerical methods of estimating the probability of the distribution for each ceramic complex via integration were very similar, meaning that our numerical methods were accurate. 
+
+```{r, 'Integrated Popularity Curves for Variant 2 Table', echo=FALSE, message=FALSE, warning=FALSE}
+Probs.df
+rm(tmp, Beta.df, Assemb.df, densBeta, densAssemb, PC, PDF, Probs, Dens.list, lims, Beta, Assemb, Complexes,i, Probs.df,Probs.df2)
+```
+
+
+The figure below shows the Variant #2 "posterior" popularity curve distributions for each ceramic complex alongside their theoretical beta and empirical aoristic distributions. They are not meant to be population curves at this stage -- more realistic pop curves will be produced by assemblage apportionment to create the bayesian prior, the conditional distribution, and of course the posterior. Nevertheless, they are a bit _wonky_, sometimes with sharp in the prob distributions, but these extreme shapes are the product of empirical relationships among sites with respect to overlaps between phases.
+
+```{r, 'Plot Popularity Curves variant 2', echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot() + 
+  geom_ridgeline(data=Dens.df, aes(x=Years, y=Complex, height=Density*300, fill=Distribution, color=Distribution),alpha=0.3,size=0.7)+
+  scale_fill_discrete(name = "Distribution", labels = c("Theoretical Beta (Prior)", "Empirical Aoristic (Conditional)", "Final Bayesian Prior (Posterior)") ) +
+  scale_colour_discrete(name = "Distribution", labels = c("Theoretical Beta (Prior)", "Empirical Aoristic (Conditional)", "Final Bayesian Prior (Posterior)"), drop = FALSE)+
+  geom_vline(data=MP, aes(xintercept = years), linetype = "dashed", alpha=0.6)+
+    labs(title="Bayesian Construction of Regional-Scale Popularity Curves", subtitle = "Ceramic Complexes in the S. Basin of Mexico", x ="Years BC/AD", y = "Probability Density by Ceramic Complex")+
+    guides(fill = guide_legend(nrow = 3))+
+    theme_bw()+
+  scale_y_discrete(expand = c(.05, .05)) +
+    scale_x_continuous(limits= c(-1640,1570),breaks = MyBreaks,labels = MyLabs) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, color="black", size=9), 
+          axis.text.y = element_text(color="black", face="bold"), 
+          axis.title.x = element_text(color="black", size=14, face="bold"),
+          axis.title.y = element_text(color="black", size=14, face="bold"),
+          legend.justification=c(0,1), legend.position=c(0.55,0.97), legend.title=element_text(color="black", face="bold"),#element_blank(),
+          legend.spacing.y = unit(0.1,"line"),legend.key = element_rect(colour = "transparent", fill = "white"), 
+          legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'), 
+          plot.title = element_text(hjust = 0.5, face="bold"), plot.subtitle = element_text(hjust = 0.5, face="bold"))
+
+```
+
+We will try out both popularity curve variants #1 and #2 to see which seems to perform better in the subsequent analysis.
+
+
+## Settlement Survey Probability Density Analysis (SPDA)
+
+I refer to the following analysis as "Settlement Survey Probability Density Analysis," or, more simply, "SPDA," following Ortman's [-@Ortman2016] Uniform Probability Density Analysis (UPDA), which Matt Peeples used for the name of his R functions. 
+
+First we will review the methods implemented, and then we will review use of the functions in R.
+
+### Prior Probabilities
+
+With these two popularity curves in hand, the Bayesian **prior** of each site is calculated by apportioning the ceramic assemblage of each complex are into each modelling period, summing the apportioned assemblages for each modelling period, and then dividing by the number of sherds in the overall site assemblage. Per the methods of Ortman [-@Ortman2016], the the proportion of the total probability for modelling period $i$ provided by ceramic complex $j$ is given by the equation
+$$
+\displaystyle p_{ij} = \frac{t_{j}\delta_{ij}}{\sum_{j = 1}^{n} t_{j}\delta_{ij}}
+$$
+where $t_{j}$ is the number of sherds of complex $j$ in the assemblage and $\delta_{ij}$ is the value of the popularity curve probability distribution for modelling period $i$ and ceramic complex $j$.
+
+Again, we will try using both popularity curve variants and select the one that looks best.
+
+#### Bayesian vs. "Mean Occupational Probability"
+
+As noted earlier, the conditional distributions used in Ortman [-@Ortman2016], Ortman, Varien, & Gripp [-@Ortman2007] and Fernández-López de Pablo & Barton [-@Fernandez-LopezdePablo2015] serve to increase the probability of occupation for periods where extant types share a temporal overlap in proportion to their relative frequencies. Using standard normal distributions to model the temporal probability of each ceramic type, if two temporally overlapping types are abundant at a site, then these conditional distribution will weight the occupational probability of that overlap period. This serves to model the existence of ceramic complexes from individual artifact types, and is therefore is invalid for our data comprise of ceramic complexes. This effect is already modeled into our unimodal popularity curves, and only serves to weight transitional overlap periods between complexes much higher than the apogees of those complexes.
+
+An alternative to this method stems from the observation that we already have empirical data on the relative frequency (or 'probability') of occupation in each of our 17 modelling periods: the empirically observed distribution of assemblage relative frequencies. This is simply our popularity curve at the scale of individual sites, where the transition periods correspond to overlap site assemblage relative frequencies, and non-transition periods correspond to the assemblage relative frequencies of ceramic complex sites. We have already assumed above that the assemblages of overlap sites have a greater chance of representing the deposition of transition period populations. Yet, while this is the case, the relationship was certainly not one-to-one. There is every reason to believe that other parts of sites were also occupied during transition periods. Likewise, the total assemblages of any given ceramic complex may not have been occupied all at one time during the non-transition modelling periods.
+
+We can arrive at a synthetic, empirically-derived estimate of the occupational probability of each modelling period by simply taking the means of Ortman's [-@Ortman2016] Bayesian prior probability (i.e. the apportioned assemblages of each ceramic complex given the regional-scale popularity curves) and the relative frequency of site level aassemblages for each modelling period. This mean synthesizes information at the site level about the magnitude of mixed assemblages with the overall regional likelihood that those overlaps resulted from contemporaneous transition phase deposition. 
+
+Finally, we can re-estimate population for each modelling period by rescaling the mean occupational probabilities to the minimum and maximum estimated populations for the site (i.e. the min and max of all modelling periods present at the SubOccSeqLoc site). In addition to population, the exponential growth rates between periods are estimated using the "Compound Interest" formula (i.e. Pe^rt) from Kintigh & Peeples [-@Kintigh2020].
+
+
+### The "spda" function
+
+Here I have made two functions, "spda" and "spda.ggplot". Both are modified directly from [Matt Peeples' "updf" and "updf.plot" R functions](https://github.com/mpeeples2008/UniformProbabilityDensityAnalysis). These implement the analysis outlined above, but also provide a number of user-specified options. 
+
+One set of choices pertains to the desired popularity curve:
+
+* run the analysis as outlined above, where the user inputs a custom popularity curve for the calculation of priors
+* run the original upda function (i.e. Ortman's [-@Ortman2016] methods as implemented by Peeples) with uniform popularity curves
+* run the function with beta distributions as the popularity curve (set at alpha = beta = 2 as default, but with an option for the user to supply a vector of their own custom parameters)
+* run the function with truncated Gaussian distributions as the popularity curve (set at -2 and 2 sd, but with an option for the user to supply a vector of their own custom truncation points)
+
+The user also has the choice of combining any of these popularity curves with either
+
+* the bayesian method specified in Ortman [-@Ortman2016] 
+* the 'mean occupational probability' method specified above
+
+The output of the spda function is a dataframe with rows for each SubOccSeqLoc site / modelling period. This includes everything you need to plot the data using "" (see below) AND recombine the data with the polygons. The columns are
+
+* AggID
+* SubOccSeqLoc
+* AggSite
+* Period
+* Interval
+* PeriodBegin
+* PeriodBegin.era
+* PeriodMidpoint
+* PeriodMidpoint.era
+* PeriodEnd
+* PeriodEnd.era
+* PeriodLength
+* Prior
+* Conditional or [site-level] "Observed" (depending on methods used)
+* Posterior or "MeanOccuProb" (depending on methods used)
+* Population
+* Log_Population
+* Assemb (apportioned assemblage for each modelling period)
+* r12_Pert (estimated exponential growth rates per Kintigh & Peeples,2020)
+  
+
+### Running the spda function for a single site
+
+The spda function is run for a single SubOccSeqLoc site at a time. Running it for multiple SubOccSeqLoc sites in a loop is covered below. 
+
+There are five groups of user defined input:
+
+1. inputs for each ceramic complex; observations _exclude_ overlap sites
+2. inputs for every site in SubOccSeqLoc = observations _include_ overlap sites
+3. non-optional user defined method choices as noted above
+4. general user defined method choices with default values
+5. user supplied inputs specific to certain method choices
+
+**1. Inputs for each ceramic complex** _where observations **exclude** overlap sites / transition periods_ (i.e. these are dataframe columns but you need to filter your data to exclude PeriodType == "Overlap")
+
+* cer.type = each ceramic complex present in SubOccSeqLoc == $Period column 
+* ct = each  in a SubOccSeqLoc == $Tot.Assemb column 
+* start = start dates for each period in SubOccSeqLoc  == $Begin column 
+* start.era = vector of the era (BC/AD) for start dates == $Begin.era column 
+* end = end dates for in SubOccSeqLoc == $End column 
+* end.era = vector of the era (BC/AD) for end dates == $End.era column 
+
+**2. Inputs for every site in the SubOccSeqLoc** _where observations **include** overlap sites / transition periods_ (i.e. these are columns in the dataframe)
+
+* ID = aggregated site IDs for all sites in SubOccSeqLoc == $AggID column
+* ph.sites = agg site names for all sites in SubOccSeqLoc == $AggSite column
+* ph.periods = period names for all sites in SubOccSeqLoc == $Period column
+* pop.ests = pop estimates for all sites in SubOccSeqLoc == $Population column
+                       
+**3. Non-optional user defined method choices**
+
+* pc.method = character string specifying the the method you want to use for the popularity curve == choices include  "uniform", "tnormal", "beta", and "input" (user input requiring a matrix in the form of PC.mat and PC.mat2 calculated above; see "pc.input", below)
+* method = character string specifying the the method you want to use == choices include "bayesian" (no user inputs required) and "mean.obs" (user input requiring a vector of assemblage counts for all sites in the the SubOccSeqLoc; see "obs.input", below)
+
+**4. General user defined method choices with default values**
+
+* interval = the rounding interval to be used to define ceramic modeling periods (default setting = 1)
+* cutoff =  the minimum probabiilty of occupation required to set the beginning and ending date for the site (default = 0.05)
+* min.period = the minimum length of a period to include; periods shorter than this interval will be merged with the largest adjacent period (default = 25)
+                       
+**5. User supplied inputs specific to certain method choices**
+
+* obs.input = when "method" is "mean.obs", the vector of assemblage counts for all sites in the SubOccSeqLoc **INCLUDING overlap sites / transition periods** == $Tot.Assemb column (the same as "ct" variable above, but NOT filtering the dataframe to exclude overlap sites!)
+* pc.input = when "pc.method" is "input", the custom popularity curve probability matricies you want to use; need to be in the form of PC.mat and PC.mat2 as calculated above
+* z = when "pc.method" is "tnormal", the number of standard deviations from the mean to truncate thepopularity curve normal distributiond; user can supply a vector of truncation points for the normal distribution to specify the popularity curves; one for each ceramic type (cer.type) (default is 2 standard deviations from the mean for all ceramic periods present)
+* alpha = when "pc.method" is "beta", the alpha parameters for the shape of the popularity curve beta distributions; user can supply a vector of alpha parameters for the beta distribution to specify the popularity curves, one for each ceramic type (cer.type) (default = 2 for all ceramic periods present) 
+* beta = when "pc.method" is "beta", the beta parameters for the shape of the popularity curve beta distributions; user can supply a vector of alpha parameters for the beta distribution to specify the popularity curves, one for each ceramic type (cer.type) (default = 2 for all ceramic periods present) 
+
+SOME BIG SITES (i.e. SubOccSeqLocs) YOU CAN INPUT
+
+  * CH-41-B = Amecameca
+  * CH-186-A
+  * CH-20-A
+  * IX-96-A
+  * IX-XO-1-A = Culhuacan
+  * TX-IX-1-A
+  * CH-192-A = Xico
+  * CH-172-A = Chalco
+  * TX-109-C = Chimalhuacan
+
+SOME SMALL SITES (i.e. SubOccSeqLocs) YOU CAN INPUT
+
+  * TX-99-B
+  * CH-9-A
+
+```{r, 'spda example', message=FALSE, warning=FALSE}
+
+ex1.site <- Agg[which(Agg$SubOccSeqLoc=='CH-20-A'),]
+ex1.site_NoOvlp <- Agg_NoOvlp[which(Agg_NoOvlp$SubOccSeqLoc=='CH-20-A'),]
+
+ex1 <- spda(site = ex1.site$SubOccSeqLoc,  
+                      ID = ex1.site$AggID, 
+                      ph.sites = ex1.site$AggSite,
+                      ph.periods = ex1.site$Period,
+                      cer.type = ex1.site_NoOvlp$Period,
+                      ct = ex1.site_NoOvlp$Tot.Assemb,
+                      start = ex1.site_NoOvlp$Begin,
+                      start.era = ex1.site_NoOvlp$Begin.era,
+                      end = ex1.site_NoOvlp$End,
+                      end.era = ex1.site_NoOvlp$End.era,
+                      pop.ests = ex1.site$Population, 
+                      pc.input = PC.mat,
+                      obs.input = ex1.site$Tot.Assemb,
+                      interval=1,
+                      cutoff = 0.05,
+                      min.period = 25, 
+                      pc.method = "input", 
+                      method = "mean.obs",
+                      alpha = ex1.site_NoOvlp$param1,
+                      beta = ex1.site_NoOvlp$param2)
+
+```
+
+
+### Plotting the results with the "spda.ggplot" function
+
+**Non-optional inputs:**
+
+* data = dataframe of spda output for a single site
+* xbreaks = x-axis tick points; == "MyBreaks" vector calculated above
+* xlabels = x-axis tick labels  == "MyLabs" character vector calculated above
+* method = the "method" used in spda; either "bayesian" or "mean.obs" 
+* pc.method = the "pc.method" used in spda; either "beta", "tnorm", "uniform" or "input"
+  
+**Optional inputs:**
+
+* PopLogScale = boolean (T or F); whether to plot population on a (natural) log scale; default == FALSE
+* Assemb.plot = boolean (T or F); whether to plot apportioned assemblage size; default == FALSE
+* Pert.plot = boolean (T or F); whether to plot estimated exponential compound interest population trajectory; default == TRUE  
+* legend_position = default == c(0.01,0.99) (upper left part of the graph interior; other options include "bottom", "top", "none", "left", "right" -- all outside the graph)
+
+* Pop.col = color of population; default == "black"
+* Pert.col = color of Pert trajectory + points; default == "orange2"
+* Prior.col = color of population; default == "red"
+* Cond.Like.col = color of Conditional/Observed; default == "blue"
+* Post.OccPrb.col = color of Posterior/OccuProb; default == "green2"
+* Assemb.col = color of apportioned assemblage; default == "purple" 
+
+_Example plots for SubOccSeqLoc site CH-20-A are shown below, with the graph on the right featuring population on a logarithmic scale._
+
+```{r, 'spda.ggplot example', message=FALSE, warning=FALSE}
+
+plt = spda.ggplot(ex1, method="mean.obs", 
+                   pc.method="input", 
+                   legend_position = "top", 
+                   PopLogScale = F, 
+                   xlabels = MyLabs, 
+                   xbreaks = MyBreaks)
+
+plt2 = spda.ggplot(ex1, method="mean.obs", 
+                   pc.method="input", 
+                   legend_position = "top", 
+                   PopLogScale = T, 
+                   xlabels = MyLabs, 
+                   xbreaks = MyBreaks)
+
+plt = plt + theme(axis.text.x=element_blank(), axis.title.x=element_blank(), plot.caption = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))
+plt2 = plt2 + theme(legend.position = "none",plot.title = element_blank(), plot.subtitle = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))
+
+plot_grid(plt, plt2, align = "v", nrow = 2, rel_heights = c(1/2, 1/2))
+
+
+```
+
+
+# Results and Interpretation
+
+
+## "Mean Occupational Probabilities" vs. Ortman's (2016) Bayesian Methods
+
+The first issue we need to decide is whether the "Mean Occupational Probabilities" method outlined above actually performs better than Ortman's [-@Ortman2016] Bayesian Method for our survey data. The two graphs below compare the output of the two methods for two SBOM SubOccSeqLoc sites, TX-IX-1-A (La Magdalena Atlicpac) and CH-192-A (Xico). The immediately observable difference here is that the two methods produce substantially different occupational time series', which depart most notably from the empirical data for certain transition periods (highlighted in yellow).
+
+```{r, 'Comparing the Likelihood and Conditional outputs of spda', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"BayesMeanOccuCompare.png"), FALSE)
+```
+
+As expected from the discussion in previous sections, this is a product of the Bayesian conditional probability distributions (bottom row, dashed blue lines), which intentionally weight the probability of occupation of the transition periods greater than non-overlap periods. By contrast, the mean occupational probability estimates are more measured modifications of the empirical data from each site, and do not experience rises in transition period occupation beyond the extent suggested by the survey data. 
+
+We can see this effect at the aggregate level in the violin plot below, which compares occupational probabilities for both methods by period type (i.e. overlap/transition periods and main ceramic complex phases). Here, we can see that the distributions for main ceramic phases (on the right) are very similar for both methods. Both an independent samples t-test and Bayes Factor fail to reject the null hypothesis that the two distributions were sampled from the same parent distribution. By contrast, the two overlap/transition phase distributions are sharply divergent, and the t-tests and Bayes Factor reject the null hypothesis. 
+
+```{r, 'Independent samples t-tests by SPDA method and PeriodType', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"OccuProb_Method_PeriodType.png"), FALSE)
+```
+
+
+The wider range of higher values for the Bayesian method are, again, the product of its conditional probabilities. These differences stem from the fact that the mean occupational probabilities do not depart from empirical patterns in the data, whereas the conditionals involve a contextually invalid theoretical assumption for our dataset. Thus, we can say that the mean occupational probability estimates have key advantages over their Bayesian counterparts because they are tailor-made for our data.
+
+
+## Comparing the two Popularity Curve Variants
+
+The second issue we need to decide is which of the two popularity curves outlined above performs better for our survey data. Recall that the two variants are:
+
+  1. The mean of (A) the regional theoretical beta distribution probabilities, and (B) aggregate regional assemblage probabilities (relative frequencies) for each modelling period
+  2. The bayesian posterior distribution probability for each modelling period, calculated via Bayes' Theorem from (A) the regional theoretical beta distribution probabilities (serving as the Prior), and (B) the Aoristically-weighted aggregate regional assemblage probability distributions (serving as the Likelihood/Conditional)
+  
+As seen in the graphs below, there is little difference between the two popularity curves. This holds for all sites that I examined. Nevertheless, Variant #1 does tend to produce straighter logarithmic lines between periods, so I have used Variant #1 to produce the data for script #3. You can change this by simply modifying the inputs in the code from the following section.
+
+```{r, 'Comparing the two Popularity Curve Variants', echo=FALSE, message=FALSE, warning=FALSE}
+ex1.site <- Agg[which(Agg$SubOccSeqLoc=='CH-186-A'),]
+ex1.site_NoOvlp <- Agg_NoOvlp[which(Agg_NoOvlp$SubOccSeqLoc=='CH-186-A'),]
+
+
+ex1 <- spda(site = ex1.site$SubOccSeqLoc,  
+                      ID = ex1.site$AggID, 
+                      ph.sites = ex1.site$AggSite,
+                      ph.periods = ex1.site$Period,
+                      cer.type = ex1.site_NoOvlp$Period,
+                      ct = ex1.site_NoOvlp$Tot.Assemb,
+                      start = ex1.site_NoOvlp$Begin,
+                      start.era = ex1.site_NoOvlp$Begin.era,
+                      end = ex1.site_NoOvlp$End,
+                      end.era = ex1.site_NoOvlp$End.era,
+                      pop.ests = ex1.site$Population, 
+                      pc.input = PC.mat,
+                      obs.input = ex1.site$Tot.Assemb,
+                      interval=1,
+                      cutoff = 0.05,
+                      min.period = 25, 
+                      pc.method = "input", 
+                      method = "mean.obs",
+                      alpha = ex1.site_NoOvlp$param1,
+                      beta = ex1.site_NoOvlp$param2)
+
+ex2 <- spda(site = ex1.site$SubOccSeqLoc,  
+                      ID = ex1.site$AggID, 
+                      ph.sites = ex1.site$AggSite,
+                      ph.periods = ex1.site$Period,
+                      cer.type = ex1.site_NoOvlp$Period,
+                      ct = ex1.site_NoOvlp$Tot.Assemb,
+                      start = ex1.site_NoOvlp$Begin,
+                      start.era = ex1.site_NoOvlp$Begin.era,
+                      end = ex1.site_NoOvlp$End,
+                      end.era = ex1.site_NoOvlp$End.era,
+                      pop.ests = ex1.site$Population, 
+                      pc.input = PC.mat2,
+                      obs.input = ex1.site$Tot.Assemb,
+                      interval=1,
+                      cutoff = 0.05,
+                      min.period = 25, 
+                      pc.method = "input", 
+                      method = "mean.obs",
+                      alpha = ex1.site_NoOvlp$param1,
+                      beta = ex1.site_NoOvlp$param2)
+
+
+plt <- spda.ggplot(ex2, method="mean.obs", pc.method="input", legend_position = "top", PopLogScale = T, xlabels = MyLabs, xbreaks = MyBreaks)
+plt2 <- spda.ggplot(ex1, method="mean.obs", pc.method="input", legend_position = "top", PopLogScale = T, xlabels = MyLabs, xbreaks = MyBreaks)
+
+
+plt = plt + labs(subtitle="(A) Variant #1 Mean Prob. Popularity Curve") + theme(axis.text.x=element_blank(), axis.title.x=element_blank(), plot.caption = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))
+plt2 = plt2 + labs(subtitle="(B) Variant #2 Aoristic Popularity Curve") + theme(plot.title = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))
+
+plot_grid(plt, plt2, align = "v", nrow = 2, rel_heights = c(0.42, 0.58))
+
+```
+
+
+## Comparing the New vs. Old Pop estimates
+
+We can further assess this choice of methods (the MeanOccuProb SPDA method with popularity curve variant #1) by comparing its population estimates with the population estimates produced in script #1. Recall that population was estimated above by rescaling the final mean occupational probabilities of each SubOccSeqLoc site to its minimum and maximum population estimates from script #1. Bracketed by the script #1 estimates, the differences between the two sets of population estimates thus involve the range of variability between these extrema. If the new population estimates are valid, we would expect 
+
+  1. a high degree of variability relative to the script #1 estimates
+  2. a very strong directly-proportional bivariate relationship between the two sets
+  3. very similar univariate distributions for both sets
+
+As shown in the graph below, all three of the above relationships are evident. While the residuals do show a considerable degree of difference between the estimates, the highly-significant (p < 2.2e-16) regression lines for both log-linear and linear OLS are essentially directly proportional and explain 97-98% of the variability in the data (n = 1417). Their univariate distributions are also nearly identical, as both an independent samples t-test and Bayes Factor fail to reject the null hypothesis that the two distributions were sampled from the same parent distribution. As such, we can conclude that our new step #2 population estimates are valid.
+
+```{r, 'New vs. Old Pop ests', echo=FALSE, out.width = '80%'}
+knitr::include_graphics(paste0(wd$figs,"OldNewPopsPlot.png"), FALSE)
+```
+
+
+## Implications for Trajectory Analysis
+
+Our goal, specified in the introduction, has been the chronological refinement of our survey data to increase its temporal resolution. Since time series statistical analyses of trajectories were developed in the context of sets of observations many ties larger than is the case in archaeology, our 'chronologically refined' survey data still require another step of analytical modelling. More specifically, the wide time intervals of each observation (at each site) need to be modelled into a time series with a greater number of observations, each with a much narrower time window. 
+
+In order to produce 'chronologically refined' survey data that can validly support this coming endevor, two key criteria of success were specified. First, the data should minimize temporal uncertainty to the greatest degree possible by minimizing the temporal length of each modelling period. Here, we have done the best we can by converting maximal overlap/transition periods into their own, independent modelling periods. Second, observations should be representative of discrete, momentary observations within its time interval. Here our 'success' is less certain given that the 'true' population time series' are unknown. However, we have set ourselves up for future success by fitting the mean occupational probabilities to the maximal population ranges for each SubOccSeqLoc site. The work of future post-docs will necessarily involve the determination of where an observation belongs within its interval based on its location within the wider trajectory of observations. 
+
+```{r, 'SPDA Example Figure', echo=FALSE, out.width = '80%'}
+knitr::include_graphics(paste0(wd$figs,"SettlementPopTraj.png"), FALSE)
+```
+
+
+### Preliminary Observations
+
+While the analysis of regime shifts and their causes within the survey data must wait, their broader level patterns may nevertheless point to interesting general dynamics. One salient motive for our analysis of regime shifts is to pave the way for the specification of formal models of the dynamics of urban demographic regimes. While the trajectories of settlement population have not been the subject of much study, the broad contours of modern and also regional-scale premodern urban dynamics have been outlined by various scholars. For the western world since the Late Medieval period, the growth of cities has been a relatively stable affair. While this has involved fluctuation in size and rank within the overall urban hierarchy, systems of central places have remained relatively stable within system-wide growth/expansion [e.g. @Bairoch1988; @Batty2006; @DeVries1984; @Robson2012; @Russell1972]. By contrast, historical demographers of earlier epochs have noted how the cyclical "boom-bust" dynamics of premodern populations also led -- in some, but not all, cases -- to the growth, collapse, abandonment and total reorganization of their urban systems' central places and hierarchies [e.g. @Bairoch1988; @ChaseDunn2002; @Turchin2003; @Turchin2009a; @Turchin2009b].
+
+In the case of the SBOM dataset, we have a clear example of urban system boom-bust dynamics. As seen below, there is only a small fraction of SubOccSeqLoc sites that even span more than 5 modelling periods / 1000 years before being abandoned. The vast majority of settlements are very short lived, spanning only 100-500 years from foundation to abandonment. 
+
+```{r, 'All Site Duration Hists', echo=FALSE, out.width = '80%'}
+knitr::include_graphics(paste0(wd$figs,"DurationHists.png"), FALSE)
+```
+
+Surprisingly, the same is also true of urban settlements (those with populations of 1500 or more). Of the 40 such sites in the SBOM sample, 70% were occupied fewer than 350 years (3-4 modelling periods) before their abandonment.  
+
+```{r, 'Urban Site Duration Hists', echo=FALSE, out.width = '80%'}
+knitr::include_graphics(paste0(wd$figs,"UrbanPopHists1500.png"), FALSE)
+```
+
+The projected exponential settlement growth rates shown in the figure below demonstrates two more salient features of the long-term dynamics of the SBOM settlement system. First, oscillating saw-tooth pattern neatly shows the cyclical rise and decline of settlements through time. Only two sequences of sustained growth across the majority of settlements can be observed, while most periods exhibit the pattern "expansion-contraction-expansion-contraction". Second, as a general rule, the magnitude of decline tends to be greater than that of growth. With only two exceptions, distribution of growth rates in most of the 'growth periods' are characterized by a IQR that straddle the red zero line. By contrast, the growth rate IQR of 'decline' periods is fully negative -- sometimes with only the upper 10th percentile or less exhibiting positive growth rates. The resulting picture is one of long-term instability/discontinuity, with high levels of internal fluctuation. 
+
+```{r, 'settlement growth rates', echo=FALSE, out.width = '80%'}
+knitr::include_graphics(paste0(wd$figs,"PertBoxes.png"), FALSE)
+```
+
+The above graphs hint of the rise, fall and total disappearance of urban systems in the SBOM region. This phenomenon is neatly summarized at the regional scale in the figure below, whereby four cycles are evident:
+
+  * Middle Formative (c. 1150-450 BC)
+  * Late-Terminal Formative (c. 450 BC - AD 50)
+  * Classic-Epiclassic (c. AD 50-900)
+  * Postclassic (c. AD 900-1520)
+
+These cycles of urbanization and deurbanization are most clearly highlighted by the long-term trends in population, urban population and especially the _urbanization ratio_ (the % of the pop that is urban). 
+
+```{r, 'Region-scale trends', echo=FALSE, out.width = '80%'}
+knitr::include_graphics(paste0(wd$figs,"RegionalVars.png"), FALSE)
+```
+
+Another interesting pattern illustrated in the figure above is the increasing degree of stability over time. Whereas the two Formative cycles involve a total collapse of the population and urban system, the Classic-Epiclassic and Postclassic cycles do not. Forming a more continuous sequence, the latter two cycles are longer in period and exhibit a number of trends over time:
+
+  * sustained demographic and urban development, with dampened cyclical downtrends (instead of 'collapse')
+  * increasing proportions of settlement persistence, stabilizing at a high level with minor fluctuation. This can also be seen in the prior graph of growth rates for the Postclassic cycle.
+  * diminishing proportions of settlement abandonment and foundation, likewise indicating growing continuity
+  * stabilization of the settlement hierarchy at a high level with little fluctuation (as indicated by the Gini Index of settlement population)
+
+Thus, in spite of the pessimistic picture painted at the settlement level by the earlier three graphs, we can clearly detect increasing growth and stability at the system-level. These aggregate regional trends circumscribe the sawtooth pattern of growth rates from the prior graph. Whereas the sawtooth indicates boom-bust, collapse and abandonment for earlier periods, it instead indicates internal fluctuations within the hierarchy for later periods. 
+
+While this is only one case study (SBOM), we might use the above patterns as a working hypothesis to be tested across the preindustrial/ancient world
+
+
+# Output and Export for Step #3
+
+## Running the analysis for multiple sites
+
+One simple way to run these analyses and generate output for multiple sites is to use loops and lists. In the following chunk of code we define a list and loop over all sites included in our data file to run this analysis site by site. Here we limit ourselves to the first 3 sites in the dataset but this could easily be applied to all. Also, the output could be wrapped in a pdf() function to output plots directly to a file. 
+
+```{r, 'modelling the full dataset with spda', message=FALSE, warning=FALSE}
+
+## Determine whether you want Popularity Curve Variant #1 or #2
+#### IF VARIANT #1
+PC = PC.mat2
+#### IF VARIANT #2
+# PC = PC.mat
+
+sites <- unique(Agg_NoOvlp$SubOccSeqLoc)
+
+out.list <- list()
+
+for (i in 1:length(sites)){
+     
+  site.qv <- Agg[which(Agg$SubOccSeqLoc==sites[i]),]
+  site.qv_NoOvlp <- Agg_NoOvlp[which(Agg_NoOvlp$SubOccSeqLoc==sites[i]),]
+  
+  app.out <- spda(site = site.qv$SubOccSeqLoc,  
+                      ID = site.qv$AggID, 
+                      ph.sites = site.qv$AggSite,
+                      ph.periods = site.qv$Period,
+                      cer.type = site.qv_NoOvlp$Period,
+                      ct = site.qv_NoOvlp$Tot.Assemb,
+                      start = site.qv_NoOvlp$Begin,
+                      start.era = site.qv_NoOvlp$Begin.era,
+                      end = site.qv_NoOvlp$End,
+                      end.era = site.qv_NoOvlp$End.era,
+                      pop.ests = site.qv$Population, 
+                      pc.input = PC,
+                      obs.input = site.qv$Tot.Assemb,
+                      interval=1,
+                      cutoff = 0.05,
+                      min.period = 25, 
+                      pc.method = "input", 
+                      method = "mean.obs",
+                      alpha = site.qv_NoOvlp$param1,
+                      beta = site.qv_NoOvlp$param2)
+  out.list[[i]] <- app.out
+
+}
+ 
+out.tbl = bind_rows(out.list)
+
+```
+
+## Recombining the Data, Part 1
+
+```{r, 'Recombining the Data Part 1', message=FALSE, warning=FALSE}
+
+out.tbl <- out.tbl[order(out.tbl$AggID),]
+Agg <- Agg[order(Agg$AggID),]
+#identical(Agg$AggSite, out.tbl$AggSite)
+#identical(Agg$AggID, out.tbl$AggID)
+colnames(out.tbl) <- c("AggID","SubOccSeqLoc", "AggSite", "Period", "PeriodInterval", "PeriodBegin", "PeriodBegin.era", "PeriodMidpoint", 
+"PeriodMidpoint.era", "PeriodEnd", "PeriodEnd.era", "PeriodLength", "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2", "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2")
+out.tbl <- out.tbl %>% select(-SubOccSeqLoc,-Period, -AggSite)
+
+
+namez <- c("Population","PopDens","UrbanScale","UrbanPop","RuralPop", "PctUrban","PctRural")
+
+for (i in 1:length(namez)){
+  names(Agg)[names(Agg) == namez[i]] <- paste0(namez[i],".s1")
+}
+
+Agg <- Agg %>% select(-PeriodLength,-PeriodBegin,-PeriodEnd)
+Agg = Agg[,-c(43:56)]
+Agg2 <- left_join(Agg,out.tbl,by="AggID")
+
+#rm(out.list, out.tbl, sites, site.qv_NoOvlp, app.out, site.qv, out.list, sites, Agg)
+```
+  
+## Recalculating Demographic Variables with the new Pop estimates
+
+```{r, 'Recalculating Demographic Variables', message=FALSE, warning=FALSE}
+#Recalculation of demog and urbanization variables per the pop estimates of Step #2
+UrbanThresh = 1500
+
+Agg2 <- Agg2 %>% rowwise() %>% mutate(
+              UrbanPop.s2 = ifelse(Population.s2 > 1500, Population.s2 - UrbanThresh, 0),
+              RuralPop.s2 = ifelse(Population.s2 < 1500, Population.s2, UrbanThresh)) %>%
+       ungroup() %>% mutate(
+              PopDens.s2 = Population.s2 / Area_ha,
+              UrbanScale.s2 = Population.s2 / UrbanThresh,
+              PctUrban.s2 = UrbanPop.s2 / Population.s2,
+              PctRural.s2 = RuralPop.s2 / Population.s2)
+```
+
+
+## Recombining the Data, Part 2
+
+```{r, 'Recombining the Data Part 2', message=FALSE, warning=FALSE}
+colz = setdiff(colnames(All_AggPoly@data),colnames(Agg2))
+colz <- c("AggID",colz)
+All_AggPoly@data <- All_AggPoly@data %>% select(!!!syms(colz))
+
+identical(Agg2$AggID, All_AggPoly@data$AggID)
+
+All_AggPoly@data <- left_join(All_AggPoly@data,Agg2,by="AggID")
+
+ordering <- c(
+  #ID VARIABLES
+      "AggSite","AggID","Site","East","North","SurvReg","Number","CerPhase","Period", 
+      "PeriodType","PeriodLength","PeriodNum","PeriodBegin","PeriodEnd", 
+      "OccSeqLoc","OccSeqLoc.Sites","SubOccSeqLoc","SubOccSeqLoc.Sites",
+      "ComponentNum", "ComponentSites",
+  #CHRONOLOGICAL VARIABLES
+      "PeriodInterval", "PeriodBegin", "PeriodBegin.era", "PeriodMidpoint", 
+      "PeriodMidpoint.era", "PeriodEnd", "PeriodEnd.era", "PeriodLength",
+  #OCCUPATION VARIABLES (COUNTS)
+      "Occ.EF","Occ.EF_MF","Occ.MF","Occ.MF_LF","Occ.LF","Occ.LF_TF",
+      "Occ.TF","Occ.TF_CL","Occ.CL","Occ.CL_ET","Occ.ET","Occ.ET_LTAzI", 
+      "Occ.LTAzI","Occ.LTAzI_EA","Occ.EA","Occ.EA_LA","Occ.LA","Occ.TOT",
+  #SUBOCCUPATION VARIABLES (COUNTS)
+      "SubOcc.EF","SubOcc.EF_MF","SubOcc.MF","SubOcc.MF_LF","SubOcc.LF",
+      "SubOcc.LF_TF","SubOcc.TF","SubOcc.TF_CL","SubOcc.CL","SubOcc.CL_ET",
+      "SubOcc.ET","SubOcc.ET_LTAzI","SubOcc.LTAzI","SubOcc.LTAzI_EA",
+      "SubOcc.EA","SubOcc.EA_LA","SubOcc.LA","SubOcc.TOT",
+  #SITE AREA AND OCCUPATIONAL DENSITY VARS
+      "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
+      "BwOvlp.Assemb", "Net.Assemb",
+  #STEP #2 DEMOGRAPHIC VARIABLES
+      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
+      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+  #STEP #1 DEMOGRAPHIC VARIABLES
+      "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
+      "PctUrban.s1","PctRural.s1",
+  #CONTINUITY VARIABLES
+      "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
+      "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
+  #PERSISTENCE VARIABLES
+      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
+  #SURVEY METADATA
+      "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
+      "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",
+  #OLD tDAR BOM SURVEY VARIABLES
+      "O_Elev","O_ElevMed","O_ElevMin","O_ElevMax","O_EZcode",
+      "O_EnvironmentalZone","O_Soil","O_SoilMed","O_SoilMin","O_SoilMax",
+      "O_Erosion","O_ErosionMed","O_ErosionMin","O_ErosionMax","O_ModernUse",
+      "O_ModernSettlement","O_Rainfall","O_Area","O_MoundDomestic",
+      "O_MoundCeremonial","O_MoundQuestionable","O_MoundTotal",
+      "O_MoundRecorded","O_DMoundArea","O_Architecture","O_TerraceConfidence",
+      "O_TerraceExtent","O_Sherd","O_SherdMed","O_SherdMin","O_SherdMax",
+      "O_Rubble","O_RubbleMed","O_RubbleMin","O_RubbleMax","O_Population",
+      "O_PopMin","O_PopMax","O_PopMethod","O_stcode","O_SiteType",
+      "O_SubPeriod1","O_SubPeriod2","O_OccEF","O_OccMF","O_OccLF","O_OccTF",
+      "O_OccCL","O_OccEC","O_OccMC","O_OccLC","O_OccET","O_OccLT","O_OccAZ",
+      "O_OccEA","O_OccLA","O_OccTot","O_OccSeqLoc","O_SubOc1","O_SubOc2",
+      "O_PdDupSite","O_Group","O_Comments") 
+
+# With this vector of variable names, it is simple to reorder the data using the tidyverse: 
+All_AggPoly@data <- All_AggPoly@data %>% select(!!!syms(ordering))
+
+```
+
+
+## Data Export for Step #3
+
+```{r, 'Data Export for Step #3', message=FALSE, warning=FALSE}
+writeOGR(All_AggPoly, paste0(wd$data_p,"SBOM_AggPoly2.gpkg"), "SBOM_AggPoly2", driver = "GPKG", overwrite_layer=TRUE)
+
+```
+
+
+# References
+

@@ -1,0 +1,395 @@
+@misc{Parsons2016,
+  author = {Parsons, Jeffrey R.},
+  date = {2016-02-18},
+  howpublished = {Personal communication to the author, Feb 18th, 2016}
+}
+
+@book{Parsons1971,
+address = {Ann Arbor},
+author = {Parsons, Jeffrey R.},
+booktitle = {Memoirs of the Museum of Anthropology, University of Michigan},
+number = {3},
+title = {{Prehistoric Settlement Patterns in the Texcoco Region, Mexico}},
+year = {1971}
+}
+
+@book{Parsons1982,
+address = {Ann Arbor},
+author = {Parsons, Jeffrey R. and Brumfiel, Elizabeth M. and Parsons, Mary H. and Wilson, David J.},
+booktitle = {Memoirs of the Museum of Anthropology, University of Michigan},
+number = {14},
+title = {{Prehispanic Settlement Patterns in the Southern Valley of Mexico: The Chalco-Xochimilco Region}},
+year = {1982}
+}
+
+@book{Parsons2008,
+address = {Ann Arbor},
+author = {Parsons, Jeffrey R.},
+booktitle = {Memoirs of the Museum of Anthropology, University of Michigan},
+number = {45},
+title = {{Prehispanic Settlement Patterns in the Northwestern Basin of Mexico: The Zumpango Region}},
+year = {2008}
+}
+
+@book{Parsons1983,
+address = {Ann Arbor},
+author = {Parsons, Jeffrey R. and Kintigh, Keith W. and Gregg, Susan A.},
+publisher = {Museum of Anthropology, University of Michigan},
+series = {Technical Report No. 14},
+title = {{Archaeological Settlement Pattern Data for the Chalco, Xochimilco, Ixtapalapa, Texcoco, and Zumpango Regions, Mexico}},
+year = {1983}
+}
+
+@misc{Sanders1970,
+author = {Sanders, William T. and Kovar, Anton J. and Charlton, Thomas H. and Diehl, Richard A.},
+booktitle = {Occasional papers in anthropology, no. 3},
+keywords = {Mexico),Teotihuac{\'{a}}n Site (San Juan Teotihuac{\'{a}}n},
+pages = {v.},
+title = {{The Teotihuacan Valley Project Final Report: The Natural Environment, Contemporary Occupation and 16th Century Population of the Valley}},
+volume = {1},
+year = {1970}
+}
+
+@book{Sanders1979,
+address = {New York},
+author = {Sanders, William T. and Parsons, Jeffrey R. and Santley, Robert S.},
+publisher = {Academic Press},
+title = {{The Basin of Mexico: Ecological Processes in the Evolution of a Civilization}},
+year = {1979}
+}
+
+@misc{Sanders1970,
+author = {Sanders, William T. and Kovar, Anton J. and Charlton, Thomas H. and Diehl, Richard A.},
+booktitle = {Occasional papers in anthropology, no. 3},
+keywords = {Mexico),Teotihuac{\'{a}}n Site (San Juan Teotihuac{\'{a}}n},
+title = {{The Teotihuacan Valley Project Final Report: The Natural Environment, Contemporary Occupation and 16th Century Population of the Valley}},
+volume = {1},
+year = {1970}
+}
+
+@techreport{Sanders1965,
+author = {Sanders, William T.},
+publisher = {Department of Sociology & Anthropology, The Pennsylvania State University},
+title = {{The Cultural Ecology of the Teotihuacan Valley: A preliminary report of the results of the Teotihuacan Valley Project}},
+year = {1965}
+}
+
+@phdthesis{Sanders1957,
+author = {Sanders, William T.},
+booktitle = {Anthropology},
+publisher = {Harvard Univerity},
+title = {{Tierra y agua (Soil and Water): A study of the ecological factors in the development of Meso-American civilizations}},
+volume = {PhD},
+year = {1957}
+}
+
+@techreport{Hodge1991,
+address = {Washington, D.C.},
+author = {Hodge, Mary G. and Minc, Leah D.},
+booktitle = {Final report submitted to the National Science Foundation for Grant #BNS-8704177},
+title = {{Aztec-Period Ceramic Distribution and Exchange Systems}},
+year = {1991}
+}
+
+@misc{Mincnd,
+author = {Minc, Leah D. and Hodge, Mary G.},
+publisher = {(Unpublished tabulations made availaible by author) [Data set]},
+title = {{Ceramic Style Analysis of Aztec Decorated Ceramic Collections from the Basin of Mexico Surveys: Texcoco, Ixtapalapa, Chalco and Xochimilco Survey Regions}}
+}
+
+@book{Blanton1972,
+address = {University Park},
+author = {Blanton, Richard E.},
+publisher = {Department of Anthropology, Pennsylvania State University},
+series = {Occasional Papers in Anthropology, No. 6},
+title = {{Prehispanic Settlement Patterns of the Ixtapalapa Peninsula Region, Mexico}},
+year = {1972}
+}
+
+@phdthesis{Minc1994,
+author = {Minc, Leah D.},
+school = {Univeristy of Michigan},
+title = {{Political Economy and Market Economy under Aztec Rule: A Regional Perspective based on Decorated Ceramic Production and Distribution Systems in the Valley of Mexico}},
+year = {1994}
+}
+
+@incollection{Wrigley1990,
+address = {Oxford},
+author = {Wrigley, E. A.},
+booktitle = {Urbanization in History: A Process of Dynamic Interactions},
+editor = {van der Woude, Ad and Hayami, Akira and de Vries, Jan},
+pages = {101--112},
+publisher = {Clarendon Press},
+title = {{Brake or Accelerator? Urban Growth and Population Growth before the Industrial Revolution}},
+year = {1990}
+}
+
+@article{Smith2021,
+author = {Smith, Michael E. and Hare, Timothy S. and Montiel, Lisa M. and Sherfield, Anne and Huster, Angela},
+journal = {Open Archaeology},
+number = {1},
+pages = {378--416},
+title = {{Settlement Patterns and Urbanization in the Yautepec Valley of Central Mexico}},
+volume = {7},
+year = {2021}
+}
+
+@incollection{Smith2017,
+address = {Tucson},
+author = {Smith, Michael E.},
+booktitle = {Rethinking the Aztec Economy},
+editor = {Nichols, Deborah L. and Berdan, Frances F. and Smith, Michael E.},
+pages = {44--67},
+publisher = {University of Arizona Press},
+series = {Amerind Studies in Anthropology},
+title = {{Cities in the Aztec Empire: Commerce, Imperialism, and Urbanization}},
+year = {2017}
+}
+
+@book{DeVries1984,
+  title={European Urbanization, 1500-1800},
+  author={De Vries, Jan},
+  year={1984},
+  publisher={Routledge}
+}
+
+@book{Bairoch1988,
+  title={Cities and economic development: from the dawn of history to the present},
+  author={Bairoch, Paul},
+  year={1988},
+  publisher={University of Chicago Press}
+}
+
+@article{Kintigh2020,
+author = {Kintigh, Keith W. and Peeples, Matthew A.},
+doi = {10.5334/jcaa.58},
+issn = {25148362},
+journal = {Journal of Computer Applications in Archaeology},
+keywords = {Demography,Population Growth,Settlement Survey,Simulation,Southwest USA},
+number = {1},
+pages = {197--209},
+title = {{Estimating population growth rates and instantaneous population from periodized settlement data}},
+volume = {3},
+year = {2020}
+}
+
+@article{Kintigh1994,
+author = {Kintigh, Keith W.},
+doi = {10.2307/3085507},
+issn = {0002-7316},
+journal = {American Antiquity},
+number = {1},
+pages = {143--148},
+title = {{Contending with Contemporaneity in Settlement-Pattern Studies}},
+volume = {59},
+year = {1994}
+}
+
+@article{Dewar1994,
+author = {Dewar, Robert E.},
+journal = {American Antiquity},
+number = {1},
+pages = {149--152},
+title = {{Contending with Contemporaneity: A Reply to Kintigh}},
+volume = {59},
+year = {1994}
+}
+
+@article{Dewar1991,
+author = {Dewar, Robert E.},
+journal = {American Antiquity},
+number = {4},
+pages = {604--620},
+title = {{Incorporating Variation in Occupation Span into Settlement-Pattern Analysis}},
+volume = {56},
+year = {1991}
+}
+
+@article{Roberts2012,
+author = {Roberts, John M. and Mills, Barbara J. and Clark, Jeffery J. and Haas, W. Randall and Huntley, Deborah L. and Trowbridge, Meaghan A.},
+doi = {10.1016/j.jas.2011.12.022},
+issn = {10959238},
+journal = {Journal of Archaeological Science},
+keywords = {Ceramic wares,Multi-component sites,Period-specific analysis,Popularity distributions,U.S. Southwest},
+number = {5},
+pages = {1513--1520},
+publisher = {Elsevier Ltd},
+title = {{A method for chronological apportioning of ceramic assemblages}},
+url = {http://dx.doi.org/10.1016/j.jas.2011.12.022},
+volume = {39},
+year = {2012}
+}
+
+@article{Ortman2016,
+author = {Ortman, Scott G.},
+journal = {Journal of Archaeological Method and Theory},
+number = {1},
+pages = {94--126},
+title = {{Uniform probability density analysis and population history in the northern Rio Grande}},
+volume = {23},
+year = {2016}
+}
+
+@article{Ortman2007,
+author = {Ortman, Scott G. and Varien, Mark D. and Gripp, T. Lee},
+journal = {American Antiquity},
+number = {2},
+pages = {241--272},
+title = {{Empirical Bayesian Methods for Archaeological Survey Data: An Application from the Mesa Verde Region}},
+volume = {72},
+year = {2007}
+}
+
+@article{Fernandez-LopezdePablo2015,
+author = {{Fern{\'{a}}ndez-L{\'{o}}pez de Pablo}, Javier and Barton, C. Michael},
+doi = {10.1007/s10816-013-9198-z},
+journal = {Journal of Archaeological Method and Theory},
+keywords = {10,1007,article,authorized users,bayesian methods,chronology,contains supplementary material,doi,electronic supplementary material the,landscape archaeology,lithic analysis,online version of this,s10816-013-9198-z,spain,surface archaeology,which is available to},
+pages = {559--583},
+title = {{Bayesian Estimation Dating of Lithic Surface Collections}},
+volume = {22},
+year = {2015}
+}
+
+@article{Crema2012,
+author = {Crema, Enrico R.},
+doi = {10.1007/s10816-011-9122-3},
+isbn = {1081601191},
+issn = {10725369},
+journal = {Journal of Archaeological Method and Theory},
+keywords = {Chronology,Jomon,Monte Carlo methods,Population dynamics,Temporal uncertainty},
+number = {3},
+pages = {440--461},
+title = {{Modelling Temporal Uncertainty in Archaeological Analysis}},
+volume = {19},
+year = {2012}
+}
+
+@Manual{Roe2022,
+  title = {era: Year-Based Time Scales},
+  author = {Joe Roe},
+  year = {2022},
+  note = {R package version 0.4.0},
+  url = {https://CRAN.R-project.org/package=era},
+}
+
+@Manual{Steinmann2021,
+  title = {datplot: Preparation of Object Dating Ranges for Density Plots (Aoristic Analysis)},
+  author = {Lisa Steinmann},
+  year = {2021},
+  note = {R package version 1.0.0},
+  url = {https://CRAN.R-project.org/package=datplot},
+}
+
+@Manual{Ratcliffe2021,
+  title = {aoristic: Generates Aoristic Probability Distributions},
+  author = {Jerry Ratcliffe},
+  year = {2021},
+  note = {R package version 1.1.0},
+  url = {https://CRAN.R-project.org/package=aoristic},
+}
+
+@article{Ratcliffe2002,
+author = {Ratcliffe, Jerry H.},
+doi = {10.1023/A:1013240828824},
+issn = {07484518},
+journal = {Journal of Quantitative Criminology},
+keywords = {Aoristic,Crime,GIS,Policing,Spatiotemporal,Temporal},
+number = {1},
+pages = {23--43},
+title = {{Aoristic signatures and the spatio-temporal analysis of high volume crime patterns}},
+volume = {18},
+year = {2002}
+}
+
+@article{Verhagen2016,
+doi = {10.1016/j.jasrep.2016.10.006},
+issn = {2352409X},
+journal = {Journal of Archaeological Science: Reports},
+keywords = {Archaeological site inventories,Chronological uncertainty,Netherlands,Roman period,Spatial analysis},
+pages = {309--321},
+title = {{Now you see them, now you don't: Defining and using a flexible chronology of sites for spatial analysis of Roman settlement in the Dutch river area}},
+url = {http://dx.doi.org/10.1016/j.jasrep.2016.10.006},
+volume = {10},
+year = {2016}
+}
+
+@article{Johnson2004,
+author = {Johnson, Ian},
+journal = {BAR International Series},
+pages = {448--452},
+publisher = {The Authors},
+title = {{Aoristic analysis: seeds of a new approach to mapping archaeological distributions through time}},
+volume = {1227},
+year = {2004}
+}
+
+@article{Batty2006,
+author = {Batty, Michael},
+journal = {Nature},
+pages = {592--596},
+title = {{Rank clocks}},
+volume = {444},
+number = {7119},
+year = {2006},
+url = {https://doi.org/10.1038/nature05302},
+doi = {10.1038/nature05302}
+}
+
+@book{Robson2012,
+  title={Urban growth: an approach},
+  author={Robson, Brian T},
+  year={2012},
+  publisher={Routledge}
+}
+
+@book{Russell1972,
+  title={Medieval regions and their cities},
+  author={Russell, Josiah Cox},
+  year={1972},
+  publisher={Indiana University Press}
+}
+
+@book{Turchin2003,
+  title={Historical Dynamics: Why States Rise and Fall},
+  author={Turchin, Peter},
+  year={2003},
+  publisher={Princeton University Press}
+}
+
+@book{Turchin2009a,
+  title={Secular Cycles},
+  author={Turchin, Peter and Nefedov, Sergey A},
+  year={2009},
+  publisher={Princeton University Press}
+}
+
+@article{Turchin2009b,
+  title={Long-term population cycles in human societies},
+  author={Turchin, Peter},
+  journal={Annals of the New York Academy of Sciences},
+  volume={1162},
+  number={1},
+  pages={1--17},
+  year={2009},
+  publisher={Wiley Online Library}
+}
+
+@article{ChaseDunn2002,
+  title={City systems and world systems: Four millennia of city growth and decline},
+  author={Chase-Dunn, Christopher and Manning, E Susan},
+  journal={Cross-Cultural Research},
+  volume={36},
+  number={4},
+  pages={379--398},
+  year={2002},
+  publisher={Sage Publications Sage CA: Thousand Oaks, CA}
+}
+
+@Manual{Lewis2022,
+  title = {leastcostpath: Modelling Pathways and Movement Potential Within a Landscape},
+  author = {Joseph Lewis},
+  year = {2022},
+  note = {R package version 1.8.7},
+  url = {https://CRAN.R-project.org/package=leastcostpath},
+}

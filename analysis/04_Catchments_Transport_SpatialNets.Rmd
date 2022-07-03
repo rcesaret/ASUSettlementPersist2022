@@ -1,0 +1,467 @@
+---
+title: "Settlement Persistence Project, SBOM Script #4:"
+subtitle: "Catchment Territories, Transport and Spatial Network Models"
+author: "Rudolf Cesaretti"
+date: "Last run on `r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+    number_sections: true
+bibliography: References.bib
+csl: apa.csl
+link-citations: yes
+---
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 300px;
+}
+```
+
+```{r, setup, include=FALSE,echo=FALSE, message=FALSE,warning=FALSE}
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=75),tidy=TRUE)
+#
+rm(list = ls())
+```
+
+I do five things in this R markdown document: 
+
+  1. Create site catchment areas
+  2. Calculate catchment area transport route densities
+  3. Calculate catchment area demographic densities
+  4. Define spatial network models for AggSites/Catchments and associated metrics
+  5. Reorganize the data and export for Script #5
+  
+  
+# Setup 
+
+All of the data and scripts are downloadable from the [new ASU SettlementPersist2022 github repository](https://https://github.com/rcesaret/ASUSettlementPersist2022), which can be downloaded locally as a .zip folder or cloned to your own account.
+
+Either way, once you have done so, you will need to modify the working directory (setwd("C:/...)") path and "dir" variables in the code chunk below to match the repository location on your computer.
+
+```{r, label='Set Local Directory Location', message=FALSE,warning=FALSE}
+
+wd <- list()
+
+#SET YOUR LOCAL DIRECTORY LOCATION HERE:
+wd$dir <- "C:/Users/rcesaret/Dropbox (ASU)/ASUSettlementPersist2022/"
+#wd$dir <- "C:/Users/TJ McMote/Dropbox (ASU)/ASUSettlementPersist2022"
+
+wd$analysis <- paste0(wd$dir,"analysis/")
+wd$data_r <- paste0(wd$dir,"data-raw/")
+wd$data_p <- paste0(wd$dir,"data-processed/")
+wd$data_f <- paste0(wd$dir,"data-final-outputs/")
+wd$figs <- paste0(wd$dir,"figures/")
+wd$funcs <- paste0(wd$dir,"functions/")
+
+```
+
+
+## Load R Packages and Custom Functions
+
+```{r, label='Load Libraries', message=FALSE,warning=FALSE}
+# Package names
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "stars", "dismo", "purrr", "spatialEco", "whitebox", "classInt")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph", "ggnewscale", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# load packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+rm(packages,installed_packages)
+
+#Read in custom R functions located in the wd$funcs directory folder
+FUNCS <- list("splitByAttributes.R", "CatchmentPolys.R")
+invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
+rm(FUNCS)
+
+```
+
+
+## Import Data
+
+Data we are importing:
+
+  1. The AggSite polygon data exported from script #2
+  2. A simple polygon calculated in QGIS that specifies a hard outer border for the catchment areas of sites (constructed for sensitivity to survey borders and sites not included in the SBOM sample)
+  3. Cost-distance matrices from script #3
+  4. Least cost path rasters from script #3
+  5. A raster hillshade basemap for the SBOM which includes the lakes
+
+```{r, label='Import Data', message=FALSE,warning=FALSE}
+
+#Agg Site polygon data
+All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggPoly2.gpkg"))
+
+#Catchment boundary limit polygon
+CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
+
+## Hillshade Basemap Raster with lake
+HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
+HillshadeLake <- rast(HillshadeLake, crs = 26914)
+
+ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
+
+#Cost-distance matrices
+temp = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = TRUE)
+nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
+nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
+CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
+CD.mats = lapply(CD.mats, as.matrix)
+names(CD.mats) <- nam.distmat
+CD.mats <- CD.mats[ord]
+names(CD.mats) <- paste0(ord,"_cdmat")
+#All_Agg_SitePoly <- All_Agg_SitePoly[order(All_Agg_SitePoly$AggSite),]
+
+
+#Least cost path rasters
+temp = list.files(path = paste0(wd$data_p,"lcp_dens_rasts/"), full.names = TRUE, pattern = ".grd")
+nam.dens = list.files(path = paste0(wd$data_p,"lcp_dens_rasts/"), full.names = F, pattern = ".grd")
+nam.dens = gsub('_lcpdens.grd', "", nam.dens)
+lcp_dens_rasts = lapply(temp, raster)
+names(lcp_dens_rasts) <- nam.dens
+lcp_dens_rasts <- lcp_dens_rasts[ord]
+names(lcp_dens_rasts) <- paste0(ord,"_lcpdens")
+
+rm(temp, nam.distmat, nam.dens, ord) 
+```
+
+
+## Reorganize Settlement Data from Step #2
+
+```{r, 'Reorganize Data from Step #2', message=FALSE,warning=FALSE}
+
+# convert spatial polygons dataframe to spatial points dataframe
+coor = All_AggPoly@data[,c("East","North")] #create separate dataframe of coordinates for spatial points dataframe
+rownames(coor) <- as.numeric(rownames(coor)) #make sure rownames match
+All_AggPts <- SpatialPointsDataFrame(coor, All_AggPoly@data, match.ID = TRUE) #convert to spatial points dataframe
+proj4string(All_AggPts) <- CRS("+proj=utm +zone=14 +datum=NAD83 +units=m +no_defs") #make sure CRS matches polygons
+All_AggPts = as(st_make_valid(st_as_sf(All_AggPts)), "Spatial") #make sure geometry is valid
+
+#reorder spatial points dataframe by period
+All_AggPts <- All_AggPts[order(All_AggPts$PeriodNum),]
+All_AggPoly <- All_AggPoly[order(All_AggPoly$PeriodNum),]
+
+# Split points by Phase, saved as list of spatial points dataframes
+Pts_List <- splitByAttributes(spdata = All_AggPts, attr = "Period", suffix="_Pts") 
+Poly_List <- splitByAttributes(spdata = All_AggPoly, attr = "Period", suffix="_Poly") 
+
+# rename spatial points dataframes to include period numbers as prefix
+#PeriodNums <- list("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17")#include period number
+#names(Pts_List) <- paste0(PeriodNums,"_",names(Pts_List))
+#names(Poly_List) <- paste0(PeriodNums,"_",names(Poly_List))
+
+rm(coor)# PeriodNums,
+```
+
+
+# Defining Catchment Areas
+
+In order to characterize sites in terms of the characteristics of their immediate hinterlands, we can calculate their 'catchment areas.' These are GIS-calculated polygon representing the territorial hinterland of a settlement used for subsistence (etc). 
+
+Here, we calculate settlement catchment areas by integrating two methods, implemented together using the custom "CatchmentPolys" function from 'SBOM_Script4_Functions.R'. 
+
+The core method employs a modified version of 'Voronoi diagrams' (also known as 'Thiessen polygons'). Voronoi polygons partition a Euclidean plane into a polygon topology around a set of nodes with equidistant borders between nodes. However, instead of calculating Voronoi polygons from single nodes, the "CatchmentPolys" function uses the borders of site polygons. _To accomplish this, a Voronoi polygon is calculated for each point of a site's polygon, and then all of the Voronoi polygons belonging to each site are re-aggregated together into a single catchment polygon._ (The script also optionally allows the user to specify normal centroid/node-based Voronoi diagrams.) This method was implemented because of larger (usually urban) settlements in densely settled areas. In such cases, Voronoi polygons using centroid nodes frequently draw catchment borders on the immediate outskirts of sites (or even within the site's borders). Yet, the catchments of such sites should extend equidistant from the settlement border rather than their polygon centroid. As such, all else being equal, my method makes sure that sites with larger aerial extent will have larger catchment areas. In addition, these Voronoi polygons are restricted to the area within an outer border/limit of the SBOM region (constructed for sensitivity to survey borders and sites not included in the SBOM sample). This is a a simple polygon layer created in QGIS, used as an input to the "CatchmentPolys" function. 
+
+Second, the catchment areas of sites are restricted to a 5 km radius around the centroid of the site polygon. This was done because cross-cultural research has demonstrated that traditional agriucltural settlements do not commonly intensively exploit areas beyond a 3-5 km / 1 hr travel time due to transport costs and commute time [see e.g. @Chisholm1979; @Roper1979; @Higgs1972; @Jarman1982]. To maximize speed of computation, I make the simplified approximation that 1 hr at pace ~= 3-5 km, although a cost-surface could instead be used (slowing computation). In periods where there are only a few settlements separated by large areas, this 5 km radius prevents the Voronoi polygons from encompassing vast swaths of territory. While these vast areas may well have been 'controlled' by such settlements, they do not accurately characterize the environmental/topographical context of their subsistence. (This 5 km threshold radius is irrelevant for most periods, where nearest neighbors are much closer than 5 km). Because the cost-distance radius is contextually variable, often ranging from from 3-5 km, I have calculated it at the higher 5 km level _from the centroid_ rather than from the edges of sites (as done for the Voronoi polygons). 
+
+Below is an example of the "CatchmentPolys" function and its output:
+
+```{r, 'Demonstrate Catchment Areas', message=FALSE,warning=FALSE}
+
+ex1 <- Poly_List[[9]] #choose a period for which to calculate catchments
+
+## Using the CatchmentPolys function
+
+example <- CatchmentPolys(
+              sitepolys = ex1, #input polygons from a single period
+              border = CatchLims, #input polygon of the hard outer limit
+              dist_lim = 5000, # set the radius distance threshold (in meters)
+              method = "borders", # choice of method for Voronoi polygons: 
+              #either "borders" or "centroids" (i.e. Voronoi polygons 
+              #calculated from the borders of polygons or from their centroids)
+              plot.results = F #whetherto output a plot of resulting catchments
+              )
+
+#plot results
+plot(example,col="blue")
+plot(ex1,add=T,col="red")
+
+rm(example, ex1)
+```
+
+
+## Create Catchment Areas for All Sites/Periods
+
+Having explained the methods and demonstrated the use of the function, we can now calculate catchment areas for all periods by looping over them:
+
+```{r, 'Calculate Catchment Areas for All Periods', message=FALSE,warning=FALSE}
+
+# Define a vector of strings specifying method parameters.
+# This was done because period 14 for some reason was not 
+# behaving with the "borders" method. May need to debug 
+# the script further...
+# Regardless, the output for this period looks just fine 
+# due to the lack of urban sites with large areas.
+methods <- c("borders", "borders", "borders", "borders", "borders", "borders", "borders", "borders", "borders", "borders", "borders", "borders", "borders", "centroids", "borders", "borders", "borders")
+
+catch_dist_lim <- 5000 # catchment areas limited to distance of X METERS from borders of site polygon
+
+Catch_List <- list() #create list to store outputs
+
+for (i in 1:length(Poly_List)){
+  
+  xx = as.character(methods[i]) 
+  
+  catch <- CatchmentPolys(sitepolys = Poly_List[[i]], 
+                          border = CatchLims, 
+                          dist_lim = catch_dist_lim,
+                          method = xx,
+                          plot.results = F)
+  
+  Catch_List[[i]] <- catch
+  
+}
+
+#rename output list objects
+sitepoly.names <- names(Poly_List) 
+sitepoly.names <- gsub('_Poly', "_SitePoly", sitepoly.names)
+names(Poly_List) <- sitepoly.names
+catch.names <- sitepoly.names
+catch.names <- gsub('_SitePoly', "_CatchPoly", catch.names)
+names(Catch_List) <- catch.names
+
+rm(methods, catch_dist_lim, xx, catch)
+```
+
+
+
+# Catchment Area Transport Route Density
+
+Here we calculate the "transport route density" variable for site catchment areas from the least cost path rasters calculated in script #3. This variable gives us a proxy for how central a settlement's territory may have been to the major transport arteries of a given period. 
+
+Transport route density is calculated _in two ways for each period_:
+
+  1. as a **percentage of the total** least cost path area (90m x 90m raster cells) in the SBOM
+  2. as an **ordinal rank** of the above percentages among all site catchments (highest % = 1)
+
+Here, again, we will loop over all periods using the LCP rasters imported from script #3:
+
+```{r, 'Catchment Area Transport Route Density', message=FALSE,warning=FALSE}
+
+Catch_List2 <- list() #create list for outputs
+
+for(i in 1:length(Catch_List)){
+  
+  #define catchment area polys and LCP rasters from lists as temp objects
+  
+  tmp.p <- Catch_List[[i]] 
+  tmp.p2 <- vect(tmp.p)
+  tmp.r <- rast(lcp_dens_rasts[[i]])
+  
+  #calculate sum/total LCP area of raster
+  sum.lyr <- as.numeric(terra::global(tmp.r, fun='sum', na.rm=TRUE))
+  
+  #calculate transport route density as percentage
+  TranspDens.pct <- terra::extract(tmp.r, tmp.p2, fun=sum)#
+  tmp.p@data$TranspDens.pct <- TranspDens.pct[,2]/sum.lyr * 100
+  
+  #calculate transport route density as rank
+  tmp.p@data$TranspDens.rank <- rank(-tmp.p@data$TranspDens.pct)
+  
+  Catch_List2[[i]] <- tmp.p #save outputs to list
+}
+
+#rename catchment list and its objects accordingly
+names(Catch_List2) <- catch.names
+Catch_List <- Catch_List2
+
+rm(Catch_List2)
+
+```
+
+
+# Catchment Area Demographic Densities
+
+Here we calculate catchment population densities -- population divided by catchment area (ha) -- to provide a proxy for the intensity of land use. In addition to the raw values, relative global values are also calculated. These include the site/catchment's value (A) as a proportion of the global maximum catchment pop density, and (B) as a global rank of catchment pop density values. 
+
+These three metrics are also calculated for the catchment area (ha) beyonjd the site polygon limits (i.e. total catchment area minus site area). This provides an idea of specifically rural land use intensity.
+
+Altogether, the metrics are as follows:
+
+  1. **Catch_Popdens.s2** = Catchment Population Density
+  2. **Catch_Popdens_PropMax.s2** = Catchment Population Density as a proportion of the global maximum
+  3. **Catch_Popdens_Rank.s2** = Catchment Population Density global rank
+  4. **CatchB_Popdens.s2** = Catchment Population Density for the area beyond the site polygon
+  5. **CatchB_Popdens_PropMax.s2** = Catchment Population Density for the area beyond the site polygon as a proportion of the global maximum 
+  6. **CatchB_Popdens_Rank.s2** = Global rank of Catchment Population Density for the area beyond the site polygon
+
+
+```{r, 'Catchment Area Demographic Densities', message=FALSE,warning=FALSE}
+
+Catch_List2 <- list() #create output list
+
+for(i in 1:length(Catch_List)){
+  
+  tmp.p <- Catch_List[[i]] #define catchment area polys as temp object
+
+  tmp.p@data$Catch_Popdens.s2 <- tmp.p@data$Population.s2/tmp.p@data$Catchment_ha
+  
+  tmp.p@data$CatchB_Popdens.s2 <- tmp.p@data$Population.s2/tmp.p@data$CatchmentBeyond_ha
+  
+  tmp.p@data$Catch_Popdens_PropMax.s2 <- tmp.p@data$Catch_Popdens.s2/(max(tmp.p@data$Catch_Popdens.s2))
+  
+  tmp.p@data$Catch_Popdens_Rank.s2 <- rank(-tmp.p@data$Catch_Popdens.s2, na.last = "keep", ties.method = "average")
+  
+  tmp.p@data$CatchB_Popdens_PropMax.s2 <- (tmp.p@data$CatchB_Popdens.s2 / (max(tmp.p@data$CatchB_Popdens.s2)))
+  
+  tmp.p@data$CatchB_Popdens_Rank.s2 <- rank(-tmp.p@data$CatchB_Popdens.s2, na.last = "keep", ties.method = "average")
+  
+  tmp.p@data <- tmp.p@data %>% rowwise() %>% 
+    mutate(
+        Catch_Popdens_Rank.s2 = ifelse(is.na(Catch_Popdens_Rank.s2), max(Catch_Popdens_Rank.s2)+1, Catch_Popdens_Rank.s2),
+        CatchB_Popdens_Rank.s2 = ifelse(is.na(CatchB_Popdens_Rank.s2), max(CatchB_Popdens_Rank.s2)+1, CatchB_Popdens_Rank.s2)) %>% ungroup()
+  
+  Catch_List2[[i]] <- tmp.p #save to output list
+}
+
+# rename list items
+names(Catch_List2) <- catch.names
+Catch_List <- Catch_List2#
+
+rm(Catch_List2)
+```
+
+
+# Spatial Network Models
+
+
+
+
+
+
+# Recombining and Reorganizing the Data
+
+```{r, 'Recombining the Data Part 2', message=FALSE, warning=FALSE}
+# Convert lists of period-wise sites/catchments to single SPDF objects
+All_Agg_SitePoly <-  do.call(rbind, Poly_List)
+All_Agg_CatchPoly <- do.call(rbind, Catch_List)
+
+# variables from site data that needs transfer over to catchment areas
+###colz1 = setdiff(colnames(All_Agg_SitePoly@data),colnames(All_Agg_CatchPoly@data))
+# variables from catchment areas that needs transfer over to site data
+colz2 = setdiff(colnames(All_Agg_CatchPoly@data),colnames(All_Agg_SitePoly@data))
+
+#reorder the data to match
+All_Agg_SitePoly <- All_Agg_SitePoly[order(All_Agg_SitePoly$AggSite),]
+All_Agg_CatchPoly <- All_Agg_CatchPoly[order(All_Agg_CatchPoly$AggSite),]
+
+#check to see that the two datasets are in the right order
+#identical(All_Agg_SitePoly@data$AggSite, All_Agg_CatchPoly@data$AggSite)
+
+# Site data to catchment areas
+###Site_to_Catch <- All_Agg_SitePoly@data %>% dplyr::select(!!!syms(colz1))
+###All_Agg_CatchPoly@data <- cbind(All_Agg_CatchPoly@data,Site_to_Catch)
+
+# catchment area data to sites
+Catch_to_Site <- All_Agg_CatchPoly@data %>% dplyr::select(!!!syms(colz2))
+All_Agg_SitePoly@data <- cbind(All_Agg_SitePoly@data,Catch_to_Site)
+
+#Reorganize the data
+
+ordering <- c(
+  #ID VARIABLES
+      "AggSite","AggID","Site","East","North","SurvReg","Number","CerPhase","Period", 
+      "PeriodType","PeriodLength","PeriodNum","PeriodBegin","PeriodEnd", 
+      "OccSeqLoc","OccSeqLoc.Sites","SubOccSeqLoc","SubOccSeqLoc.Sites",
+      "ComponentNum", "ComponentSites",
+  #CHRONOLOGICAL VARIABLES
+      "PeriodInterval", "PeriodBegin", "PeriodBegin.era", "PeriodMidpoint", 
+      "PeriodMidpoint.era", "PeriodEnd", "PeriodEnd.era", "PeriodLength",
+  #OCCUPATION VARIABLES (COUNTS)
+      "Occ.EF","Occ.EF_MF","Occ.MF","Occ.MF_LF","Occ.LF","Occ.LF_TF",
+      "Occ.TF","Occ.TF_CL","Occ.CL","Occ.CL_ET","Occ.ET","Occ.ET_LTAzI", 
+      "Occ.LTAzI","Occ.LTAzI_EA","Occ.EA","Occ.EA_LA","Occ.LA","Occ.TOT",
+  #SUBOCCUPATION VARIABLES (COUNTS)
+      "SubOcc.EF","SubOcc.EF_MF","SubOcc.MF","SubOcc.MF_LF","SubOcc.LF",
+      "SubOcc.LF_TF","SubOcc.TF","SubOcc.TF_CL","SubOcc.CL","SubOcc.CL_ET",
+      "SubOcc.ET","SubOcc.ET_LTAzI","SubOcc.LTAzI","SubOcc.LTAzI_EA",
+      "SubOcc.EA","SubOcc.EA_LA","SubOcc.LA","SubOcc.TOT",
+  #SITE AREA AND OCCUPATIONAL DENSITY VARS
+      "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
+      "BwOvlp.Assemb", "Net.Assemb",
+  #STEP #2 DEMOGRAPHIC VARIABLES
+      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
+      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+  #STEP #1 DEMOGRAPHIC VARIABLES
+      "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
+      "PctUrban.s1","PctRural.s1",
+  #CONTINUITY VARIABLES
+      "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
+      "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
+  #PERSISTENCE VARIABLES
+      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
+  #STEP #4 CATCHMENT AREA AND POP DENSITY VARIABLES
+      "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens.s2", 
+      "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
+      "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
+  #STEP #4 TRANSPORT VARIABLES
+      "TranspDens.pct", "TranspDens.rank",##,core-periphery
+  #SURVEY METADATA
+      "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
+      "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",
+  #OLD tDAR BOM SURVEY VARIABLES
+      "O_Elev","O_ElevMed","O_ElevMin","O_ElevMax","O_EZcode",
+      "O_EnvironmentalZone","O_Soil","O_SoilMed","O_SoilMin","O_SoilMax",
+      "O_Erosion","O_ErosionMed","O_ErosionMin","O_ErosionMax","O_ModernUse",
+      "O_ModernSettlement","O_Rainfall","O_Area","O_MoundDomestic",
+      "O_MoundCeremonial","O_MoundQuestionable","O_MoundTotal",
+      "O_MoundRecorded","O_DMoundArea","O_Architecture","O_TerraceConfidence",
+      "O_TerraceExtent","O_Sherd","O_SherdMed","O_SherdMin","O_SherdMax",
+      "O_Rubble","O_RubbleMed","O_RubbleMin","O_RubbleMax","O_Population",
+      "O_PopMin","O_PopMax","O_PopMethod","O_stcode","O_SiteType",
+      "O_SubPeriod1","O_SubPeriod2","O_OccEF","O_OccMF","O_OccLF","O_OccTF",
+      "O_OccCL","O_OccEC","O_OccMC","O_OccLC","O_OccET","O_OccLT","O_OccAZ",
+      "O_OccEA","O_OccLA","O_OccTot","O_OccSeqLoc","O_SubOc1","O_SubOc2",
+      "O_PdDupSite","O_Group","O_Comments") 
+
+#Make sure everything is kosher
+#setdiff(colnames(All_Agg_CatchPoly@data),ordering)
+#setdiff(colnames(All_Agg_SitePoly@data),ordering)
+#setdiff(ordering,colnames(All_Agg_CatchPoly@data))
+#setdiff(ordering,colnames(All_Agg_SitePoly@data))
+
+# Reorder the data for both sites and catchment areas
+All_Agg_SitePoly@data <- All_Agg_SitePoly@data %>% dplyr::select(!!!syms(ordering))
+All_Agg_CatchPoly@data <- All_Agg_CatchPoly@data %>% dplyr::select(!!!syms(ordering))
+```
+
+
+# Export Data for Script #5
+
+```{r, 'Export Data for Step #4', message=FALSE,warning=FALSE}
+
+#AggSite polygons
+writeOGR(All_Agg_SitePoly, paste0(wd$data_p,"SBOM_AggSitePoly4.gpkg"), "SBOM_AggSitePoly4", driver = "GPKG", overwrite_layer=TRUE)
+
+#Catchment areas
+writeOGR(All_Agg_CatchPoly, paste0(wd$data_p,"SBOM_CatchPoly4.gpkg"), "SBOM_CatchPoly4", driver = "GPKG", overwrite_layer=TRUE)
+
+```
+
+
+# References
+

@@ -1,0 +1,443 @@
+---
+title: "Settlement Persistence Project, SBOM Script #7:"
+subtitle: "Spatial Interaction Models and Regional Settlement Clusters"
+author: "Rudolf Cesaretti"
+date: "Last run on `r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+    number_sections: true
+bibliography: References.bib
+csl: apa.csl
+link-citations: yes
+---
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 300px;
+}
+```
+
+```{r, setup, include=FALSE,echo=FALSE, message=FALSE,warning=FALSE}
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=75),tidy=TRUE)
+#
+rm(list = ls())
+```
+
+I do X things in this R markdown document: 
+
+  1. 
+  2. 
+      + 
+      + 
+  3. 
+  4. 
+  
+  
+# Setup 
+
+All of the data and scripts are downloadable from the [new ASU SettlementPersist2022 github repository](https://https://github.com/rcesaret/ASUSettlementPersist2022), which can be downloaded locally as a .zip folder or cloned to your own account.
+
+Either way, once you have done so, you will need to modify the working directory (setwd("C:/...)") path and "dir" variables in the code chunk below to match the repository location on your computer.
+
+```{r, label='Set Local Directory Location', message=FALSE,warning=FALSE}
+
+wd <- list()
+
+#SET YOUR LOCAL DIRECTORY LOCATION HERE:
+wd$dir <- "C:/Users/rcesaret/Dropbox (ASU)/ASUSettlementPersist2022/"
+#wd$dir <- "C:/Users/TJ McMote/Dropbox (ASU)/ASUSettlementPersist2022"
+
+wd$analysis <- paste0(wd$dir,"analysis/")
+wd$data_r <- paste0(wd$dir,"data-raw/")
+wd$data_p <- paste0(wd$dir,"data-processed/")
+wd$data_f <- paste0(wd$dir,"data-final-outputs/")
+wd$figs <- paste0(wd$dir,"figures/")
+wd$funcs <- paste0(wd$dir,"functions/")
+
+```
+
+
+## Load R Packages and Custom Functions
+
+```{r, label='Load Libraries', message=FALSE,warning=FALSE}
+# Package names
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "stars", "dismo", "purrr", "spatialEco", "whitebox", "classInt")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph", "ggnewscale", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# load packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+rm(packages,installed_packages)
+
+#Read in custom R functions located in the wd$funcs directory folder
+FUNCS <- list("splitByAttributes.R", "spda.R", "spda.ggplot.R")
+invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
+rm(FUNCS)
+
+```
+
+
+## Import Data
+
+```{r, label='Import Data', message=FALSE,warning=FALSE}
+
+# Read-in the data
+All_SitePoly <- readOGR("SBOM_Agg_SitePoly3.gpkg")
+All_CatchPoly <- readOGR("SBOM_Agg_CatchPoly3.gpkg")
+CatchLims <- readOGR("CatchLims.gpkg")
+
+# read in DEM and Hillshald+Lake rasters and convert the CRS to the same as spatial points dataframe
+#DEM <- raster(paste0(dir, "SBOM_DEM_30m.tif"))
+HillshadeLake <- raster(paste0(dir, "HillshadeLake.tif"))
+
+#DEM <- projectRaster(DEM, crs = 26914)
+HillshadeLake <- projectRaster(HillshadeLake, crs = 26914)
+
+temp = list.files(path = paste0(dir,"CDMatricies/"), full.names = TRUE)
+nam.distmat = list.files(path = paste0(dir,"CDMatricies/"), full.names = F)
+nam.distmat = gsub('.csv', "", nam.distmat)
+CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
+CD.mats = lapply(CD.mats, as.matrix)
+names(CD.mats) <- nam.distmat
+
+```
+
+
+### Reorganize Data from Step #2-3
+
+```{r, 'Reorganize Data from Step #2/3', message=FALSE,warning=FALSE}
+
+# convert spatial polygons dataframe to spatial points dataframe
+coor = All_SitePoly@data[,c("East","North")] #create separate dataframe of coordinates for spatial points dataframe
+rownames(coor) <- as.numeric(rownames(coor)) #make sure rownames match
+All_SitePts <- SpatialPointsDataFrame(coor, All_SitePoly@data, match.ID = TRUE) #convert to spatial points dataframe
+proj4string(All_SitePts) <- CRS("+proj=utm +zone=14 +datum=NAD83 +units=m +no_defs") #make sure CRS matches polygons
+#All_SitePts = as(st_make_valid(st_as_sf(All_SitePts)), "Spatial") #make sure geometry is valid
+
+#reorder spatial points dataframe by period 
+All_SitePts <- All_SitePts[order(All_SitePts$PeriodNum),]
+All_SitePoly <- All_SitePoly[order(All_SitePoly$PeriodNum),]
+All_CatchPoly <- All_CatchPoly[order(All_CatchPoly$PeriodNum),]
+
+# Split points by Phase, saved as list of spatial points dataframes
+SitePts_List <- splitByAttributes(spdata = All_SitePts, attr = "Period", suffix="_SitePts") 
+SitePoly_List <- splitByAttributes(spdata = All_SitePoly, attr = "Period", suffix="_SitePoly") 
+CatchPoly_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix="_CatchPoly") 
+
+# rename spatial points dataframes to include period numbers as prefix
+#PeriodNums <- list("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17")#include period number
+#names(Pts_List) <- paste0(PeriodNums,"_",names(Pts_List))
+#names(Poly_List) <- paste0(PeriodNums,"_",names(Poly_List))
+
+#rm(PeriodNums) 
+```
+
+RESPONSE:
+Persist
+Abandon
+r12_Pert.s2
+AreaBwCont
+AreaFwCont         
+PopBwCont
+PopFwCont
+DewarType
+UrbanPop.s2
+UrbanScale.s2
+PopDens.s2
+MeanOccuProb.s2
+Catch_Popdens.s2
+Prior.s2
+Observed.s2
+Catch_Popdens.s2
+
+[61] "SubOcc.TOT"                   "Area_ha"                      "Perim_m2"                    
+ [64] "SherdDens"                    "Tot.Assemb"                   "FwOvlp.Assemb"               
+ [67] "BwOvlp.Assemb"                "Net.Assemb"                   "Prior.s2"                    
+ [70] "Observed.s2"                  "MeanOccuProb.s2"              "Population.s2"               
+ [73] "Log_Population.s2"            "ApportAssemb.s2"              "r12_Pert.s2"                 
+ [76] "PopDens.s2"                   "UrbanScale.s2"                "UrbanPop.s2"                 
+ [79] "RuralPop.s2"                  "PctUrban.s2"                  "PctRural.s2"                 
+ [82] "Population.s1"                "PopDens.s1"                   "UrbanScale.s1"               
+ [85] "UrbanPop.s1"                  "RuralPop.s1"                  "PctUrban.s1"                 
+ [88] "PctRural.s1"                  "AreaBwCont"                   "AreaFwCont"                  
+ [91] "PopBwCont"                    "PopFwCont"                    "FwOvlp.Sites"                
+ [94] "FwOvlp.Area"                  "FwOvlp.Pop"                   "BwOvlp.Sites"                
+ [97] "BwOvlp.Area"                  "BwOvlp.Pop"                   "Found"                       
+[100] "FoundInit"                    "Abandon"                      "Persist"                     
+[103] "DewarType"                    "OccuIntertia"                 "Pop_PropMax.s2"              
+[106] "Pop_Rank.s2"                  "UrbanPop_PropMax.s2"          "UrbanPop_Rank.s2"            
+[109] "r12_Pert_Rank.s2"             "PopDens_PropMax.s2"           "PopDens_Rank.s2"             
+[112] "UrbanScale_PropMax.s2"        "UrbanScale_Rank.s2"           "Catchment_ha"                
+[115] "CatchmentBeyond_ha"           "Catch_Popdens.s2"             "CatchBynd_Popdens.s2"        
+[118] "Catch_Popdens_PropMax.s2"     "Catch_Popdens_Rank.s2"        "CatchBynd_Popdens_PropMax.s2"
+[121] "CatchBynd_Popdens_Rank.s2"    "TranspDens.pct"               "TranspDens.rank"             
+[124] "NPP.avg"                      "Elev.avg"                     "Slope.avg"                   
+[127] "TPI.avg"                      "TRI.avg"                      "Rough.avg"                   
+[130] "EZ.avg"
+
+df %.%
+  filter(complete.cases(r12_Pert.s2))
+  
+  where(is.numeric)PeriodNum == "15", 
+```{r}
+library(corrplot)
+
+col12 <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+
+M = All_SitePts@data %>% select(PeriodNum,Prior.s2:PctRural.s2,FwOvlp.Area,FwOvlp.Pop,BwOvlp.Area,BwOvlp.Pop,Pop_PropMax.s2:CatchBynd_Popdens_Rank.s2,NPP.avg:EZ.avg)  %>% filter(complete.cases(r12_Pert.s2)) %>% select(-UrbanPop_PropMax.s2, -UrbanPop_Rank.s2) %>% cor(.)#%>%  dplyr::select(where(is.numeric), -PeriodNum)  
+p.mat = cor.mtest(M) 
+corrplot(M, method="color", col=col12(200), type="upper", order="hclust", 
+         addCoef.col = "black", # Add coefficient of correlation
+         tl.col="black", tl.srt=45, #Text label color and rotation
+         # Combine with significance
+         p.mat = p.mat$p, sig.level = 0.2, #insig = "blank", 
+         # hide correlation coefficient on the principal diagonal
+         diag=FALSE, tl.cex=0.5, number.cex=0.5)
+
+
+unloadNamespace("corrplot")
+detach("package:corrplot")
+ 
+
+
+```
+
+PeriodNum == "15", 
+CD.mats
+ * Distance matrix
+ * 
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+CD = CD.mats$CL_cdmat
+
+df = All_SitePts@data %>% filter(Period == "CL") %>% select(AggSite, East, North, r12_Pert.s2, Population.s2, Abandon, Persist, Found, UrbanPop.s2, UrbanScale.s2, PopDens.s2, Catch_Popdens.s2, Catchment_ha, Prior.s2, Observed.s2, MeanOccuProb.s2, NPP.avg, Elev.avg, Slope.avg, TPI.avg, TRI.avg, Rough.avg, EZ.avg, AreaBwCont, AreaFwCont, PopBwCont, PopFwCont, DewarType)
+
+ord = as.character(rownames(CD))
+df <- df[order(match(df$AggSite,ord)),]
+identical(df$AggSite, rownames(CD))
+SPoly = SitePoly_List$CL_SitePoly
+SP = SitePts_List$CL_SitePts
+SF = st_as_sf(SitePts_List$CL_SitePts)
+Catch = CatchPoly_List$CL_CatchPoly
+
+response = matrix(c(df$r12_Pert.s2), nrow=nrow(df), ncol=1)#df$r12_Pert.s2, df$Abandon, df$Persist, df$Found
+#response[is.na(response)] <- quantile(response[,1], 0.25, na.rm = T)
+
+
+response.mat <- (1 - as.matrix(vegan::vegdist(response, method = "euclidean", diag=FALSE)))
+diag(response.mat) = 0
+rownames(response.mat) <- ord
+colnames(response.mat) <- ord
+
+response.net <- graph_from_adjacency_matrix(
+  response.mat,
+  mode = "undirected",
+  weighted = T,
+  diag = F,
+  add.rownames = T
+)
+vertex_attr(response.net) <- list(name = ord)
+edgelist <- cbind( get.edgelist(response.net) , round( E(response.net)$weight, 5 ))
+colnames(edgelist) <- c("From","To","Weight")
+edges <- as.data.frame(matrix(NA, nrow(edgelist), 4))
+colnames(edges) <- c("X1", "Y1", "X2", "Y2")
+for (i in seq_len(nrow(edgelist))) {
+  edges[i, ] <- c(df[which(df$AggSite == edgelist[i, 1]), 2],
+                  df[which(df$AggSite == edgelist[i, 1]), 3],
+                  df[which(df$AggSite == edgelist[i, 2]), 2],
+                  df[which(df$AggSite == edgelist[i, 2]), 3])
+}
+
+edges = cbind(edgelist,edges)
+edges$Weight <- as.numeric(edges$Weight)
+
+colnames(CD) <- ord
+edges.upper <- data.frame(col=colnames(CD)[col(CD)], row=rownames(CD)[row(CD)], dist=c(CD))
+xy <- t(combn(colnames(CD), 2))
+edges.upper <- data.frame(xy, dist=CD[xy])
+colnames(edges.upper) <- c("From","To","Dist")
+edges=left_join(edges,edges.upper,by=c("From","To"))
+edges$WeightRescaled <- scales::rescale(edges$Weight)
+```
+
+"FLOWS/INTERACTION" = response var
+--similarity matrix
+--PCA/CA as variables for sim/dist matrix?
+
+--histogram of response variable
+
+--map of response var network
+
+, binwidth = 2
+```{r, 'NAME', message=FALSE,warning=FALSE}
+library(ggplot2)
+ggplot(df, aes(r12_Pert.s2)) +
+  geom_histogram(aes(fill = DewarType), color = "black")
+```
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+Hillshade.p <- rasterToPoints(HillshadeLake)
+Hillshade.df <- data.frame(Hillshade.p)
+names(Hillshade.df) <- c("E", "N", "MAP")
+
+  ggplot() +
+      geom_raster(data=Hillshade.df, aes(x = E, y = N, fill = MAP)) +
+      scale_fill_gradientn(colours = c("turquoise", "black", "white"), values = scales::rescale(c(-9999, -161, 254)), guide="none") + 
+   #geom_polygon(data= SPoly, aes(x = x, y = y, group = id), colour='black', fill='black')+
+    ggnewscale::new_scale_color()+
+      geom_segment(data = edges[edges$Weight < -0.7 | edges$Weight == 1,],aes(x = X1, y = Y1,xend = X2,yend = Y2, color=Weight),size = 0.5, alpha =0.1)+#color = Weight
+    scale_color_gradient2(low = "red", mid="yellow", high="green")+
+    ggnewscale::new_scale_fill()+
+      geom_point(data=df, aes(x=East, y=North, fill=r12_Pert.s2, size=Population.s2), shape=21)+
+  scale_fill_gradient2(low = "red", mid="white", high="blue")+
+    
+    
+      ggtitle("Classic Period") +
+      theme_void() +
+      theme(plot.title = element_text(hjust = 0.5, size=18, face="bold"), legend.title = element_text(color = "black", face="bold", size = 13)) +
+      coord_equal() 
+
+```
+
+```{r}
+ggplot(df) + 
+  geom_point(aes(x = log(Population.s2), y = scales::rescale(r12_Pert.s2))) +
+  stat_function(aes(x = log(Population.s2)), fun = function(x) 2.6*x^-1.2, geom="line", colour="red")
+```
+
+
+```{r}
+ggplot(df,aes(x = log(Catch_Popdens.s2), y = r12_Pert.s2)) + 
+  geom_point() +geom_smooth(method = lm)
+  #stat_function(aes(x = (UrbanScale.s2)), fun = function(x) 2.6*x^-1.2, geom="line", colour="red")
+```
+
+```{r}
+ggplot(df,aes(x = log(PopDens.s2), y = r12_Pert.s2)) + 
+  geom_point() +geom_smooth(method = lm)
+  #stat_function(aes(x = (UrbanScale.s2)), fun = function(x) 2.6*x^-1.2, geom="line", colour="red")
+```
+
+UrbanPop.s2, UrbanScale.s2, PopDens.s2, Catch_Popdens.s2
+```{r}
+ggplot(edges) + 
+  geom_point(aes(x = log(Dist), y = log(WeightRescaled))) +
+  stat_function(aes(x = log(Dist)), fun=function(x)x^-2, geom="line", colour="red")
+```
+
+
+
+
+```{r fig1, fig.height = 8, fig.width = 8, echo=FALSE,message=FALSE,warning=FALSE}
+my_map <- get_stamenmap(bbox = c(left=-99.21834, bottom=19.0332, right=-98.71731,  top=19.45162),
+                       maptype = "watercolor",
+                       zoom = 1)
+x_lim <- my_map$data[c(1, 4), 1] * c(-99.21834, -98.71731)
+y_lim <- my_map$data[c(1, 4), 2] * c(19.0332, 19.45162)
+
+library(rasterVis)
+ggmap(my_map)+inset_raster(HillshadeLake2, xmin=-99.21834, xmax=-98.71731, ymin=19.0332, ymax=19.45162, interpolate = F)
+
+HillshadeLake2=rast(HillshadeLake2, crs = 4326)
+HillshadeLake2 <- projectRaster(HillshadeLake, crs = 4326)
+4326
+SFPoly = st_as_sf(SPoly)
+
+
+```
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+      geom_polygon(data= SurveyRegions.df, aes(x=Long, y=Lat, group=group), colour="black", size =1.0, fill=NA) +
+     # (samp^(1/3))*200)  r=(samp/100),cols=colnames(data.map.agg)[6:9]
+      #new_scale("fill") +
+      new_scale_fill() +
+      geom_scatterpie(data=data.map.agg, aes(x=Long, y=Lat), cols = c("Ware_R", "Ware_O",  "Ware_PC", "Ware_LT"), alpha=0.5) +
+      
+      scale_fill_manual(values = c("red","orange","cyan","yellow"), name = "Legend", labels = c("Dec. Redware", "B/O", "Polychrome", "Toltec")) + 
+      #geom_text(data=HMData_Full, aes(East, North, label=Site), size=3, vjust=2, fontface = "bold") +
+      #geom_text(data=HMData_Full, aes(East, North, label=TOTAL), size=3, fontface = "bold") +
+      #geom_scatterpie_legend(((HMData_Full$TOTAL^(1/3))*200), x=492160, y=2116210) +
+      ###annotation_north_arrow(location = "tl", which_north = "true", height = unit(2.0, "cm"),   width = unit(2.0, "cm"), pad_x = unit(0.75, "in"), pad_y = unit(0.75, "in"), style = north_arrow_fancy_orienteering, line_width = 2.5, text_size = 40, text_face = "bold") +
+
+      ###annotation_scale(location = "bl", width_hint = 0.5, pad_x = unit(0.75, "in"), pad_y = unit(0.5, "in"), text_size = 40, text_face = "bold") +
+      
+      #coord_sf(xlim = c(478575.8, 530959.4), ylim = c(2106861, 2168500), expand = FALSE) +
+      #ylim(2106861, 2168500) +
+      #xlim(478575.8, 530959.4) +
+```
+
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+```
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+```
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+```
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+```
+
+
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+```
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+```
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+```
+
+
+```{r, 'NAME', message=FALSE,warning=FALSE}
+
+```
+
+Script #4
+--Then run the spatial interaction model scripts to get a feel
+--try some stuff out with just the available variables
+--ordination methods?
+--lake hillshade raster from other script
+
+---- CANT USE THESE YET BECAUSE PARAMS DERIVED FROM GRAVITY MODELS-----
+SpatialPosition: Spatial Position Models
+Computes spatial position models: the potential model as defined by Stewart (1941) <doi:10.1126/science.93.2404.89> and catchment areas as defined by Reilly (1931) or Huff (1964) <doi:10.2307/1249154>.
+https://cran.r-project.org/web/packages/SpatialPosition/SpatialPosition.pdf
+https://cran.r-project.org/web/packages/SpatialPosition/index.html
+
+
+

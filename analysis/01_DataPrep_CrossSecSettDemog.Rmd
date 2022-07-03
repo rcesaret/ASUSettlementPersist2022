@@ -1,0 +1,904 @@
+---
+title: "Settlement Persistence Project, SBOM Script #1:"
+subtitle: "Dataset Construction and Cross-Sectional Settlement Demography"
+author: "Rudolf Cesaretti"
+date: "Last run on `r Sys.Date()`"
+output:
+  html_document: 
+    toc: true
+    df_print: paged
+    number_sections: true
+bibliography: References.bib
+csl: apa.csl
+link-citations: yes
+---
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 300px;
+}
+```
+
+```{r, setup, include=FALSE,echo=FALSE, message=FALSE,warning=FALSE}
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=75),tidy=TRUE)
+#
+rm(list = ls())
+```
+
+I do ten things in this R markdown document: 
+
+  1. Integrate 2020 BOM data with new SBOM polygons and clean the data
+  2. Calculate occupational density
+  3. Re-organize site polygons into a uniform set of periods and remove unoccupied sites
+  4. Calculate cross-sectional demography variables
+  5. Create polygons for site overlap/transition phases
+  6. Calculate site continuity variables
+  7. Calculate phase occupation variables
+  8. Calculate persistence variables
+  9. Aggregate sites/polygons by period within (Sub)OccSeqLoc sites
+  10. Export data for Script #2
+
+
+# Setup
+
+All of the data and scripts are downloadable from the [new ASU SettlementPersist2022 github repository](https://https://github.com/rcesaret/ASUSettlementPersist2022), which can be downloaded locally as a .zip folder or cloned to your own account.
+
+Either way, once you have done so, you will need to modify the working directory (setwd("C:/...)") path and "dir" variables in the code chunk below to match the repository location on your computer.
+
+```{r, label='Set Local Directory Location', message=FALSE,warning=FALSE}
+
+wd <- list()
+
+#SET YOUR LOCAL DIRECTORY LOCATION HERE:
+wd$dir <- "C:/Users/rcesaret/Dropbox (ASU)/ASUSettlementPersist2022/"
+#wd$dir <- "C:/Users/TJ McMote/Dropbox (ASU)/ASUSettlementPersist2022"
+
+wd$analysis <- paste0(wd$dir,"analysis/")
+wd$data_r <- paste0(wd$dir,"data-raw/")
+wd$data_p <- paste0(wd$dir,"data-processed/")
+wd$data_f <- paste0(wd$dir,"data-final-outputs/")
+wd$figs <- paste0(wd$dir,"figures/")
+wd$funcs <- paste0(wd$dir,"functions/")
+
+```
+
+```{r, label='Load Libraries and functions', message=FALSE,warning=FALSE}
+# Package names
+packages <- c("rgdal", "sp", "sf", "GISTools", "lwgeom", "tidyverse", "tidyr", "data.table", "zoo", "scales", "sjmisc")
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# load packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+rm(packages,installed_packages)
+
+#Read in custom R functions located in the wd$funcs directory folder
+FUNCS <- list("Script1_HelperFunctions.R", "splitByAttributes.R", "PolyInstersects_df.R", "OverlapPoly.R", "ContinuityCalc.R", "DissolvePoly.R")
+invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
+rm(FUNCS)
+```
+
+
+# Data Integration and Cleanup
+
+We upload the full BOM site data with Angela's added variables. This is the "SiteData" tab in Excel Spreadsheet "BoMSiteContinuityData.xlsx" located here: `Dropbox (ASU)\Settlement Persistence Project\Samples-Data\Basin of Mexico Survey Data\Basin of Mexico Survey Analyses\BoMSiteContinuityData.xlsx`
+
+We also upload BOM survey site polygons I have created for sites in the SW BOM. This will be our initial sample case for data construction and analysis.
+
+```{r, label='Import Data', message=FALSE,warning=FALSE}
+
+# Read-in the data
+Data <- read.csv(paste0(wd$data_r,"AngelaFullData.csv"))
+Poly <- readOGR(paste0(wd$data_r,"SBOMPoly.gpkg"))
+
+
+
+
+```
+
+The primary class spatial data format used in this script is the Spatial Polygon Dataframe (spdf) class from the "sp" R package. While I frequently switch back-and-forth to the "Simple Features" (sf) class from the "sf" R package data, I make sure to revert to Spatial Polygon Dataframe (spdf) after all sf calculations. 
+
+We will be working in the coordinate reference system (CRS; projection) NAD83 / UTM Zone 14N (ESPG:26914) for the entirety of this analysis. The polygons have the following variables calculated in QGIS:
+
+```{r, message=FALSE,warning=FALSE}
+head(Poly@data)
+```
+
+Currently, the OccSeqLoc variable (Locations/universal sites) restarts from 1 in each region. Here, I will make them unique IDs across the BOM by making the ID a string with the region abbreviation as a prefix (e.g. "CH-321"). 
+
+```{r, message=FALSE,warning=FALSE}
+
+#First, lets remove some superfluous variables from the survey dataframe
+Data <- Data[,-c(12:13, 77:82)]
+
+Data$NewOccSeqLoc = paste0(Data$Region,"-",Data$OccSeqLoc)
+```
+
+Next I append the polygon dataframe with Angela's site data and export the polygons with data. The next step is to double check that that the polygons belonging to each OccSeqLoc site actually overlap in space. When it was necessary to designate a new OccSeqLoc site, I gave it a new number at the end of the region's sequence. I do this in QGIS and re-upload the corrected/edited data
+
+```{r, message=FALSE,warning=FALSE}
+
+Poly_Data <- sp::merge(Poly,Data,by="Site")
+
+writeOGR(Poly_Data, paste0(wd$data_p,"SBOMPoly_Data0.gpkg"), "SBOMPoly_Data0", driver = "GPKG",overwrite_layer=TRUE)#,   overwrite_layer=TRUE)
+```
+
+
+## Revisions to OccSeqLoc
+
+Revisions were made to OccSeqLoc in QGIS after close inspection of the veracity of site overlaps. (Joining in R produced erroneous groupings due to distinct OccSeqLoc sites slightly touching/overlapping one another; other groupings from teh published literature were simply incorrect).
+
+```{r, label='OccSeqLoc Revisions', message=FALSE,warning=FALSE}
+Poly_Data2 <- readOGR(paste0(wd$data_r,"SBOMPoly_RevEd.gpkg"))
+
+#Since some of the NewOccSeqLoc groupings cross regions, if we wanted to renumber 
+# them to have unique numerical IDs, we would do it like this:
+#Poly_Data2@data <- Poly_Data2@data %>% group_by(NewOccSeqLoc) %>% 
+#  mutate(NewOccSeqLoc2 = cur_group_id()) 
+
+rm(Poly_Data,Data,Poly)#remove unneeded objects
+
+#M_ prefix for site metadata from the old published BOM survey data from tDAR
+colnames(Poly_Data2@data)[9:15] <- paste("M",colnames(Poly_Data2@data[9:15]),  sep = "_")
+Poly_Data2$M_Sites <- Poly_Data2$Site
+#O_ prefix for the old published BOM survey data from tDAR
+colnames(Poly_Data2@data)[16:78] <- paste("O",colnames(Poly_Data2@data[16:78]),  sep = "_")
+
+names(Poly_Data2)[names(Poly_Data2) == 'NewOccSeqLoc'] <- 'OccSeqLoc'
+
+Poly_Data2$Number <- as.numeric(Poly_Data2$Number)
+
+Poly_Data2$PeriodType <- "Phase"# vs."Overlap"
+
+Poly_Data2@data$Site <- str_replace_all(Poly_Data2@data$Site, c("-A-" = "-AZ-"))
+
+Poly_Data2 = as(st_make_valid(st_as_sf(Poly_Data2)), "Spatial")
+
+Poly_Data2@data$ComponentNum <- 1
+
+Poly_Data2@data$ComponentSites <- Poly_Data2@data$Site
+
+```
+
+
+## Data Reorganization
+
+In order to keep track of the variables we have yet to calculate, I add them as placeholder columns in the data with *NA* values.
+
+```{r, label='Create Placeholder Vars', message=FALSE,warning=FALSE}
+
+placeholders <-   c("CerPhase", "PeriodType", "PeriodLength", "PeriodNum", "PeriodBegin", "PeriodEnd", "OccSeqLoc.Sites", "SubOccSeqLoc", "SubOccSeqLoc.Sites", "Occ.EF", "Occ.EF_MF", "Occ.MF", "Occ.MF_LF", "Occ.LF", "Occ.LF_TF", "Occ.TF", "Occ.TF_CL", "Occ.CL", "Occ.CL_ET", "Occ.ET", "Occ.ET_LTAzI", "Occ.LTAzI", "Occ.LTAzI_EA", "Occ.EA", "Occ.EA_LA", "Occ.LA", "Occ.TOT", "SubOcc.EF", "SubOcc.EF_MF", "SubOcc.MF", "SubOcc.MF_LF", "SubOcc.LF", "SubOcc.LF_TF", "SubOcc.TF", "SubOcc.TF_CL", "SubOcc.CL", "SubOcc.CL_ET", "SubOcc.ET", "SubOcc.ET_LTAzI", "SubOcc.LTAzI", "SubOcc.LTAzI_EA", "SubOcc.EA", "SubOcc.EA_LA", "SubOcc.LA", "SubOcc.TOT", "SherdDens","Tot.Assemb","FwOvlp.Assemb", "BwOvlp.Assemb", "Net.Assemb", "Population", "PopDens", "UrbanScale", "UrbanPop", "RuralPop", "PctUrban", "PctRural","AreaBwCont", "AreaFwCont", "PopBwCont", "PopFwCont", "FwOvlp.Sites", "FwOvlp.Area", "FwOvlp.Pop", "BwOvlp.Sites", "BwOvlp.Area", "BwOvlp.Pop", "Found", "FoundInit", "Abandon", "Persist", "DewarType", "OccuIntertia")
+
+for(i in 1:length(placeholders)) {
+  new <- rep(NA, nrow(Poly_Data2@data)) # Create new column
+  Poly_Data2@data[ , ncol(Poly_Data2@data) + 1] <- new # Append new column
+  # Rename column name
+  colnames(Poly_Data2@data)[ncol(Poly_Data2@data)] <- placeholders[i]
+}
+
+rm(placeholders,i,new)
+
+```
+
+
+      
+The tabular organization of the variables will take the following form throughout: 
+
+```{r, label='Organize Data', message=FALSE,warning=FALSE}
+ordering <- c(
+  #ID VARIABLES
+      "Site","East","North","SurvReg","Number","CerPhase","Period", 
+      "PeriodType","PeriodLength","PeriodNum","PeriodBegin","PeriodEnd", 
+      "OccSeqLoc","OccSeqLoc.Sites","SubOccSeqLoc","SubOccSeqLoc.Sites",
+      "ComponentNum", "ComponentSites",
+  #OCCUPATION VARIABLES (COUNTS)
+      "Occ.EF","Occ.EF_MF","Occ.MF","Occ.MF_LF","Occ.LF","Occ.LF_TF",
+      "Occ.TF","Occ.TF_CL","Occ.CL","Occ.CL_ET","Occ.ET","Occ.ET_LTAzI", 
+      "Occ.LTAzI","Occ.LTAzI_EA","Occ.EA","Occ.EA_LA","Occ.LA","Occ.TOT",
+  #SUBOCCUPATION VARIABLES (COUNTS)
+      "SubOcc.EF","SubOcc.EF_MF","SubOcc.MF","SubOcc.MF_LF","SubOcc.LF",
+      "SubOcc.LF_TF","SubOcc.TF","SubOcc.TF_CL","SubOcc.CL","SubOcc.CL_ET",
+      "SubOcc.ET","SubOcc.ET_LTAzI","SubOcc.LTAzI","SubOcc.LTAzI_EA",
+      "SubOcc.EA","SubOcc.EA_LA","SubOcc.LA","SubOcc.TOT",
+  #SITE AREA AND OCCUPATIONAL DENSITY VARS
+      "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
+      "BwOvlp.Assemb", "Net.Assemb",
+  #DEMOGRAPHIC VARIABLES
+      "Population","PopDens","UrbanScale","UrbanPop","RuralPop", 
+      "PctUrban","PctRural",
+  #CONTINUITY VARIABLES
+      "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
+      "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
+  #PERSISTENCE VARIABLES
+      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
+  #SURVEY METADATA
+      "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
+      "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",
+  #OLD tDAR BOM SURVEY VARIABLES
+      "O_Elev","O_ElevMed","O_ElevMin","O_ElevMax","O_EZcode",
+      "O_EnvironmentalZone","O_Soil","O_SoilMed","O_SoilMin","O_SoilMax",
+      "O_Erosion","O_ErosionMed","O_ErosionMin","O_ErosionMax","O_ModernUse",
+      "O_ModernSettlement","O_Rainfall","O_Area","O_MoundDomestic",
+      "O_MoundCeremonial","O_MoundQuestionable","O_MoundTotal",
+      "O_MoundRecorded","O_DMoundArea","O_Architecture","O_TerraceConfidence",
+      "O_TerraceExtent","O_Sherd","O_SherdMed","O_SherdMin","O_SherdMax",
+      "O_Rubble","O_RubbleMed","O_RubbleMin","O_RubbleMax","O_Population",
+      "O_PopMin","O_PopMax","O_PopMethod","O_stcode","O_SiteType",
+      "O_SubPeriod1","O_SubPeriod2","O_OccEF","O_OccMF","O_OccLF","O_OccTF",
+      "O_OccCL","O_OccEC","O_OccMC","O_OccLC","O_OccET","O_OccLT","O_OccAZ",
+      "O_OccEA","O_OccLA","O_OccTot","O_OccSeqLoc","O_SubOc1","O_SubOc2",
+      "O_PdDupSite","O_Group","O_Comments") 
+
+# With this vector of variable names, it is simple to reorder the data using the tidyverse: 
+Poly_Data2@data <- Poly_Data2@data %>% select(!!!syms(ordering))
+
+```
+
+
+# Occupational Density
+
+In BOM surveys, "occupational density" was mainly assessed primarily from ceramic sherd density -- and also secondarily via surface density of mounds and rubble/collapse, architecture [@Sanders1979; @Parsons1971; @Parsons1982; @Parsons2008; @Sanders1965; @Blanton1972]. As shown in the table below, ceramic sherd density was assessed by the surveyors using ordinal categories that represented intervals of surface sherd density. 
+Population estimates were made under the assumption of direct proportionality between surface sherd density (i.e. their ordinal categories) and population density. This was based on ethnological work in the modern BOM (1960s) by the authors [@Sanders1965; @Sanders1957; @Sanders1970; @Sanders1979]. Thus, the population of sites was estimated by converting the average sherd density of a site into an average population density, and then extrapolating this to population by multiplying it by the site area. At some sites with numerous surviving mounds/architecture, population density was estimated via house counting (extrapolating the number of domestic mounds by a constant figure) [@Sanders1979]. The direct proportionality of both methods enables us to quantitatively equivocate both methods into a single estimate of surface occupational density, which I refer to below simply as "sherd density" for ease of parlance. 
+
+In addition, Jeff Parsons has further elaborated that modern surface conditions affecting occupational/sherd density recovery rates (e.g. vegetation, erosion, deposition, modern land use, etc.) were used to impressionistically modify the density figures up or down [@Parsons2016]. As such, the occupational/sherd density averages for each site vary continuously rather than remaining ordinally binned.
+
+```{r, echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"SherdDensTable.png"), FALSE)
+```
+
+Rather than using a conversion formula, the psoited the directly proportional relationship between population density and sherd density was 'eyeballed' by the BOM surveyors. This can be seen in the residuals of the graph below, the figures of which are taken from the table above. In spite of the misfit residuals, the directly proportional relation is clearly visible, especially for the lower densities (representing the vast majority of sites). 
+
+```{r, echo=F,message=FALSE,warning=FALSE}
+x = c(0,2,5,10,25,50,100,140)
+y = c(0,3.31,10.13,32.8,64.4,160,240,480)
+p = x*3.0802
+xyp = data.frame(x,y,p)
+ggplot()+
+  geom_line(data=xyp, aes(x=x,y=p),size=1, col="blue")+
+  geom_point(data=xyp, aes(x=x,y=y), size=2.5)+
+  annotate("text", x = 30, y = 350, label = "SherdDens = 3.08 * PopDens", col="blue", size=5)+
+  labs(subtitle="Methods of the Basin of Mexico Regional Surveys (see Sanders et al., 1979)", 
+       y="Surface Ceramic Density (sherds per m2)", 
+       x="Population Density (persons per ha)", 
+       title="Direct Proportionality between Surface Sherd Density and Est. Pop Density", 
+       caption = "Point values derived from table")+
+  theme_bw()
+rm(x,y,p,xyp)
+```
+
+The OLS line for the this relationship taking the functional form $Y = aX$ is estimated as 
+$$
+{\sf SherdDens} = 3.08 \times {\sf PopDens}
+$$
+with $R^{2} = 0.96$. Alternatively, flipping the axes gives 
+$$
+{\sf PopDens} = 0.3173 \times {\sf SherdDens}
+$$
+with the same $R^{2}$. We will use these to convert back-and-forth between population density and sherd density (i.e. surface occupational density) freely throughout the script as shown below:
+
+```{r, label='Sherd Density Method #1', message=FALSE,warning=FALSE}
+
+# Calculate population density from original Parsons data
+Poly_Data2@data$PopDens <- Poly_Data2@data$O_Population / Poly_Data2@data$O_Area
+
+# SPS 1979 Pop density is directly proportional to sherd density
+# From my calculations, Sherd Density = 3.08 * Pop Density
+Poly_Data2@data$SherdDens <- Poly_Data2@data$PopDens * 3.08
+
+# The assemblage size = Sherd Density * Area [in sq meters == ha * 10000]
+# Here I use the GIS calculated area instead of the published area
+Poly_Data2@data$Tot.Assemb <- Poly_Data2@data$SherdDens * Poly_Data2@data$Area_ha * 10000
+
+```
+
+
+# Re-Periodization
+
+Next, we need to make a number of changes to the polygons and corresponding tabular data by aggregating or subdividing them for different periods.
+
+## Merging EC and LC Sites
+
+In the early years of the BOM survey, it was believed that the Classic Period could be subdivided into Early Classic (EC) and Late Classic (LC) based on a number of diagnostic ceramic types. However, later surveys believed that these types were not clearly chronologically diagnostic, and instead lumped them together into the Classic Period (CL). As such, the Classic period is divided into separate EC and LC sites in the Texcoco (TX) and Ixtapalapa (IX) survey regions, while only having CL sites in the Chalco (CH) and Xochimilco (XO) survey regions. Given the doubts about the chronological validity of the diagnostic ceramic types [see @Sanders1979; @Parsons1982], and to make the data consistent, the following chunk merges the EC and LC sites of the TX and IX survey regions:
+
+```{r, label='Merging EC and LC Sites', message=FALSE,warning=FALSE}
+
+CL = subset(Poly_Data2, Period == "CL" & SurvReg != "CH" & SurvReg != "XO")#subset the EC and LC sites
+Poly_Data2 = subset(Poly_Data2, !(Site %in% CL$Site))#subtract these sites from the main data
+CL <- spChFIDs(CL, CL$Site)#set their ID numbers to the site name for uniqueness
+
+x <- PolyInstersects_df(CL, Expand=T)#function to return the pairs of overlapping EC and LC sites to be merged, as well as calculate SherdDens, Assemblage size and Popdens for the overlapping sites
+
+x2 = x[,c("Site","PairID")] 
+CL@data = left_join(CL@data, x2, by="Site")# Merge the polygon data with unique IDs representing the new merged sites
+
+## Here we define lists of variables and functions to pass to the "DissolvePoly" function , which merges the overlapping sites into single polygons, merges their data, and renames/renumbers the sites by survey region:
+
+variables = lst(c("Site", "East", "North", "SurvReg", "Number", "Period", "OccSeqLoc", "Area_ha", "Perim_m2", "M_Sites", "M_SiteCode", "M_SiteName", "M_FieldSite.Region", "M_FieldSite.Period", "M_SurveyYearNumber", "M_Supervisor", "M_Map", "O_Elev", "O_ElevMed", "O_ElevMin", "O_ElevMax", "O_EZcode", "O_EnvironmentalZone", "O_Soil", "O_SoilMed", "O_SoilMin", "O_SoilMax", "O_Erosion", "O_ErosionMed", "O_ErosionMin", "O_ErosionMax", "O_ModernUse", "O_ModernSettlement", "O_Rainfall", "O_Area", "O_MoundDomestic", "O_MoundCeremonial", "O_MoundQuestionable", "O_MoundTotal", "O_MoundRecorded", "O_DMoundArea", "O_Architecture", "O_TerraceConfidence", "O_TerraceExtent", "O_Sherd", "O_SherdMed", "O_SherdMin", "O_SherdMax", "O_Rubble", "O_RubbleMed", "O_RubbleMin", "O_RubbleMax", "O_Population", "O_PopMin", "O_PopMax", "O_PopMethod", "O_stcode", "O_SiteType", "O_SubPeriod1", "O_SubPeriod2", "O_OccEF", "O_OccMF", "O_OccLF", "O_OccTF", "O_OccCL", "O_OccEC", "O_OccMC", "O_OccLC", "O_OccET", "O_OccLT", "O_OccAZ", "O_OccEA", "O_OccLA", "O_OccTot", "O_OccSeqLoc", "O_SubOc1", "O_SubOc2", "O_PdDupSite", "O_Group", "O_Comments","ComponentSites"),  c("CerPhase", "PeriodType", "PeriodLength", "PeriodNum", "PeriodBegin", "PeriodEnd", "OccSeqLoc.Sites", "SubOccSeqLoc", "SubOccSeqLoc.Sites", "Occ.EF", "Occ.EF_MF", "Occ.MF", "Occ.MF_LF", "Occ.LF", "Occ.LF_TF", "Occ.TF", "Occ.TF_CL", "Occ.CL", "Occ.CL_ET", "Occ.ET", "Occ.ET_LTAzI", "Occ.LTAzI", "Occ.LTAzI_EA", "Occ.EA", "Occ.EA_LA", "Occ.LA", "Occ.TOT", "SubOcc.EF", "SubOcc.EF_MF", "SubOcc.MF", "SubOcc.MF_LF", "SubOcc.LF", "SubOcc.LF_TF", "SubOcc.TF", "SubOcc.TF_CL", "SubOcc.CL", "SubOcc.CL_ET", "SubOcc.ET", "SubOcc.ET_LTAzI", "SubOcc.LTAzI", "SubOcc.LTAzI_EA", "SubOcc.EA", "SubOcc.EA_LA", "SubOcc.LA", "SubOcc.TOT", "Population", "PopDens", "SherdDens", "Tot.Assemb","FwOvlp.Assemb", "BwOvlp.Assemb", "Net.Assemb", "UrbanScale", "UrbanPop", "RuralPop", "PctUrban", "PctRural","AreaBwCont", "AreaFwCont", "PopBwCont", "PopFwCont", "FwOvlp.Sites", "FwOvlp.Area", "FwOvlp.Pop", "BwOvlp.Sites", "BwOvlp.Area", "BwOvlp.Pop", "Found", "FoundInit", "Abandon", "Persist", "DewarType","OccuIntertia"),c("ComponentNum"))
+functions = lst(pasteunique, max, SumNA)
+ordering1 = c("PairID",ordering)
+
+CL2 = DissolvePoly(spdf = CL, id = "PairID", varz = variables, funz = functions, orderz = ordering1, remove.id = F, demog = F, cont = T)
+
+# Now we add the recalculated PopDens, Assemb and SherdDens variables for the merged sites
+x2 <- x %>% group_by(PairID) %>% summarise(
+                SherdDens = sum(SherdDens, na.rm = T),
+                Tot.Assemb = sum(Tot.Assemb, na.rm = T),
+                PopDens = SherdDens * 0.3173)
+x2 <- x2[match(CL2@data$PairID, x2$PairID),]
+
+CL2@data$PopDens <- x2$PopDens
+CL2@data$SherdDens <- x2$SherdDens
+CL2@data$Tot.Assemb <- x2$Tot.Assemb
+CL2@data <- CL2@data %>% select(-PairID)
+
+#Finally, we recombine the merged classic sites back with the rest of the data
+Poly_Data2 = rbind(Poly_Data2,CL2)
+
+rm(CL,CL2,x,x2,functions,variables) #delete unnecessary helper objects
+```
+
+
+## Dividing the Aztec Period into Separate Phases
+
+The BOM surveys designated Aztec (AZ) sites with Early and Late subphases (EA and LA). These can be expanded to include the Aztec I phase using analyses in published BOM survey literature, as well as the above surface collection data. These same materials also indicate that the published survey data include many more EA sites than previously recorded.  
+
+There are no data with which to estimate differential surface areas for the three Aztec subphases, so AzI, EA and LA sites derived from the same AZ site will have the same polygons and site areas. 
+
+However, we do have Parsons' Aztec ceramic surface collection data tabulated by Mary Hodge & Leah Minc [@Hodge1991; @Mincnd; @Minc1994]. As shown below, the relative proportions of AzI, EA and LA ceramics do differ considerably in these surface collections, and can therefore be used to generate empirically variable sherd densities, assemblage sizes, population densities and population estimates. For sites lacking a surface collection, a 3km radius average of surrounding surface collections is taken to represent their proportions of AzI, EA and LA ceramics. These proportions are then standardized against the maximum, with a lower threshold of 0.33 for AzI and 0.5 for EA and LA. Sites with a published occupation in one of these periods then multiply their sherd density by the ceramic proportion figure in order to modify the overall estimate (downwards from the AZ phase aggregate).
+
+
+```{r, label='Aztec Ceramic Data',  message=FALSE,warning=FALSE}
+#Import Aztec survey collection ceramic tabulations data
+Az.c <- read.csv(paste0(wd$data_r,"HMData.csv"), header=T)
+Az.c$Site <- paste0(Az.c$SurvReg,"-AZ-",Az.c$SiteNum) # rename Az sites to match the polygon data
+
+# Calculate the proportion of each phase represented at each site
+Az.c2 <- Az.c %>% select(Site, BO_AzI_TOT, EA_TOT, LA_TOT, DIAGN_TOT) %>% 
+                  mutate(PctAzI.c = BO_AzI_TOT / DIAGN_TOT,
+                         PctEA.c = (EA_TOT - BO_AzI_TOT) / DIAGN_TOT,
+                         PctLA.c = LA_TOT / DIAGN_TOT)%>% 
+                  select(Site, PctAzI.c, PctEA.c, PctLA.c)
+
+# merge with the polygon data
+Poly_Data2@data <- left_join(Poly_Data2@data, Az.c2, by="Site")      
+
+rm(Az.c,Az.c2)#remove unneeded objects
+```
+
+
+```{r, label='Create Polygons for Aztec Subphases', message=FALSE,warning=FALSE}
+#### Creation of Aztec Subphase Polygons ####
+# Upload corrected AzI and EA phase occupations with new site names
+Az1 <- read.csv(paste0(wd$data_r,"AzI.csv"), header = T)
+
+EA <- read.csv(paste0(wd$data_r,"EA.csv"), header = T)
+
+Az1$Site <- str_replace_all(Az1$Site, c("-A-" = "-AZ-"))
+# Creation of AzI Polygons
+az1poly = subset(Poly_Data2, Site %in% Az1$Site) # subset site polygons to AzI sites
+az1poly@data = left_join(az1poly@data, Az1) # Left join bc some AzI sites are outside SBOM study area
+az1poly@data <- az1poly@data %>% mutate(Site = AzISite, Period = "AzI") %>% select(-AzISite) #Replace "Site" with "AzISite" (new names for AzI phase sites)
+az1poly@data$Number <- gsub(".*?([0-9]+)$", "\\1", az1poly@data$Site) # suffix of new Site name to Number variable
+az1poly <- spChFIDs(az1poly, az1poly$Site) # make the polygon IDs == row names the new site names; they need to be unique for re-merging the polygons
+
+# Creation of EA Polygons (same as AzI, above)
+EA$Site <- str_replace_all(EA$Site, c("-A-" = "-AZ-"))
+EApoly = subset(Poly_Data2, Site %in% EA$Site)
+EApoly@data = left_join(EApoly@data, EA)
+EApoly@data <- EApoly@data %>% mutate(Site = EASite, Period = "EA") %>% select(-EASite)
+EApoly@data$Number <- gsub(".*?([0-9]+)$", "\\1", EApoly@data$Site)
+EApoly@data$Period <- "EA"
+EApoly <- spChFIDs(EApoly, EApoly$Site)
+
+# Creation of EA Polygons (same as AzI and EA except where noted)
+LApoly = subset(Poly_Data2, Period == "AZ")
+LApoly = subset(LApoly, as.numeric(O_OccLA) > 0) #here I trust the survey data to indicate the presence of LA occupation
+LApoly@data$Period <- "LA"
+LApoly@data$Site <- paste0(LApoly@data$SurvReg,"-",LApoly@data$Period,"-",LApoly@data$Number) # there are only a handful of AZ sites without an LA phase occupation. Rather than renumbering the LA sites, they retain their "AZ" site number. So a handful of numbers are skipped (e.g. CH-AZ-29 becomes CH-LA-29, even if there is no CH-LA-28)
+LApoly <- spChFIDs(LApoly, LApoly$Site)
+```
+
+
+```{r, label='Ceramic Proportions for Aztec Phases', message=FALSE,warning=FALSE}
+AZpoly = rbind(az1poly,EApoly,LApoly)# combine the three phases into single file
+AZ = AZpoly[,c("Site", "PctAzI.c", "PctEA.c", "PctLA.c")]#create polygons with only the ceramic data
+AZ@data <- AZ@data %>% mutate_all(~ifelse(is.nan(.), NA, .))#replace NaN with NA
+
+AZsf = st_as_sf(AZ[,2:4]) #convert to sf class polygons
+pts_agg <- aggregate(AZsf, AZsf, FUN = mean, na.rm=T, join = function(x, y) st_is_within_distance(x, y, dist = 3000)) #calculate 3km average for all sites
+#rownames(pts_agg@data) <- AZ@data[,1]
+pts_agg["CH-LA-64",1:3] <- c(0,0.5,0.5)#the only site without data at 3km is modified manually based on a neighbor at 3.2km with 50-50 EA-LA proportions
+
+#fill NAs in sites lacking collections with the 3km radius averages, leaving empirical collection proportions untouched
+AZ@data$PctAzI.c <- coalesce(AZ@data$PctAzI.c, pts_agg$PctAzI.c)
+AZ@data$PctEA.c <- coalesce(AZ@data$PctEA.c, pts_agg$PctEA.c)
+AZ@data$PctLA.c <- coalesce(AZ@data$PctLA.c, pts_agg$PctLA.c)
+
+#merge these ceramic proportions with the main Aztec polygon data
+AZpoly@data = AZpoly@data[,1:(ncol(AZpoly@data)-3)]
+AZpoly@data <- left_join(AZpoly@data, AZ@data, by="Site")
+
+#standardize and rescale the ceramic proportions
+x = (AZpoly@data$PctAzI.c / pmax(AZpoly@data$PctAzI.c, AZpoly@data$PctEA.c, AZpoly@data$PctLA.c))
+AZpoly@data$PctAzI.c = scales::rescale(x, to = c(0.33, 1), from = range(x, na.rm = TRUE, finite = TRUE))
+x = (AZpoly@data$PctEA.c / pmax(AZpoly@data$PctAzI.c, AZpoly@data$PctEA.c, AZpoly@data$PctLA.c))
+AZpoly@data$PctEA.c = scales::rescale(x, to = c(0.5, 1), from = range(x, na.rm = TRUE, finite = TRUE))
+x = (AZpoly@data$PctLA.c / pmax(AZpoly@data$PctAzI.c, AZpoly@data$PctEA.c, AZpoly@data$PctLA.c))
+AZpoly@data$PctLA.c = scales::rescale(x, to = c(0.5, 1), from = range(x, na.rm = TRUE, finite = TRUE))
+
+AZpoly <- spChFIDs(AZpoly, AZpoly$Site)#make site name = polygon IDs
+
+Poly_Data2 = subset(Poly_Data2, Period != "AZ") # delete the AZ phase polygons from main data
+Poly_Data2 <- spChFIDs(Poly_Data2, Poly_Data2$Site) #unique site names as polygon IDs == row names
+
+Poly_Data2 <- rbind(Poly_Data2,AZpoly) #merge the data back together
+
+rm(az1poly,EApoly,LApoly,Az1,EA,AZpoly,pts_agg,AZ,AZsf,x)#remove unneeded objects
+```
+
+
+## Removing Unoccupied Sites
+
+A number of survey sites represent isolated ceremonial precincts and other unoccupied sites lacking both domestic ceramic assemblages and vestiges of domestic architecture. Here we remove these sites from consideration in analysis of settlement dynamics:
+
+
+```{r, label='Remove Unoccupied Sites', message=FALSE,warning=FALSE}
+
+# Site IDs to delete
+ids <- which(
+!(Poly_Data2$Site %in% c("CH-EA-99", "CH-LA-169", "CH-LT-56", "CH-LA-47", "CH-EA-40", "CH-LA-65", "IX-LA-1", "IX-LT-46", "IX-LA-13", "IX-AzI-2", "IX-EA-7", "IX-LA-15", "IX-LA-17", "IX-LA-74", "TX-CL-8", "TX-ET-24", "TX-AzI-2", "TX-EA-58", "TX-LA-101", "TX-TF-48", "TX-LT-55", "TX-EA-62", "TX-LA-108", "XO-LA-29", "XO-LA-88", "CH-LA-179", "CH-LA-180", "XO-CL-1", "CH-LA-198", "CH-LT-21", "IX-CL-21", "IX-LA-14", "TX-CL-15", "TX-TF-47",
+                         "IX-EA-22", "IX-LA-70")) #these are Mexicaltzingo, the area of which was not adequately surveyed due to urban sprawl
+)
+#Remove unoccupied sites
+Poly_Data2 <- Poly_Data2[ids, ]
+rm(ids)
+```
+
+
+# Demography Variables
+
+## Calculating Integrated Sherd Density Estimates
+
+```{r, label='Compare SherdDens Ests', message=FALSE,warning=FALSE}
+
+#misc corrections to Sherd density 
+Poly_Data2$SherdDens[Poly_Data2$Site=='CH-LF-55'] <- 20.85
+Poly_Data2$SherdDens[Poly_Data2$Site=='IX-EA-9'] <- 7.43
+Poly_Data2$SherdDens[Poly_Data2$Site=='IX-LA-20'] <- 7.43
+Poly_Data2$SherdDens[Poly_Data2$Site=='IX-EA-15'] <- 7.43
+Poly_Data2$SherdDens[Poly_Data2$Site=='IX-LA-35'] <- 7.43
+Poly_Data2$SherdDens[Poly_Data2$Site=='TX-EA-57'] <- 36
+Poly_Data2$SherdDens[Poly_Data2$Site=='TX-LA-100'] <- 36
+Poly_Data2$SherdDens[Poly_Data2$Site=='TX-LA-109'] <- 90.223993
+Poly_Data2$SherdDens[Poly_Data2$Site=='TX-EA-63'] <- 90.223993
+Poly_Data2$SherdDens[Poly_Data2$Site== 'IX-EA-11' ] <- 36
+Poly_Data2$SherdDens[Poly_Data2$Site== 'IX-LA-26' ] <- 36
+
+#For the Aztec phases (AzI, EA and LA), multiple SherdDens by the proportion of ceramics for that phase at each site
+Poly_Data2@data = Poly_Data2@data %>% rowwise() %>% mutate(
+    SherdDens = ifelse(Period == "AzI", SherdDens * PctAzI.c, SherdDens),
+    SherdDens = ifelse(Period == "EA", SherdDens * PctEA.c, SherdDens),
+    SherdDens = ifelse(Period == "LA", SherdDens * PctLA.c, SherdDens)) %>% ungroup()
+
+# Recalculate the integrated average PopDens and Assemblage variables
+Poly_Data2@data = Poly_Data2@data %>% mutate(
+              ##SherdDensAvg12 = ifelse(SherdDensAvg12 > 480, 480, SherdDensAvg12),
+              PopDens = 0.3173 * SherdDens,
+              Tot.Assemb = SherdDens * Area_ha * 10000)
+
+```
+
+
+## Calculating Core Cross-Sectional Settlement Demography Variables
+
+Here the urbanization rate threshold is set at 1500 as a guesstimate based on Smith [-@Smith2017] and Smith et al. [-@Smith2021]. This is Midway between the 1000 person (20 ha) and 2000 person (40 ha) thresholds considered by Smith for the Yautepec Valley, and consistent with other comparative thresholds [see @Bairoch1988; @DeVries1984; @Wrigley1990]
+
+Urbanization rate threshold can be modified as desired throught the script by simply changing this single assignment of "UrbanThresh" from 1500 to another number.
+
+```{r, label= 'Demography Var Calc', message=FALSE,warning=FALSE}
+# Set urbanization threshold
+UrbanThresh = 1500
+
+Poly_Data2@data <- Poly_Data2@data  %>% mutate(
+# The Popdens estimate is multiplied by area to calculate population       
+              Population = PopDens * Area_ha) %>% 
+# Set minimum population for hamlets (done for the published survey data)
+       rowwise() %>% mutate(
+              Population = ifelse(Population < 15, 10 * Area_ha, Population),
+              Population = ifelse(Population < 10, 10, Population),
+#Correction of ancillary data
+              PopDens = Population / Area_ha,
+              SherdDens = ifelse(SherdDens < 0.01, PopDens * 3.08, SherdDens),
+              Tot.Assemb = ifelse(Tot.Assemb < 1, (SherdDens * Area_ha * 10000), Tot.Assemb),
+#Calculation of urbanization variables 
+              UrbanPop = ifelse(Population > UrbanThresh, Population - UrbanThresh, 0),
+              RuralPop = ifelse(Population < UrbanThresh, Population, UrbanThresh)) %>%
+       ungroup() %>% mutate(
+              UrbanScale = Population / UrbanThresh,
+              PctUrban = UrbanPop / Population,
+              PctRural = RuralPop / Population) %>% 
+#remove helper variables that are no longer needed
+       select(-c(PctAzI.c, PctEA.c, PctLA.c))
+
+#### Graph of new population estimates against the old estimates 
+
+library(magrittr)
+t <- Poly_Data2@data
+t$O_Population = t$O_Population %>% str_split(.,";\\s+") %>% sapply(function(x) as.numeric(x) %>% max(na.rm=T))
+
+ggplot(t,aes(x=O_Population,y=Population,col=Period)) + geom_point() + geom_abline(slope=1, intercept = 0) + ggtitle("Comparison of Orig. Pop with New Pop Ests") + theme_bw()
+
+rm(t)
+
+```
+
+# Site Overlap Transition Phases
+
+## Merging Overlapping LT and AzI Sites
+
+It has been more recently realized that Aztec I (AzI) ceramics are contemporaneous with Late Toltec (LT) ceramics c.AD 850-1250 encompassing during the Early Postclassic (EPC). As such, so LT and AzI sites are here integrated into a single phase, "LTAzI". The distinction between them will be held by a new variable, "CerPhase", which is equivalent to Period for most other phases.
+
+```{r, label='Merging AzI and LT Sites', message=FALSE,warning=FALSE}
+
+#Set current periods as ceramic phases ("CerPhase"), and unite LT and AzI as a single phase
+Poly_Data3 <- Poly_Data2#data stopgap by redifining object name of main data
+Poly_Data3@data <- Poly_Data3@data %>% mutate(
+                CerPhase = Period,
+                Period = ifelse(Period == "LT" | Period == "AzI", "LTAzI", Period),
+                Number = as.numeric(Number))
+
+LTAzI = subset(Poly_Data3, CerPhase == "AzI" | CerPhase == "LT")
+
+LTAzI <- spChFIDs(LTAzI, LTAzI$Site)#set IDs to site names
+
+Poly_Data3 = subset(Poly_Data3, Period != "LTAzI")#remove LT and AzI sites form the main data
+
+x <- PolyInstersects_df(LTAzI)
+x2 = x[,c("Site","PairID")]
+
+LTAzI@data = left_join(LTAzI@data, x2, by="Site")
+
+## Here we define lists of variables and functions to pass to the "DissolvePoly" function , which merges the overlapping sites into single polygons, merges their data, and renames/renumbers the sites by survey region:
+
+variables = lst(c("Site", "East", "North", "SurvReg", "Number", "Period", "OccSeqLoc", "Area_ha", "Perim_m2", "M_Sites", "M_SiteCode", "M_SiteName", "M_FieldSite.Region", "M_FieldSite.Period", "M_SurveyYearNumber", "M_Supervisor", "M_Map", "O_Elev", "O_ElevMed", "O_ElevMin", "O_ElevMax", "O_EZcode", "O_EnvironmentalZone", "O_Soil", "O_SoilMed", "O_SoilMin", "O_SoilMax", "O_Erosion", "O_ErosionMed", "O_ErosionMin", "O_ErosionMax", "O_ModernUse", "O_ModernSettlement", "O_Rainfall", "O_Area", "O_MoundDomestic", "O_MoundCeremonial", "O_MoundQuestionable", "O_MoundTotal", "O_MoundRecorded", "O_DMoundArea", "O_Architecture", "O_TerraceConfidence", "O_TerraceExtent", "O_Sherd", "O_SherdMed", "O_SherdMin", "O_SherdMax", "O_Rubble", "O_RubbleMed", "O_RubbleMin", "O_RubbleMax", "O_Population", "O_PopMin", "O_PopMax", "O_PopMethod", "O_stcode", "O_SiteType", "O_SubPeriod1", "O_SubPeriod2", "O_OccEF", "O_OccMF", "O_OccLF", "O_OccTF", "O_OccCL", "O_OccEC", "O_OccMC", "O_OccLC", "O_OccET", "O_OccLT", "O_OccAZ", "O_OccEA", "O_OccLA", "O_OccTot", "O_OccSeqLoc", "O_SubOc1", "O_SubOc2", "O_PdDupSite", "O_Group", "O_Comments","CerPhase","PopDens", "SherdDens",  "UrbanScale", "UrbanPop", "RuralPop", "PctUrban", "PctRural","ComponentSites"),  c("FwOvlp.Assemb", "BwOvlp.Assemb", "Net.Assemb","PeriodType", "PeriodLength", "PeriodNum", "PeriodBegin", "PeriodEnd", "OccSeqLoc.Sites", "SubOccSeqLoc", "SubOccSeqLoc.Sites", "Occ.EF", "Occ.EF_MF", "Occ.MF", "Occ.MF_LF", "Occ.LF", "Occ.LF_TF", "Occ.TF", "Occ.TF_CL", "Occ.CL", "Occ.CL_ET", "Occ.ET", "Occ.ET_LTAzI", "Occ.LTAzI", "Occ.LTAzI_EA", "Occ.EA", "Occ.EA_LA", "Occ.LA", "Occ.TOT", "SubOcc.EF", "SubOcc.EF_MF", "SubOcc.MF", "SubOcc.MF_LF", "SubOcc.LF", "SubOcc.LF_TF", "SubOcc.TF", "SubOcc.TF_CL", "SubOcc.CL", "SubOcc.CL_ET", "SubOcc.ET", "SubOcc.ET_LTAzI", "SubOcc.LTAzI", "SubOcc.LTAzI_EA", "SubOcc.EA", "SubOcc.EA_LA", "SubOcc.LA", "SubOcc.TOT", "AreaBwCont", "AreaFwCont", "PopBwCont", "PopFwCont", "FwOvlp.Sites", "FwOvlp.Area", "FwOvlp.Pop", "BwOvlp.Sites", "BwOvlp.Area", "BwOvlp.Pop", "Found", "FoundInit", "Abandon", "Persist", "DewarType", "OccuIntertia"), c("Population","Tot.Assemb", "ComponentNum"))
+functions = lst(pasteunique, max, SumNA)
+ordering1 = c("PairID",ordering)
+
+LTAzI2 = DissolvePoly(spdf = LTAzI, id = "PairID", varz = variables, funz = functions, orderz = ordering1, remove.id = F, rename = F, demog = T, cont = F) 
+
+LTAzI2@data$CerPhase = gsub('; ', "", LTAzI2@data$CerPhase)# make the Ceramic Phase string variables for sites with both types read "LTAzI" rather than "LT; AzI"
+
+## Renumber sites based on CerPhase (LT, AzI, LTAzI) and region
+LTAzI2 <- LTAzI2[order(LTAzI2$SurvReg),]
+LTAzI2@data$Number <- ave(LTAzI2@data$SurvReg, LTAzI2@data$SurvReg, FUN=seq_along)
+
+## Rename sites based on [SurvReg]-[CerPhase]-[New Number from above]
+LTAzI2@data <- LTAzI2@data %>% mutate( Site = paste0(SurvReg,"-",Period,"-",Number))
+
+LTAzI2@data <- LTAzI2@data %>% select(!!!syms(ordering))#reorder the data
+
+Poly_Data3 = rbind(Poly_Data3,LTAzI2)#recombine the LTAzI sites with the main data
+
+rm(LTAzI,LTAzI2,x,x2,o)#remove helper objects
+```
+
+
+## Calculating Transition Period Overlap Sites
+
+In Step #2, we will use the temporal overlap between sequential ceramic complexes (normally considered discrete "ceramic phases") as the basis for expanding the chronological resolution of the data from 9 periods to 17. 
+
+We therefore first need to calculate the area and occupational density of these transitional ceramic periods. To do so, we can use the spatial overlap of sites in sequential ceramic phases to characterize the spatial location, area, occupational/sherd density, assemblage size, population density and population of these  transition periods. As such, the overlap sites between major phases are re-designated as sites of their own, with each set belonging to a newly designated period.
+
+```{r, label='Overlap Sites', message=FALSE,warning=FALSE}
+Plist <- splitByAttributes(spdata = Poly_Data3, attr = "Period", suffix="_Poly") # Split polygons by Phase
+list2env(Plist,envir=.GlobalEnv) #split the temp list of polygons and save individually to global environment 
+
+#convert to sf class polygons and make sure the polygons have valid geometry for use with the sf package
+Plist <- list(EF_Poly,MF_Poly,LF_Poly,TF_Poly,CL_Poly,ET_Poly,LTAzI_Poly,EA_Poly,LA_Poly)
+Plist2 <- lapply(Plist, function(x) {
+  st_make_valid(st_as_sf(x))
+})
+#assign names to the phase-specific polygons
+Plist <- list("EF_Poly","MF_Poly","LF_Poly","TF_Poly","CL_Poly","ET_Poly","LTAzI_Poly","EA_Poly","LA_Poly")
+names(Plist2) <- Plist
+list2env(Plist2,envir=.GlobalEnv)#save individually to global environment 
+
+## Here we define lists of objects to pass to the "OverlapPoly" and "ContinuityCalc" , which will merge the overlapping sites from sequential phases into overlap polygons belonging to our new phases, merge their data, and calculate forward and backward continuity variables:
+x1 <- list(EF_Poly, MF_Poly, LF_Poly, TF_Poly, CL_Poly, ET_Poly, LTAzI_Poly, EA_Poly)
+x2 <- list(MF_Poly, LF_Poly, TF_Poly, CL_Poly, ET_Poly, LTAzI_Poly, EA_Poly, LA_Poly)
+Plist <- c("EF_MF_Poly", "MF_LF_Poly", "LF_TF_Poly", "TF_CL_Poly", "CL_ET_Poly", "ET_LTAzI_Poly", "LTAzI_EA_Poly", "EA_LA_Poly")
+p <- c("EF_MF", "MF_LF", "LF_TF", "TF_CL", "CL_ET", "ET_LTAzI", "LTAzI_EA", "EA_LA")
+Plist2 <- list()
+FWC <- list()
+BWC <- list()
+
+for (i in 1:length(x1)) {
+  qq <- OverlapPoly(sf1=x1[[i]], sf2=x2[[i]], per=p[i], ord=ordering)
+  Plist2[[i]] <- qq
+  fwc <- ContinuityCalc(sf1=x1[[i]], sf2=x2[[i]], per=p[i], mode = "forward" )
+  FWC[[i]] <- fwc
+  bwc <- ContinuityCalc(sf1=x1[[i]], sf2=x2[[i]], per=p[i], mode = "backward" )
+  BWC[[i]] <- bwc
+}
+  
+names(Plist2) <- Plist#rename the for loop output polygons
+Overlap_Poly <-  do.call(rbind, Plist2)# merge the overlap period polygons together into single layer
+
+rm(Plist,Plist2,x1,x2,p,qq,fwc,bwc)#remove unneeded objects/variables
+
+```
+
+
+## Reorganize Phase Polygon Data
+
+```{r, label='Reorganize Phase Polygon Data', message=FALSE,warning=FALSE}
+## Here we define lists of objects and names to reconvert the main phase polygons from sf class objects back into spdf class objects
+Plist <- list(EF_Poly, MF_Poly, LF_Poly, TF_Poly, CL_Poly, ET_Poly, LTAzI_Poly, EA_Poly, LA_Poly)
+Plist2 <- list("EF_Poly", "MF_Poly", "LF_Poly", "TF_Poly", "CL_Poly", "ET_Poly", "LTAzI_Poly", "EA_Poly", "LA_Poly")
+out <- list()
+
+rm(EF_Poly, MF_Poly, LF_Poly, TF_Poly, CL_Poly, ET_Poly, LTAzI_Poly, EA_Poly, LA_Poly)#delete the sf class polygons
+
+#convert to spdf
+for (i in 1:length(Plist)) {
+  tmp = as(Plist[[i]], "Spatial")
+  tmp <- spChFIDs(tmp, tmp$Site)
+  out[[i]] <- tmp
+}
+
+names(out) <- Plist2#rename list of outputs
+Phase_Poly <-  do.call(rbind, out)# merge the overlap period polygons together into single layer
+
+rm(Plist,Plist2,out)#delete unneeded lists
+
+```
+
+
+# Calculate Continuity Variables
+
+Here we calculate forwards and backwards continuity variables between phases. Given GIS polygon data on the settled area of each period, the proportion (or percentage) of spatial overlap of sites in adjacent periods is an indicator of the degree of occupational continuity of that settlement over time. Forwards area continuity is the proportion of the settled area of a phase that continues to the next overlap/transition phase, while backwards area continuity is the proportion of the settled area of a phase that was occupied during the previous overlap/transition phase. This can be done for the proportion of the population in adjacent overlap phases as well. Since 100% of transition/overlap sites were occupied in both previous and subsequent phases by-definition, these variables always = 1 for overlap sites.
+
+```{r, label='Calculate Continuity Variables', message=FALSE,warning=FALSE}
+
+#Organize prior outputs of "ContinuityCalc" function from above forloop
+fwc = dplyr::bind_rows(FWC)
+bwc = dplyr::bind_rows(BWC)
+x = as.data.frame(Phase_Poly@data$Site)
+colnames(x) = "Site"
+fwc = left_join(x, fwc, by="Site")
+fwc[, c("PhaseSite1_Pop", "PhaseSite1_Area", "FwOvlp.Pop", "FwOvlp.Area", "FwOvlp.Assemb")][is.na(fwc[, c("PhaseSite1_Pop", "PhaseSite1_Area", "FwOvlp.Pop", "FwOvlp.Area", "FwOvlp.Assemb")])] <- 0
+bwc = left_join(x, bwc, by="Site")
+bwc[, c("PhaseSite2_Pop", "PhaseSite2_Area", "BwOvlp.Pop", "BwOvlp.Area", "BwOvlp.Assemb")][is.na(bwc[, c("PhaseSite2_Pop", "PhaseSite2_Area", "BwOvlp.Pop", "BwOvlp.Area", "BwOvlp.Assemb")])] <- 0
+
+#assign variable values from organized output to main phase polygon data
+Phase_Poly@data$FwOvlp.Sites <- fwc$FwOvlp.Sites
+Phase_Poly@data$FwOvlp.Area <- fwc$FwOvlp.Area
+Phase_Poly@data$FwOvlp.Pop <- fwc$FwOvlp.Pop
+Phase_Poly@data$FwOvlp.Assemb <- fwc$FwOvlp.Assemb
+Phase_Poly@data$BwOvlp.Sites <- bwc$BwOvlp.Sites
+Phase_Poly@data$BwOvlp.Area <- bwc$BwOvlp.Area
+Phase_Poly@data$BwOvlp.Pop <- bwc$BwOvlp.Pop
+Phase_Poly@data$BwOvlp.Assemb <- bwc$BwOvlp.Assemb
+
+#calculate continuity variables
+Phase_Poly@data <- Phase_Poly@data %>% rowwise() %>% mutate(
+      AreaBwCont = ifelse(Period == "EF", NA, BwOvlp.Area / Area_ha), 
+      AreaFwCont = ifelse(Period == "LA", NA, FwOvlp.Area / Area_ha),
+      PopBwCont = ifelse(Period == "EF", NA, BwOvlp.Pop / Population),
+      PopFwCont = ifelse(Period == "LA", NA, FwOvlp.Pop / Population)) %>% ungroup() 
+
+Phase_Poly@data <- Phase_Poly@data %>% mutate_at(vars(BwOvlp.Assemb,FwOvlp.Assemb), ~replace(., is.na(.), 0))
+Phase_Poly@data <- Phase_Poly@data %>%  mutate(Net.Assemb = Tot.Assemb - (FwOvlp.Assemb + BwOvlp.Assemb))
+
+rm(bwc,fwc,BWC,FWC)
+
+```
+
+
+# Recombine Polygon Data
+
+```{r, label='Recombine Polygon Data', message=FALSE,warning=FALSE}
+
+All_Poly <- rbind(Phase_Poly, Overlap_Poly)#merge overlap polygons with main phase polygons
+
+#calculate ordinal number corresponding to each sequential period
+All_Poly$PeriodNum <- All_Poly$Period
+All_Poly$PeriodNum <- sapply(All_Poly$PeriodNum, switch,'EF'=1, "EF_MF" = 2, 'MF'=3, "MF_LF" = 4, 'LF'=5, "LF_TF" = 6, 'TF'=7, "TF_CL" = 8, 'CL'=9, "CL_ET" = 10, 'ET'=11, "ET_LTAzI" = 12, 'LTAzI'=13, "LTAzI_EA" = 14, 'EA'=15, "EA_LA" = 16, 'LA' = 17)
+
+```
+
+
+
+# Phase Occupation Variables
+
+## OccSeqLoc Occupations
+
+The original BOM survey data calculated variables for the number of overlapping sites belonging to each phase in a general location. These locations roughly correspond to our OccSeqLoc sites, for which we recalculate the number of site components in each period of each OccSeqLoc sites. As such, these variables are uniform across sites sharing the same OccSeqLoc.
+
+```{r, label='OccSeqLoc Occupations', message=FALSE,warning=FALSE}
+
+#calculate Occupation variables for each OccSeqLoc
+xx = All_Poly@data %>% group_by(OccSeqLoc) %>% summarise(
+                    Occ.EF = sum(ComponentNum[Period == "EF"]),
+                    Occ.EF_MF = sum(ComponentNum[Period == "EF_MF"]),
+                    Occ.MF = sum(ComponentNum[Period == "MF"]),
+                    Occ.MF_LF = sum(ComponentNum[Period == "MF_LF"]),
+                    Occ.LF = sum(ComponentNum[Period == "LF"]),
+                    Occ.LF_TF = sum(ComponentNum[Period == "LF_TF"]),
+                    Occ.TF = sum(ComponentNum[Period == "TF"]),
+                    Occ.TF_CL = sum(ComponentNum[Period == "TF_CL"]),
+                    Occ.CL = sum(ComponentNum[Period == "CL"]),
+                    Occ.CL_ET = sum(ComponentNum[Period == "CL_ET"]),
+                    Occ.ET = sum(ComponentNum[Period == "ET"]),
+                    Occ.ET_LTAzI = sum(ComponentNum[Period == "ET_LTAzI"]),
+                    Occ.LTAzI = sum(ComponentNum[Period == "LTAzI"]),
+                    Occ.LTAzI_EA = sum(ComponentNum[Period == "LTAzI_EA"]),
+                    Occ.EA = sum(ComponentNum[Period == "EA"]),
+                    Occ.EA_LA = sum(ComponentNum[Period == "EA_LA"]),
+                    Occ.LA = sum(ComponentNum[Period == "LA"]),
+                    Occ.TOT = sum(ComponentNum),
+                    OccSeqLoc.Sites = toString(Site))
+
+xx$OccSeqLoc.Sites = sapply(xx$OccSeqLoc.Sites, gsub, pattern=",", replacement="; ")                        
+YY = All_Poly@data %>% select(Site,OccSeqLoc)      
+
+YY = left_join(YY,xx,by="OccSeqLoc")#extrapolate the OccSeqLoc occupations across sites
+
+#merge these variables with the main polygon data
+vl = c("Occ.EF", "Occ.EF_MF", "Occ.MF", "Occ.MF_LF", "Occ.LF", "Occ.LF_TF", "Occ.TF", 
+  "Occ.TF_CL", "Occ.CL", "Occ.CL_ET", "Occ.ET", "Occ.ET_LTAzI", "Occ.LTAzI", 
+  "Occ.LTAzI_EA", "Occ.EA", "Occ.EA_LA", "Occ.LA", "Occ.TOT", "OccSeqLoc.Sites")
+for (i in 1:length(vl)) {
+  All_Poly@data[,c(vl[i])] <- YY[,c(vl[i])]
+}
+
+rm(Phase_Poly, Overlap_Poly,xx,vl,YY)
+```
+
+
+## SubOccSeqLoc and Occupational Vars
+
+Here we recalculate "SubOccSeqLoc" (originally "SubOc1" and "SubOc2"), which indicate continuously occupied sequences of sites within each OccSeqLoc. As such, each SubOccSeqLoc is bracketed by a period of abandonment. These suboccupations thus each constitute the life cycle of a single continuously occupied settlement, thus forming  our primary unit of analysis. We therefore also calculate occupational variables for SubOccSeqLoc in the same manner as for OccSeqLoc, above.
+
+```{r, label='SubOccSeqLoc Occupations', message=FALSE,warning=FALSE}
+
+###Calculate and designate SubOccSeqLoc
+
+x <- data.frame(r=row.names(All_Poly@data), SurvReg=All_Poly@data$SurvReg, OccSeqLoc=All_Poly@data$OccSeqLoc, PeriodNum=All_Poly@data$PeriodNum)#setup dataframe for calculations
+
+All_Poly <- All_Poly[match(x[order(x$SurvReg, x$OccSeqLoc, x$PeriodNum),]$r, row.names(All_Poly@data)),]#reorder data to group and number SubOccSeqLoc
+
+All_Poly@data <- All_Poly@data %>% group_by(OccSeqLoc) %>% 
+  mutate(SubOccSeqLoc = cumsum(c(TRUE, diff(as.numeric(PeriodNum)) > 1))) %>% 
+ungroup() #give number designations for SubOccSeqLocs within each OccSeqLoc
+
+All_Poly$SubOccSeqLoc <- sapply(All_Poly$SubOccSeqLoc, switch, "1"= "A", "2" = "B", "3" = "C", "4" = "D")#change number designations to letters A, B, C and D
+
+All_Poly$SubOccSeqLoc <- paste0(All_Poly$OccSeqLoc,"-",All_Poly$SubOccSeqLoc)#merge letter designations with OccSeqLoc names to produce full SubOccSeqLoc names
+
+#calculate Occupation variables for each SubOccSeqLoc
+zz = All_Poly@data %>% group_by(SubOccSeqLoc) %>% summarise(
+                    SubOcc.EF = sum(ComponentNum[Period == "EF"]),
+                    SubOcc.EF_MF = sum(ComponentNum[Period == "EF_MF"]),
+                    SubOcc.MF = sum(ComponentNum[Period == "MF"]),
+                    SubOcc.MF_LF = sum(ComponentNum[Period == "MF_LF"]),
+                    SubOcc.LF = sum(ComponentNum[Period == "LF"]),
+                    SubOcc.LF_TF = sum(ComponentNum[Period == "LF_TF"]),
+                    SubOcc.TF = sum(ComponentNum[Period == "TF"]),
+                    SubOcc.TF_CL = sum(ComponentNum[Period == "TF_CL"]),
+                    SubOcc.CL = sum(ComponentNum[Period == "CL"]),
+                    SubOcc.CL_ET = sum(ComponentNum[Period == "CL_ET"]),
+                    SubOcc.ET = sum(ComponentNum[Period == "ET"]),
+                    SubOcc.ET_LTAzI = sum(ComponentNum[Period == "ET_LTAzI"]),
+                    SubOcc.LTAzI = sum(ComponentNum[Period == "LTAzI"]),
+                    SubOcc.LTAzI_EA = sum(ComponentNum[Period == "LTAzI_EA"]),
+                    SubOcc.EA = sum(ComponentNum[Period == "EA"]),
+                    SubOcc.EA_LA = sum(ComponentNum[Period == "EA_LA"]),
+                    SubOcc.LA = sum(ComponentNum[Period == "LA"]),
+                    SubOcc.TOT = sum(ComponentNum),
+                    SubOccSeqLoc.Sites = toString(Site))
+
+zz$SubOccSeqLoc.Sites = sapply(zz$SubOccSeqLoc.Sites, gsub, pattern=",", replacement="; ") 
+
+YY2 = All_Poly@data %>% select(Site,OccSeqLoc,SubOccSeqLoc)      
+YY2 = left_join(YY2,zz,by="SubOccSeqLoc")#extrapolate the SubOccSeqLoc occupations across sites
+
+#merge these variables with the main polygon data
+vl = c("SubOcc.EF", "SubOcc.EF_MF", "SubOcc.MF", "SubOcc.MF_LF", "SubOcc.LF", "SubOcc.LF_TF", "SubOcc.TF", "SubOcc.TF_CL", "SubOcc.CL", "SubOcc.CL_ET", "SubOcc.ET", "SubOcc.ET_LTAzI", "SubOcc.LTAzI", "SubOcc.LTAzI_EA", "SubOcc.EA", "SubOcc.EA_LA", "SubOcc.LA", "SubOcc.TOT", "SubOccSeqLoc.Sites")
+
+for (i in 1:length(vl)) {
+  All_Poly@data[,c(vl[i])] <- YY2[,c(vl[i])]
+}
+
+rm(x, zz,YY2,vl)
+```
+
+
+# Persistence Variables
+
+Here we calculate the "persistence group" variables. Whereas Persist ("Persistence") is a binary variable indicating the continuity of a site into the succeeding period, Abandon ("Abandonment") is its opposite (no continuity to next period). Found ("Foundation") indicates whether this site occupation is the first in a given SubOccSeqLoc, while FoundInit ("Initial Foundation") indicates the first occupation of the entire OccSeqLoc. Finally, DewarType codes each site as one of Dewar's (1994) tyoes in terms of its continuity or lack thereof in neighboring periods.
+
+```{r, label='Persistence Variables', message=FALSE,warning=FALSE}
+
+All_Poly@data <- All_Poly@data %>% 
+          group_by(OccSeqLoc) %>% 
+          mutate(
+              FoundInit = ifelse(PeriodNum == min(PeriodNum),1,0)) %>% 
+          ungroup() %>% 
+          group_by(SubOccSeqLoc) %>% 
+          mutate(
+              Found = ifelse(PeriodNum == min(PeriodNum),1,0),
+              Abandon = ifelse(PeriodNum == max(PeriodNum),1,0)) %>% 
+          ungroup() %>% rowwise() %>% mutate(
+              Persist = ifelse(Period == "LA", NA, ifelse(Abandon == 0,1,0)),
+              DewarType = ifelse(Found == 0, 
+                                 ifelse(Abandon == 1, "a", "b"),
+                                 ifelse(Abandon == 0, "c", "d")),
+              Abandon = ifelse(Period == "LA", NA, Abandon),
+              DewarType = ifelse(Period == "LA", NA, DewarType)) %>% ungroup()
+
+```
+
+
+# Aggregating Sites by Period within (Sub)OccSeqLoc Sites
+
+In the subsequent analysis, SubOccSeqLoc sites are our primary unit of analysis, each representing the life cycle of a single continuously occupied settlement. For the chronological refinement in Step #2, we need to aggregate individual sites ("components") within each OccSeqLoc/SubOccSeqLoc that belong to the same period. The following chunk aggregates the data of each of these Period-OccSeqLoc sites, gives each a name and ID, and merges their polygons. By doing so, their values can be chronologically apportioned together, as well as analyzed together for time series and cross-sectional analyses. Although the components of these sites do not overlap, they are very close to each other such that they constitute a single settlement (OccSeqLoc/SubOccSeqLoc).
+
+```{r, label='Aggregating Periods within OccSeqLoc', message=FALSE,warning=FALSE}
+# designate ID numbers for Period-OccSeqLoc sites
+All_Poly2 <- All_Poly
+All_Poly2@data$CerPhase = gsub('AzI; LT', "LTAzI", All_Poly2@data$CerPhase)
+All_Poly2@data$CerPhase = gsub('LT; LTAzI', "LTAzI", All_Poly2@data$CerPhase)
+All_Poly2@data = All_Poly2@data %>% group_by(OccSeqLoc, Period) %>%
+          mutate(AggID= cur_group_id()) %>% ungroup()
+
+# designate site names for Period-OccSeqLoc sites
+AggSiteNames <- All_Poly2@data %>% 
+          group_by(AggID) %>% 
+          summarise(
+              Num_by_ID = paste0(Number, collapse = "/"),
+              AggSite = paste0(unique(SurvReg), "-", unique(Period), "-", unique(Num_by_ID), collapse="")) %>% select(AggID,AggSite)
+
+## Here we define lists of variables and functions to pass to the "DissolvePoly" function , which merges the overlapping sites into single polygons, merges their data, and renames/renumbers the sites by survey region:
+
+variables = lst(c("Site", "East", "North", "SurvReg", "Number", "Period", "OccSeqLoc", "Area_ha", "Perim_m2", "M_Sites", "M_SiteCode", "M_SiteName", "M_FieldSite.Region", "M_FieldSite.Period", "M_SurveyYearNumber", "M_Supervisor", "M_Map", "O_Elev", "O_ElevMed", "O_ElevMin", "O_ElevMax", "O_EZcode", "O_EnvironmentalZone", "O_Soil", "O_SoilMed", "O_SoilMin", "O_SoilMax", "O_Erosion", "O_ErosionMed", "O_ErosionMin", "O_ErosionMax", "O_ModernUse", "O_ModernSettlement", "O_Rainfall", "O_Area", "O_MoundDomestic", "O_MoundCeremonial", "O_MoundQuestionable", "O_MoundTotal", "O_MoundRecorded", "O_DMoundArea", "O_Architecture", "O_TerraceConfidence", "O_TerraceExtent", "O_Sherd", "O_SherdMed", "O_SherdMin", "O_SherdMax", "O_Rubble", "O_RubbleMed", "O_RubbleMin", "O_RubbleMax", "O_Population", "O_PopMin", "O_PopMax", "O_PopMethod", "O_stcode", "O_SiteType", "O_SubPeriod1", "O_SubPeriod2", "O_OccEF", "O_OccMF", "O_OccLF", "O_OccTF", "O_OccCL", "O_OccEC", "O_OccMC", "O_OccLC", "O_OccET", "O_OccLT", "O_OccAZ", "O_OccEA", "O_OccLA", "O_OccTot", "O_OccSeqLoc", "O_SubOc1", "O_SubOc2", "O_PdDupSite", "O_Group", "O_Comments","CerPhase","PopDens", "SherdDens",   "UrbanScale", "UrbanPop", "RuralPop", "PctUrban", "PctRural","ComponentSites", "DewarType","PeriodType", "OccSeqLoc.Sites", "SubOccSeqLoc", "SubOccSeqLoc.Sites", "AreaBwCont", "AreaFwCont", "PopBwCont", "PopFwCont","FwOvlp.Sites", "BwOvlp.Sites"),  c("PeriodLength", "PeriodBegin", "PeriodEnd",  "OccuIntertia"), c("Population", "Tot.Assemb","FwOvlp.Assemb", "BwOvlp.Assemb", "Net.Assemb", "ComponentNum", "BwOvlp.Area", "BwOvlp.Pop", "FwOvlp.Area", "FwOvlp.Pop"), c("Occ.EF", "Occ.EF_MF", "Occ.MF", "Occ.MF_LF", "Occ.LF", "Occ.LF_TF", "Occ.TF", "Occ.TF_CL", "Occ.CL", "Occ.CL_ET", "Occ.ET", "Occ.ET_LTAzI", "Occ.LTAzI", "Occ.LTAzI_EA", "Occ.EA", "Occ.EA_LA", "Occ.LA", "Occ.TOT", "SubOcc.EF", "SubOcc.EF_MF", "SubOcc.MF", "SubOcc.MF_LF", "SubOcc.LF", "SubOcc.LF_TF", "SubOcc.TF", "SubOcc.TF_CL", "SubOcc.CL", "SubOcc.CL_ET", "SubOcc.ET", "SubOcc.ET_LTAzI", "SubOcc.LTAzI", "SubOcc.LTAzI_EA", "SubOcc.EA", "SubOcc.EA_LA", "SubOcc.LA", "SubOcc.TOT", "Found", "FoundInit", "Abandon", "Persist","PeriodNum"))
+functions = lst(pasteunique, max, SumNA, MeanNA)
+ordering1 = c("AggID",ordering)
+
+All_Poly_Aggr = DissolvePoly(spdf = All_Poly2, id = "AggID", varz = variables, funz = functions, orderz = ordering1, remove.id = F, rename = F, demog = T, cont = T)
+
+All_Poly_Aggr@data <- left_join(All_Poly_Aggr@data, AggSiteNames, by="AggID") #add names to the merged polygon data
+All_Poly2@data <- left_join(All_Poly2@data, AggSiteNames, by="AggID")
+
+#order the merged data
+ordering1 = c("AggSite","AggID",ordering)
+
+All_Poly_Aggr@data <- All_Poly_Aggr@data %>% select(!!!syms(ordering1))
+All_Poly2@data <- All_Poly2@data %>% select(!!!syms(ordering1))
+```
+
+
+# Export Data for Step #2
+
+```{r, label='Data Export', message=FALSE,warning=FALSE}
+
+writeOGR(All_Poly2, paste0(wd$data_p,"SBOM_Poly1.gpkg"), "SBOM_Poly1", driver = "GPKG", overwrite_layer=TRUE)
+
+writeOGR(All_Poly_Aggr, paste0(wd$data_p,"SBOM_AggPoly1.gpkg"), "SBOM_AggPoly1", driver = "GPKG", overwrite_layer=TRUE)
+
+```
+
+
+# References

@@ -1,0 +1,317 @@
+---
+title: "Settlement Persistence Project, SBOM Script #3:"
+subtitle: "Least Cost Paths and Cost Distance Matrices"
+author: "Rudolf Cesaretti"
+date: "Last run on `r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+    number_sections: true
+bibliography: References.bib
+csl: apa.csl
+link-citations: yes
+---
+
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 300px;
+}
+```
+
+```{r, setup, include=FALSE,echo=FALSE, message=FALSE,warning=FALSE}
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=75),tidy=TRUE)
+#
+rm(list = ls())
+```
+
+The sole purpose of Script #3 is to calculate least cost paths (LCPs) for the SBOM dataset for each of the 17 modelling periods. There are two sets of outputs:
+
+  1. Least cost path distance matrices saved as .csv files for use throughout the subsequent scripts
+  2. Least cost path rasters used to calculate "Transport Route Density" for site catchment areas in script 4
+
+**These least cost paths are very computationally intensive to calculate (even from a 90m DEM), _requiring several days of computation time_ (see below for details).**
+
+
+# Setup 
+
+All of the data and scripts are downloadable from the [new ASU SettlementPersist2022 github repository](https://https://github.com/rcesaret/ASUSettlementPersist2022), which can be downloaded locally as a .zip folder or cloned to your own account.
+
+Either way, once you have done so, you will need to modify the working directory (setwd("C:/...)") path and "dir" variables in the code chunk below to match the repository location on your computer.
+
+```{r, label='Set Local Directory Location', message=FALSE,warning=FALSE}
+
+wd <- list()
+
+#SET YOUR LOCAL DIRECTORY LOCATION HERE:
+wd$dir <- "C:/Users/rcesaret/Dropbox (ASU)/ASUSettlementPersist2022/"
+#wd$dir <- "C:/Users/TJ McMote/Dropbox (ASU)/ASUSettlementPersist2022"
+
+wd$analysis <- paste0(wd$dir,"analysis/")
+wd$data_r <- paste0(wd$dir,"data-raw/")
+wd$data_p <- paste0(wd$dir,"data-processed/")
+wd$data_f <- paste0(wd$dir,"data-final-outputs/")
+wd$figs <- paste0(wd$dir,"figures/")
+wd$funcs <- paste0(wd$dir,"functions/")
+
+```
+
+
+## Load R Packages and Custom Functions
+
+```{r, label='Load Libraries', message=FALSE,warning=FALSE}
+# Package names
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "leastcostpath", "lwgeom", "tidyverse", "tidyr")
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# load packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+rm(packages,installed_packages)
+
+#Read in custom R function located in the wd$funcs directory folder
+source(paste0(wd$funcs,"splitByAttributes.R"))
+
+```
+
+
+## Import Data
+
+```{r, label='Import Data', message=FALSE,warning=FALSE}
+
+# Read-in the data
+All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggPoly2.gpkg"))
+
+# read in 90m DEM and convert the CRS to the same as spatial points dataframe
+DEM <- raster(paste0(wd$data_r, "SBOM_DEM_90m.tif"))
+DEM <- projectRaster(DEM, crs = 26914)
+
+```
+
+# Reorganize Data from Step #2
+
+```{r, label='Reorganize Data from Step #2', message=FALSE,warning=FALSE}
+
+# convert spatial polygons dataframe to spatial points dataframe
+coor = All_AggPoly@data[,c("East","North")] #create separate dataframe of coordinates for spatial points dataframe
+rownames(coor) <- as.numeric(rownames(coor)) #make sure rownames match
+All_AggPts <- SpatialPointsDataFrame(coor, All_AggPoly@data, match.ID = TRUE) #convert to spatial points dataframe
+proj4string(All_AggPts) <- CRS("+proj=utm +zone=14 +datum=NAD83 +units=m +no_defs") #make sure CRS matches polygons
+All_AggPts = as(st_make_valid(st_as_sf(All_AggPts)), "Spatial") #make sure geometry is valid
+
+#reorder spatial points dataframe by period
+All_AggPts <- All_AggPts[order(All_AggPts$PeriodNum),]
+
+# Split points by Phase, saved as list of spatial points dataframes
+Plist <- splitByAttributes(spdata = All_AggPts, attr = "Period", suffix="_Pts") 
+
+# rename spatial points dataframes to include period numbers as prefix
+PeriodNums <- list("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17")#include period number
+names(Plist) <- paste0(PeriodNums,"_",names(Plist))
+
+rm(PeriodNums) 
+```
+
+
+# Least Cost Paths: Distance Matrices and Rasters
+
+Here is where we calculate...
+
+  1. Least cost path distance matrices saved as .csv files for use throughout scripts 4 and 5
+     + Cost-Distance Matrix = Cost-distance matrix from all sites to all sites within a single period. Calculated from the centroid locations of site polygons and a cost-surface generated from topographic GIS data (DEM).
+     + Here, the cost surface employed is Tobler’s ’Hiking Function’ (the most widely used cost function when approximating the difficulty of moving across a landscape), which is a simple parameterization of slope.
+     + For more options, see the [R leastcostpath package](https://cran.r-project.org/web/packages/leastcostpath/index.html) [@Lewis2022]
+  2. Least cost path rasters used to calculate "Transport Route Density" for site catchment areas in script 4
+     + Transport Route Density = The number or fraction of all least cost paths that cross through a settlement’s catchment area; measures the centrality of settlements in hypothetical transport networks
+     + leastcostpath -> create_lcp_density -> Creates a cumulative Least Cost Path Raster
+
+
+## **WARNING!! RUNNING THIS SCRIPT WILL TAKE SEVERAL DAYS!!**
+
+Time estimates for breaking computation into the following three chunks:
+
+  * 24 hrs for the first 14 (of 17) periods
+  * another 12 hrs for periods 15 and 16 (of 17)
+  * yet another 36 hrs for periods 
+  * **TOTAL = ~72 hrs** 
+
+Above time estimates are based on parallel processing on 6 (of 8) processor cores (for "create_lcp_network" function), on:
+
+  * Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz 
+  * octa-core processor
+  * 32 GB of RAM
+
+**NOTE:** The "create_lcp_network" function from the "leastcostpath" package -- which takes the most time by-far -- already uses parallel processing [@Lewis2022]. However, the "create_lcp_density" (raster computation from SpatialLinesDataFrames) does not. Future implementations *might* improve speed a little bit by defining a wrapper function for "create_lcp_density" that implements a multi-core setup using the "parallel" and "doParallel" R packages.
+
+
+```{r, label='Least Cost Paths: Distance Matrices and Rasters', eval=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# create vectors of names for outputs
+ nam.distmat <- c("EF_cdmat", "EF_MF_cdmat", "MF_cdmat", "MF_LF_cdmat", "LF_cdmat", "LF_TF_cdmat", "TF_cdmat", "TF_CL_cdmat", "CL_cdmat", "CL_ET_cdmat", "ET_cdmat", "ET_LTAzI_cdmat", "LTAzI_cdmat", "LTAzI_EA_cdmat", "EA_cdmat", "EA_LA_cdmat", "LA_cdmat")
+ nam.dens <- c("EF_lcpdens", "EF_MF_lcpdens", "MF_lcpdens", "MF_LF_lcpdens", "LF_lcpdens", "LF_TF_lcpdens", "TF_lcpdens", "TF_CL_lcpdens", "CL_lcpdens", "CL_ET_lcpdens", "ET_lcpdens", "ET_LTAzI_lcpdens", "LTAzI_lcpdens", "LTAzI_EA_lcpdens", "EA_lcpdens", "EA_LA_lcpdens", "LA_lcpdens")
+ CD.mats <- list()
+ lcp.dens.r <- list()
+
+ 
+ slope_cs <- create_slope_cs(DEM, cost_function = 'tobler')
+
+ for (i in 1:length(Plist)){
+  
+   tmp <- Plist[[i]] #centroid spdf for period i to temp object
+  
+  # create neighbor matrix among all sites in period i
+   nb.mat = t(as.matrix(combn(1:nrow(tmp),2, simplify = TRUE)))
+  
+  # calculate least cost path network among all sites in period i
+   lcp_net <- create_lcp_network(cost_surface = slope_cs, locations = tmp, nb_matrix = nb.mat, cost_distance = T, parallel = T, ncores = 6)
+  
+  #use lcp network to create lcp density raster for period i
+   lcp.dens <- create_lcp_density(lcp_net, DEM)
+   lcp.dens.r[[i]] <- lcp.dens
+  
+  # export lcp densities as .grd raster for period i
+   writeRaster(lcp.dens.r[[i]], filename=paste0(wd$data_p,"lcp_dens_rasts/", nam.dens[i],".grd"), format='raster', overwrite=F)
+  
+  # convert to matrix format, name cols/rows, and save into output list
+   edge = rbind(lcp_net@data,data.frame(from=c(1:nrow(tmp)),to=c(1:nrow(tmp)), cost=c(rep(0,nrow(tmp)))))
+   xxx =xtabs(cost ~ from + to, data=edge) 
+   xxx = as.matrix(Matrix::forceSymmetric(matrix(xxx, nrow=nrow(xxx),ncol=ncol(xxx))))
+   colnames(xxx) <- tmp$AggSite
+   rownames(xxx) <- tmp$AggSite
+   CD.mats[[i]] <- xxx
+  
+  #export cost dist matrix for period i as .csv files for steps #4-5
+  write.csv(CD.mats[[i]], file=paste0(wd$data_p,"CDMatrices/",nam.distmat[i],".csv"))
+  write.csv(CD.mats[[i]], file=paste0(wd$data_f,"CDMatrices/",nam.distmat[i],".csv"))
+ }
+
+# name objects in the output lists
+ names(CD.mats) <- nam.distmat
+ names(lcp.dens.r) <- nam.dens
+
+ rm(xxx,lcp.dens,edge,DEM,lcp_net,nb.mat,tmp, slope_cs)
+
+```
+
+
+## Fast Alternative: Simple Geodesic Distance Matrices
+
+While the "Transport Route Density" least cost path rasters must be calculated as above, we _can_ use non-LCP geodesic 'great circle' distances instead of LCP cost-distances. The advantage here is that geodesic distance matrices can be calculated in just a few seconds using the code below. 
+
+```{r, label='Fast Alternative: Simple Geodesic Distance Matrices',  message=FALSE, warning=FALSE}
+
+#create vectors of names for outputs
+nam.distmat <- c("EF_dmat", "EF_MF_dmat", "MF_dmat", "MF_LF_dmat", "LF_dmat", "LF_TF_dmat", "TF_dmat", "TF_CL_dmat", "CL_dmat", "CL_ET_dmat", "ET_dmat", "ET_LTAzI_dmat", "LTAzI_dmat", "LTAzI_EA_dmat", "EA_dmat", "EA_LA_dmat", "LA_dmat")
+
+D.mats <- list()
+
+for (i in 1:length(Plist)){
+  tmp <- Plist[[i]]
+  x = pointDistance(tmp@coords, lonlat=F, allpairs=T)
+  rownames(x) <- tmp$AggSite
+  colnames(x) <- tmp$AggSite
+  D.mats[[i]] <- x
+  write.csv(D.mats[[i]], file=paste0(wd$data_p,"DMatrices/",nam.distmat[i],".csv"))
+}
+
+names(D.mats) <- nam.distmat
+
+rm(x,tmp)
+```
+
+
+```{r, label='Create DistCompare.png Figure Below', echo=FALSE, eval=FALSE, message=FALSE, warning=FALSE}
+
+nam <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
+#CD.mats=CD.mats[names(D.mats)]
+
+dlist = list()
+
+for (i in 1:length(CD.mats)){
+  x1 = CD.mats[[i]]
+  colnames(x1) = rownames(x1)
+  x2 = D.mats[[i]]
+  xy <- t(combn(colnames(x1), 2))
+  xy <- data.frame(xy, LCPdist=x1[xy], GDist = x2[xy], Period = nam[i])
+  dlist[[i]] <- xy
+}
+
+Dists.df <-  do.call(rbind, dlist)
+
+Dists.df= Dists.df %>% group_by(Period) %>% mutate(ct = n()) %>% ungroup() %>%
+  arrange(-ct) %>% mutate(ord=seq(1, nrow(Dists.df)),
+                          LCPdist=LCPdist*0.000277778,
+                          GDist=GDist/1000)# pull(Period)
+
+lmDists = lm(LCPdist~GDist, data = Dists.df) #Create the linear regression
+summary(lmDists) #Review the results
+
+label1 = c(paste0("italic(LCPDist) == 0.2~italic(GeoDist) + 0.05"))
+label2 = c(paste0("italic(p) < 2.2e-16"))
+label3 = c(paste0("italic(R)^2 == 0.996"))
+
+outgg <- ggplot() + 
+    geom_point(data=Dists.df, aes(x=GDist,y=LCPdist,color=Period,order=ord), 
+                shape=16, alpha = 0.5) +  
+    geom_smooth(data=Dists.df, aes(x=GDist,y=LCPdist), method=glm, 
+                color="black", se=T,formula = y ~ x) +
+    annotate(geom = "text", x = 5, y =9, hjust = 0, fontface =2, label = label1, parse = TRUE) +
+    annotate(geom = "text", x = 5, y =8.2, hjust = 0, fontface =2, label = label2, parse = TRUE) +
+    annotate(geom = "text", x = 5, y =7.5, hjust = 0, fontface =2, label = label3, parse = TRUE) +
+    labs(title="SBOM Geodesic Distances vs. Least Cost Path Cost-Distances",
+       y="Tobler's LCP Cost-Distance (hrs)", 
+       x = "Geodesic 'Great Circle' Distance (km)") + 
+    theme_bw() + 
+    theme(axis.text.x = element_text(face="bold", color="black"), 
+          axis.text.y = element_text(face="bold", color="black"), 
+          axis.title.x = element_text(color="black", size=12, face="bold"),
+          axis.title.y = element_text(color="black", size=12, face="bold"),
+          legend.justification=c(0,1), legend.position="right",
+          legend.title = element_text(face = "bold"),
+          legend.key.size = unit(0.8,"line"),legend.spacing.y = unit(0.2,"line"), 
+          legend.key = element_rect(colour = "transparent", fill = "white"), 
+          plot.title = element_text(hjust = 0.5, face="bold", size=14))
+
+ggsave(
+  filename = "DistCompare.png",
+  plot = outgg,
+  device = "png",
+  path = wd$figs,
+  scale = 1,
+  width = 8,
+  height = 6,
+  units = "in",
+  dpi = 600)
+
+```
+
+As seen in the graph below, there is a strong, positive linear relationship between the LCP cost-distances and geodesic distances. With geodesic distance explaining over 99% of the variability in LCP cost-distance, there is very little difference overall between the two. 
+
+```{r, echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"DistCompare.png"), FALSE)
+```
+
+In spite of this global similarity, local distances between sites could be affected substantially (e.g. if the geodesic paths cross limiting terrain). As such, this geodesic work-around should be used provisionally until the LCP cost-distances can be computed properly.
+
+Cases where we would expect a salient **global** difference between LCP and geodesic distances include cases with:
+
+  * impassable or highly-penalized terrain
+  * known transport networks
+  * meaningful study region borders violated by "straight" (geodesic) lines
+
+
+# References
+

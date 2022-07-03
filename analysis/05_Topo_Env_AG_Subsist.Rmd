@@ -1,0 +1,664 @@
+---
+title: "Settlement Persistence Project, SBOM Script #5:"
+subtitle: "Topography, Environment, Agriculture and Subsistence"
+author: "Rudolf Cesaretti"
+date: "Last run on `r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+    number_sections: true
+bibliography: References.bib
+csl: apa.csl
+link-citations: yes
+---
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 300px;
+}
+```
+
+```{r, setup, include=FALSE,echo=FALSE, message=FALSE,warning=FALSE}
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=75),tidy=TRUE)
+#
+rm(list = ls())
+```
+
+I do four things in this R markdown document: 
+Topographic/environmental metrics
+
+  1. Calculate catchment area variables, including
+      + Topographic/environmental metrics
+      + 
+  4. Reorganize the data and export for Script #6
+  
+  
+# Setup 
+
+All of the data and scripts are downloadable from the [new ASU SettlementPersist2022 github repository](https://https://github.com/rcesaret/ASUSettlementPersist2022), which can be downloaded locally as a .zip folder or cloned to your own account.
+
+Either way, once you have done so, you will need to modify the working directory (setwd("C:/...)") path and "dir" variables in the code chunk below to match the repository location on your computer.
+
+```{r, label='Set Local Directory Location', message=FALSE,warning=FALSE}
+
+wd <- list()
+
+#SET YOUR LOCAL DIRECTORY LOCATION HERE:
+wd$dir <- "C:/Users/rcesaret/Dropbox (ASU)/ASUSettlementPersist2022/"
+#wd$dir <- "C:/Users/TJ McMote/Dropbox (ASU)/ASUSettlementPersist2022"
+
+wd$analysis <- paste0(wd$dir,"analysis/")
+wd$data_r <- paste0(wd$dir,"data-raw/")
+wd$data_p <- paste0(wd$dir,"data-processed/")
+wd$data_f <- paste0(wd$dir,"data-final-outputs/")
+wd$figs <- paste0(wd$dir,"figures/")
+wd$funcs <- paste0(wd$dir,"functions/")
+
+```
+
+
+## Load R Packages and Custom Functions
+
+```{r, label='Load Libraries', message=FALSE,warning=FALSE}
+# Package names
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "stars", "dismo", "purrr", "spatialEco", "whitebox", "classInt")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph", "ggnewscale", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# load packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+rm(packages,installed_packages)
+
+#Read in custom R functions located in the wd$funcs directory folder
+FUNCS <- list("splitByAttributes.R", "RescaleSpatRast.R")
+invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
+rm(FUNCS)
+
+```
+
+
+## Import Data
+
+Data we are importing:
+
+  1. the AggSite polygon data from scripts 2/3
+  2. A simple polygon calculated in QGIS that specifies a hard outter border for the catchment areas of sites (constructed for sensitivity to survey borders and sites not included in the SBOM sample)
+  3. Cost-distance matrices from script #3
+  4. Least cost path rasters from script #3
+  5. A raster hillshade basemap for the SBOM which includes the lakes
+
+```{r, label='Import Data', message=FALSE,warning=FALSE}
+
+#Agg Site polygon data
+All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggSitePoly4.gpkg"))
+All_CatchPoly <- readOGR(paste0(wd$data_p,"SBOM_CatchPoly4.gpkg"))
+
+#Catchment boundary limit polygon
+CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
+
+## Hillshade Basemap Raster with lake
+HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
+HillshadeLake <- rast(HillshadeLake, crs = 26914)
+
+#Cost-distance matrices
+ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
+temp = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = TRUE)
+nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
+nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
+CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
+CD.mats = lapply(CD.mats, as.matrix)
+names(CD.mats) <- nam.distmat
+CD.mats <- CD.mats[ord]
+names(CD.mats) <- paste0(ord,"_cdmat")
+
+```
+
+
+## Reorganize Data from Step #4
+
+```{r, 'Reorganize Data from Step #4', message=FALSE,warning=FALSE}
+
+#reorder spatial points dataframe by period
+All_AggPoly <- All_AggPoly[order(All_AggPoly$PeriodNum),]
+All_CatchPoly <- All_CatchPoly[order(All_CatchPoly$PeriodNum),]
+
+# Split polygons by Phase, saved as list of SPDF
+Poly_List <- splitByAttributes(spdata = All_AggPoly, attr = "Period", suffix="_SitePoly") 
+Catch_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix="_CatchPoly") 
+
+```
+
+
+# Catchment Area Topographic/Environmental Metrics
+
+The environmental characteristics of site catchment areas may be a causally important factor in long-term settlement persistence. Two major environmental processes that might contribute to settlement persistence include subsistence/agricultural productivity and landscape degradation. We have therefore calculated a number of targeted environmental proxy metrics for these theoretical dimensions, outlined below. **All of these metrics use only online environmental data and superficial contextual info about the study region**
+
+
+### Potential Productivity
+
+As the basis and constraint of all ecosystem services, **Net Primary Productivity (NPP)** here serves as a basal proxy for **potential subsistence/agricultural productivity _without any landesque capital intensification._** NPP is the amount of plant biomass per unit area _minus_ respiratory costs (Gross Primary Productivity = GPP = total biomass per unit area). 
+
+Here, NPP is calculated for the SBOM using Nick Gauthier's script "Climatic Potential for Agricultural Productivity" (npp_plots.Rmd) [located in Matt Peeples' Settlement Persistence GitHub repository](https://github.com/mpeeples2008/SettlementPersistence) via proxy calculation from precipitation and temperature. These raster inputs for Nick's script (cropped to the SBOM study area) are included in the Script #3 directory folder.
+
+The metrics calculated here are:
+
+  * **NPP.tot** = the sum of NPP in a catchment area. This is extensive metric is intended to capture the total scale/magnitude of resources available in a catchment area, similar to (a proxy for) carrying capacity _without any landesque intensification._
+  * **NPP.avg** = Total NPP divided by the catchment area in hectares. This is intended to be an intensive proxy metric of a catchment's subsistence productivity _without any landesque intensification._
+
+
+### Subsistence/Agricultural Zones
+
+Sanders, Parsons & Santley [-@Sanders1979] recognize five major environmental zones in the Southern Basin of Mexico that strongly constrain agricultural practices in the region. Due to the impact of elevation on rainfall, frosts, topographic suitability, vegetation and soils, these environmental zones can be approximated from elevation alone:
+
+  * Lakebed Inundation Zone (<2240 masl) = 0
+  * Alluvial Plain (2240-2275 masl) = 1
+  * Lower Piedmont (2275-2350 masl) = 2
+  * Middle Piedmont (2350-2500 masl) = 3
+  * Upper Piedmont (2500-2700 masl) = 4
+  * Sierra (2700-6000 masl) = 5
+  
+Here, we calculate these zones from a 90m DEM.
+
+The metrics calculated here are:
+  * **EZ.avg** = Mean of ordinal numeric codes (see above)
+  * **EZ.sd** = StDev of ordinal numeric codes (see above)
+
+
+### Terrain Ruggedness
+
+A major constraint of agriculture in any region is the suitability of local topography to arable cultivation. More steeply-sloping topography requires heavy labor inputs in the form of terracing to create arable surfaces and constrain erosion/runoff. By contrast, flat alluvial areas generally lack these _de facto_ labor constraints, and are often better watered and blanketed in fertile and easily tilled sediment. 
+
+To capture this dimension, we use _rescaled_ **Terrain Ruggedness Index (TRI)**, which is a local (moving window), multi-directional, dimensionless index of local slope. More specifically, TRI is the mean of the absolute differences in elevation among a DEM raster cell and its 8 surrounding cells. Here, TRI is calculated using the "terrain" function in the "terra" R package, rescaled to the range [0,1]. Here, we calculate TRI in R using the "terra" package [@Hijmans2022].
+
+The metrics calculated here are:
+
+  * **TRI.tot** = Total (catchment sum) TRI = extensive metric intended to capture the total scale/magnitude of land that may need to be terraced
+  * **TRI.avg** = Mean TRI = intensive metric intended to capture the mean catchment area need for terracing
+
+
+### Hydraulic Agriculture Potential
+
+The ability to increase agricultural output via irrigation and wetland agriculture landesque capital intensification (i.e. hydraulic engineering) is a critical determinant of socioeconomic performance across agrarian economies. 
+
+The suitability of an area to irrigation is controlled by the magnitude of locally available fluvial discharge, which is strongly conditioned by the topography of stream networks and drainage basins. All else being equal, the magnitude of fluvial discharge available to cultivators from the local drainage network is proportional to upstream drainage area [@Anderson2010]. e proxy for this topographic potential drainage density is the **Topographic Wetness Index, TWI**. TWI measures the potential hydrological response of basins based on slope and the size of upslope contributing areas. This indicates which parts of the landscape are more likely to have overland flow, streams and saturation [@Beven1979]. Here, we calculate TWI in R using the "whitebox" package [@Lindsay2016].
+
+The suitability of an area to wetland agriculture is contexually dependent by region. In the SBOM, this was the area of the large, shallow freshwater lakes Chalco and Xochimilco, on which chinampas were built. The approx area of these lakes was modelled in GIS using published data and exported as a binary raster [0,1].
+
+  * **IrrigPot.tot** = Total Irrigation Potential = sum TWI
+  * **IrrigPot.avg** = Mean Irrigation Potential = sum TWI divided by catchment area
+  * **WetAgPot.tot** = Total Wetland Agriculture Potential = sum freshwater lake raster in catchment
+  * **WetAgPot.avg** = Mean Wetland Agriculture = sum freshwater lake divided by catchment area
+  
+  
+### Intensification costs
+
+The costs of agricultural intensification are another possible factor in settlement persistence. The **cost of terracing** should be proportional to **TRI**, as noted above. 
+
+The **cost of irrigation** should be proportional erosive potential of fluvial discharge. Here, the crucial topographic variables are channel slope, $S$, and upstream drainage area, $A$ (assumed to be proportional to discharge). Assuming that tectonic uplift is negligible, the rate of erosion of any point in a drainage network is thus given by the _stream power equation_
+$$
+\frac{\partial Z}{\partial t}=k_{sp}A_{sp}^{m}S_{sp}^{n}
+$$
+where $Z$ is the depth of erosion, $t$ is time, $k$ is the scalar coefficient of erodibility, and $m$ and $n$ are positive dimensionless parameters that govern the relative importance of discharge to local slope for bed incision via shear stress [@Anderson2010; @Whipple2004; @Whipple1999]. This equation is normally used to model long-term channel incision and knickpoint migration in detachment-limited rivers, but we can also it’s general principles to measure topographic controls on the erosive potential of runoff-driven flood discharge in the seasonal gullys, torrents, and arroyos of the SBOM. The **Stream Power Index (SPI)** provides a proxy for this topographic potential for stream erosion [@Moore1993], which we calculate in R using the "whitebox" package [@Lindsay2016].
+
+Finally, the **cost of wetland agriculture** should be proportional to **freshwater lake depth**. As such, we can proxy it by taking the estimated lake depth (elevation of lake area minus approx lake level of 2240 masl).
+
+The relative_costs of these strategies are assumed to be 1:1:2 Terrace:Irrig:Wetland. As such, the rasters of these proxies will be rescaled to [0,1] for Terracing and Irrigation, and [1,2] for wetland.
+
+The metrics calculated here are:
+
+  * **IntnsCost.tot** = Total catchment intensification costs = sum(TRI[0,1]) + sum(SPI[0,1]) + sum(LakeDepth[1,2])
+  * **IntnsCost.avg** = Average catchment intensification costs = sum(TRI[0,1]) + sum(SPI[0,1]) + sum(LakeDepth[1,2])/Area
+  * **IntnsCostNW.tot** = Total catchment intensification costs excluding wetland agriculture = sum(TRI[0,1]) + sum(SPI[0,1])
+  * **IntnsCostNW.avg** = Average catchment intensification costs = sum(TRI[0,1]) + sum(SPI[0,1])/Area
+
+
+### Agricultural Potential
+
+Here we calculate a proxy for carrying capacity. To do so, we first rescale Irrigation Potential [1,2], Wetland AG potential [=2] and NPP [0.5,1.5] to assumed relative values for the BOM. Then we take the maximum raster cell value among all three, which serves as our raster of Agricultural potential.
+
+The metrics calculated here are:
+
+  * **AGPot.tot** = Total agricultural potential = sum(max(WetAgPot, IrrigPot(TWI.), NPP))
+  * **AGPot.avg** = Mean agricultural potential = sum(max(WetAgPot, IrrigPot, NPP))/Area
+  * **AGPotNW.tot** = same as above but with 0 for wetland areas 
+  * **AGPotNW.avg** = same as above but with 0 for wetland AG 
+
+
+### Population Pressure
+
+With our proxy for carrying capacity in hand, we can now calculate a proxy for population pressure.
+
+The metrics calculated here are:
+
+  * **PopPressure** = Population / Total Ag Potential = larger values indicate greater levels of pop pressure
+  * **PopPressureNW** = Pop Pressure with no wetland AG = Population / Total Ag Potential 
+PopPressure
+
+
+### Erosion Potential
+
+Landscape degradation in the form of erosion is thought to have been a major factor in settlement persistence across the premodern world. To create a proxy metric for erosion potential, we can use established laws of geomorphology and standard topographical proxies of their magnitude. 
+
+In quantitative geomorphology, erosion is classed into two major processes: _Runoff Processes_ and _Hillslope Diffusion Processes_. Runoff is driven by overland flow while diffusion is long term soil creep or mass wasting.
+
+The topographic variables diagnostic of **runoff processes** on hillslopes are slope hillslope length and catchment area. These are the topographic state variables in hillslope  transport processes via continuous flowing water, such as sheetwash, rilling, and gullying. Runoff hillslope processes are dominant on middle and lower hillslopes, where water from uphill concentrates into progressively larger flows going downhill [@Anderson2010]. Here, the sediment flux (or ‘discharge’), $Q_{X}$, the amount of sediment transported through a point on a hillslope, can be represented by the equation
+$$
+Q_{x}=kA^{m}\frac{\partial Z^{n}}{\partial X}=kA^{m}S^{n}
+$$
+where $X$ is the point on the hillslope, $Z$ is the depth of erosion, $A$ is the upslope catchment area flowing through this point (assuming uniform rainfall and infiltration), $S$ is the local slope, $m$ and $n$ are constants setting the relative importance of flowing water, and $k$ is a parameter representing the erodibility of the sediment due to soil properties and surface conditions [@Anderson2010]. Because $m$ and $n$ are >1 for processes dominated by concentrated runoff, this equation means that runoff and sediment discharge increase exponentially moving downhill. In three dimensions, $A$ becomes the upslope catchment area flowing through a point in the hillslope. The rate of continuous runoff-based erosion at any point on the hillslope is given by the equation
+$$
+\frac{\partial Z}{\partial t}=-\frac{1}{b} \frac{\partial Q_{X}}{\partial A}
+$$
+where $b$ is the bulk density of the sediment and $t$ is time [@Anderson2010]. One proxy metric for topographic controls on hillslope runoff discharge and erosion dynamics is the **Sediment Transport Index (STI)**, which provides a unit-less topographic index for potential erosion and deposition [@Moore1993; @Wilson1999]. Here, we calculate STI in R using the "whitebox" package [@Lindsay2016].
+
+The topographic variables diagnostic of hillslope sediment transport dynamics via **diffusive processes** are slope and curvature, the derivative of slope. These diffusive processes include rainsplash, bioturbation, tree-throw, discontinuous surface runoff, and mass wasting (from soil creep to landslides). Diffusion dynamics will be dominant wherever concentrated runoff is absent, so that diffusive sediment discharge is linearly dependent on slope alone. Slope is also a crucial threshold for hillslope stability in mass wasting events like landslides, which is frequently equated with the landscape’s observed angle of repose [@Anderson2010; @Selby1993; @Roering1999]. The rate of erosion in hillslope diffusion processes is topographically controlled by **curvature (the derivative of slope)**, such that
+$$
+\frac{\partial Z}{\partial t}=-\frac{k}{b} \frac{\partial^{2} Z}{\partial X^{2}}
+$$
+where again $k$ is the coefficient of diffusivity due to soil properties. Detailed empirical analyses have found that hilltop curvature is strongly correlated with erosion rates across transient landscapes [@Montgomery2002; @Hurst2012; @Palumbo2010]. As such, the curvature of hillslopes and hilltops can provide crucial information on both local and landscape-wide erosion rates. Here, we calculate curvature in R using the "whitebox" package [@Lindsay2016].
+
+Given that runoff leads to much faster erosion than diffusion, we can scale Runoff Erosion Potential= STI to [1,2], and diffusion to [0,1.5], such that wherever runoff is prevalent it will be the dominant process. The max of these two rasters is then the preliminary erosion rate.
+
+The rate of sediment and water transport through a landscape -- and thus landscape degradation -- are greatly impacted by its **drainage density**. Drainage density, $D$, is the total length of a channel network, $L$, divided by the area of its corresponding  drainage basin, $A$, such that for every stream $i$
+$$
+D=\frac{\sum_{i = 1}^{n} L_{i}}{A}
+$$
+The denser the drainage network, the shorter hillslopes will be. Because the transport of both water and sediment are much faster and more efficient in channels than on hillslopes, higher drainage density results in higher erosion rates and rapid runoff discharge responses to rainfall. The drainage density of any given landscape will fluctuate based on the volume of runoff, which is primarily impacted by changes in vegetation density and rainfall intensity—especially in tropical environments. Drainage density is therefore a fundamentally empirical question, controlled by runoff discharge on hillslopes [@Anderson2010; @Horton1945; @Montgomery1988; @Montgomery1992; @Tucker1997; @Tucker1998].
+
+Nevertheless, topographic layout of different watersheds influences the potential density of their drainage networks. We can calculate a proxy for drainage density by using a simple **flow accumulation** raster in R calculated using the "whitebox" package [@Lindsay2016]. The max raster accumulation value is set at a level where we know streams are present (e.g. 10,000 = accumulation = upstream raster cells in contributing area). Then these values are rescaled [0,1], so that lower levels still contribute to the calculation but with less weight. Instead of drainage basins, we can simply sum the flow accumulation raster for each _settlement_ catchment area (**_not_** the stream catchment, i.e. basin/watershed) and divide by the total settlement catchment area (with lake areas set at zero). This settlement catchment area drainage density value will be less than 1, making it the ideal denominator to multiply our preliminary erosion rate from above.
+
+Given that Runoff Erosion Potential= STI[1,2] and Diffusion Erosion Potential= ProfCurv[0,1], the metrics calculated here are:
+
+  * **ErosionPot.tot** = Total Erosion Potential = sum(max(STI[1,2],Curv[0,1.5]))/DrainDens = take the max of the rescaled STI and Curv rasters, sum them over the catchment, and divide by the drainage density.
+  * **ErosionPot.avg** = Mean Erosion Potential = sum(max(STI[1,2],Curv[0,1]))/DrainDens/Area
+
+
+## Calculate Metric Rasters
+
+```{r, "Calculate Topographic/Environmental Metrics", warning = FALSE, message=FALSE}
+
+#create temp directory for rasters we will delete later
+# we will stack and save these together at the end of this chunk
+dir.create(paste0(wd$data_p,"temp_rasts"))
+
+## Import 90 meter DEM
+DEM <- raster(paste0(wd$data_r, "SBOM_DEM_90m.tif"))
+DEM <- rast(DEM, crs = 26914)
+
+## Import SBOM Lake rasters calculated in GRASS GIS
+LakesBinaryInv <- rast(paste0(wd$data_r, "LakesBinaryInv.tif"))
+LakesBinaryInvNA <- LakesBinaryInv
+LakesBinaryInvNA[LakesBinaryInvNA == 0] <- NA
+SaltLakeBinaryInv <- rast(paste0(wd$data_r, "SaltLakeBinaryInv.tif"))
+SaltLakeBinaryInvNA <- SaltLakeBinaryInv
+SaltLakeBinaryInvNA[SaltLakeBinaryInvNA == 0] <- NA
+FreshLakeDepth <- rast(paste0(wd$data_r, "FreshLakeDepth.tif"))
+
+
+######### NPP ######### 
+
+## Calculate net primary productivity (NPP) using Nick Gauthier's script
+npp <- read_stars(c(paste0(wd$data_r,'CHELSA_bio10_01_SBOM.tif'), paste0(wd$data_r,'CHELSA_bio10_12_SBOM.tif'))) %>% 
+  setNames(c('temperature', 'precipitation')) %>%
+  mutate(temperature = temperature / 10, # temperature is in degrees C * 10
+         ### the miami model
+         npp_prec = 3000 * (1 - exp(-0.000664 * precipitation)),
+         npp_temp = 3000 / (1 + exp(1.315 - 0.119 * temperature)),
+         npp = pmin(npp_prec, npp_temp)) %>%
+  dplyr::select(npp)
+
+# convert from stars to raster
+NPP <- as(npp, "Raster")
+NPP <- rast(NPP, crs = 26914)
+
+#Downscale to DEM resolution using DEM
+NPP <- terra::resample(NPP, DEM, method="bilinear")
+
+NPP <- NPP * SaltLakeBinaryInvNA
+
+NPP.rs <- RescaleSpatRast(NPP) # rescale 0-1
+NPP.rs <- NPP.rs+0.5# rescale 0.5-1.5
+
+######### EnvZones ######### 
+
+## Calculate BOM Environmental Zones from elevation (DEM)
+m <- c(0,    2240, 0, # Inundation Zone / Lakebed Alluvium
+       2240, 2275, 1, # Lakeshore Alluvial Plain
+       2275, 2350, 2, # Lower Piedmont
+       2350, 2500, 3, # Middle Piedmont
+       2500, 2700, 4, # Upper Piedmont
+       2700, 6000, 5) # Sierra
+
+EZm <- matrix(m, ncol=3, byrow=TRUE) #make into a matrix
+EZ <- terra::classify(DEM, EZm, include.lowest=TRUE) # reclassify groups of values
+
+######### TRI ######### 
+
+TRI <- terra::terrain(DEM, v="TRI")# calc Terrain Ruggedness Index
+TRI <- TRI * SaltLakeBinaryInvNA
+TRI.01 <- RescaleSpatRast(TRI) # rescale 0-1
+
+######### TWI ######### 
+
+wbt_breach_depressions(dem = paste0(wd$data_r,"SBOM_DEM_90m.tif"), output = paste0(wd$data_p,"temp_rasts/DEM_breach.tif"))
+
+#DEM2 <- as(DEM, "Raster")
+slope <- terra::terrain(DEM, v="slope", unit="degrees")#Slope
+writeRaster(slope,paste0(wd$data_p,"temp_rasts/Slope.tif"), overwrite=TRUE)
+
+wbt_d8_flow_accumulation(paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), output=paste0(wd$data_p,"temp_rasts/Accum.tif"), out_type = "specific contributing area")
+Accum <- rast(paste0(wd$data_p, "temp_rasts/Accum.tif"))
+Accum[is.nan(Accum)] <- NA
+
+wbt_wetness_index(sca=paste0(wd$data_p,"temp_rasts/Accum.tif"), slope=paste0(wd$data_p,"temp_rasts/Slope.tif"), output=paste0(wd$data_p,"temp_rasts/TWI.tif"), verbose_mode = FALSE)
+TWI <- rast(paste0(wd$data_p, "temp_rasts/TWI.tif"))
+TWI <- TWI * SaltLakeBinaryInvNA
+
+TWI.01 <- RescaleSpatRast(TWI) # rescale 0-1
+TWI.12 <- TWI.01+1
+
+######### WetAG ######### 
+
+WetAgPot <- rast(paste0(wd$data_r, "FreshLakeBinary.tif"))#binary 0,1 raster of lake
+
+WetAgPot2 <- WetAgPot*2
+
+WetAgInv <- rast(paste0(wd$data_r, "FreshLakeBinaryInv.tif")) #binary wetAg area=0, other is 1
+
+######### SPI ######### 
+
+wbt_stream_power_index(sca=paste0(wd$data_p,"temp_rasts/Accum.tif"),slope=paste0(wd$data_p,"temp_rasts/Slope.tif"),output=paste0(wd$data_p,"temp_rasts/SPI.tif"),exponent = 1)
+SPI <- rast(paste0(wd$data_p, "temp_rasts/SPI.tif"))
+SPI <- SPI * SaltLakeBinaryInvNA
+SPI.01 <- RescaleSpatRast(SPI)
+SPI.rs <- RescaleSpatRast(SPI.01)+0.5
+SPI.rs <- SPI.rs * WetAgInv
+
+######### AGPot ######### 
+
+TWI.12.wetMod <- LakesBinaryInvNA*TWI.12
+NPP.rs.wetMod <- LakesBinaryInvNA*NPP.rs
+
+AGPot = max(WetAgPot2, TWI.12,NPP.rs)
+AGPotNW = max(TWI.12.wetMod, NPP.rs.wetMod)
+
+######### FreshLakeDepth ######### 
+
+FreshLakeDepth[is.nan(FreshLakeDepth)] <- NA
+FreshLakeDepth.12 <- RescaleSpatRast(FreshLakeDepth)
+FreshLakeDepth.12 <- FreshLakeDepth.12+1
+FreshLakeDepth.12[is.na(FreshLakeDepth.12)] <- 0
+
+######### IntnsCost ######### 
+
+IntnsCost = TRI.01+SPI.rs+FreshLakeDepth.12
+TRI.01.wetMod <- LakesBinaryInvNA*TRI.01
+SPI.01.wetMod <- LakesBinaryInvNA*SPI.rs
+IntnsCostNW = TRI.01.wetMod+SPI.01.wetMod
+
+######### STI ######### 
+
+wbt_fd8_flow_accumulation(paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), output=paste0(wd$data_p,"temp_rasts/Accum_fd8.tif"), out_type = "specific contributing area")
+Accum_fd8 <- rast(paste0(wd$data_p, "temp_rasts/Accum_fd8.tif"))
+
+wbt_sediment_transport_index(sca=paste0(wd$data_p,"temp_rasts/Accum_fd8.tif"),slope=paste0(wd$data_p,"temp_rasts/Slope.tif"),output=paste0(wd$data_p,"temp_rasts/STI.tif"))
+STI <- rast(paste0(wd$data_p, "temp_rasts/STI.tif"))
+STI = LakesBinaryInvNA*STI
+STI.12 <- RescaleSpatRast(STI)
+STI.12 <- STI.12+1
+
+######### Curv ######### 
+
+wbt_profile_curvature(dem = paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), output = paste0(wd$data_p,"temp_rasts/Curv.tif"))
+Curv <- rast(paste0(wd$data_p, "temp_rasts/Curv.tif"))
+Curv = LakesBinaryInvNA*Curv
+Curv[Curv < -0.001] <- -0.001
+Curv.rs <- RescaleSpatRast(Curv)*1.5
+
+######### DrainDens Inputs ######### 
+
+Accum2 <- Accum
+Accum2 = LakesBinaryInvNA*Accum2
+Accum2[Accum2 > 10000] <- 10000
+Accum2<- RescaleSpatRast(Accum2)
+
+######### ErosionPot ######### 
+
+ErosionPot <- max(STI.12,Curv.rs)
+
+
+rm(EZm, m, npp)
+
+```
+
+
+
+## Calculate Metrics for Site Catchment Areas
+
+```{r, "Catchment Area Topographic/Environmental Metrics", warning = FALSE, message=FALSE}
+
+Catch_List2 <- list() #create output list
+
+for(i in 1:length(Catch_List)){
+  
+  #define catchment area polys as temp object
+  tmp.p <- Catch_List[[i]]
+  
+  #convert to SpatVectors class for use with terra package (much much faster)
+  tmp.p2 <- vect(tmp.p)
+  
+  # NPP
+  x <- terra::extract(NPP, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$NPP.tot <- x[,2]
+  tmp.p@data$NPP.avg <- tmp.p@data$NPP.tot/tmp.p@data$Catchment_ha
+  
+  # Env Zone
+  x <- terra::extract(EZ, tmp.p2, fun=mean, na.rm=T)
+  tmp.p@data$EZ.avg <- x[,2]
+  x <- terra::extract(EZ, tmp.p2, fun=sd, na.rm=T)
+  tmp.p@data$EZ.sd <- x[,2]
+  
+  # TRI (Terrace Need)
+  x <- terra::extract(TRI, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$TRI.tot <- x[,2]
+  tmp.p@data$TRI.avg <- tmp.p@data$TRI.tot/tmp.p@data$Catchment_ha
+  
+  ## Hydraulic Agriculture Potential
+  #Irrigation Potential
+  x <- terra::extract(TWI.01, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$IrrigPot.tot <- x[,2]
+  tmp.p@data$IrrigPot.avg <- tmp.p@data$IrrigPot.tot/tmp.p@data$Catchment_ha
+  #Wetland Agriculture Potential
+  x <- terra::extract(WetAgPot, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$WetAgPot.tot <- x[,2]
+  tmp.p@data$WetAgPot.avg <- tmp.p@data$WetAgPot.tot/tmp.p@data$Catchment_ha
+  
+  # Intensification costs
+  x <- terra::extract(IntnsCost, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$IntnsCost.tot <- x[,2]
+  tmp.p@data$IntnsCost.avg <- tmp.p@data$IntnsCost.tot/tmp.p@data$Catchment_ha
+  # Intensification costs excluding wetland agriculture
+  x <- terra::extract(IntnsCostNW, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$IntnsCostNW.tot <- x[,2]
+  tmp.p@data$IntnsCostNW.avg <- tmp.p@data$IntnsCostNW.tot/tmp.p@data$Catchment_ha
+  
+  # Agricultural Potential
+  x <- terra::extract(AGPot, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$AGPot.tot <- x[,2]
+  tmp.p@data$AGPot.avg <- tmp.p@data$AGPot.tot/tmp.p@data$Catchment_ha
+  # Agricultural Potential excluding wetland agriculture
+  x <- terra::extract(AGPotNW, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$AGPotNW.tot <- x[,2]
+  tmp.p@data$AGPotNW.avg <- tmp.p@data$AGPotNW.tot/tmp.p@data$Catchment_ha
+  
+  # Population Pressure
+  tmp.p@data$PopPressure <- tmp.p@data$Population.s2/tmp.p@data$AGPot.tot
+  tmp.p@data$PopPressureNW <- tmp.p@data$Population.s2/tmp.p@data$AGPotNW.tot
+  
+  # Erosion Potential
+  x <- terra::extract(ErosionPot, tmp.p2, fun=sum, na.rm=T)
+  tmp.p@data$ErosionPot.tot <- x[,2]
+  tmp.p@data$ErosionPot.avg <- tmp.p@data$ErosionPot.tot/tmp.p@data$Catchment_ha
+  
+  Catch_List2[[i]] <- tmp.p #save to output list
+}
+
+# rename list items
+catch.names <- names(Catch_List)
+names(Catch_List2) <- catch.names
+Catch_List <- Catch_List2
+rm(Catch_List2)
+```
+
+
+
+## Reorganize and Export Raster Data
+
+```{r, "Reorganize and Export Raster Data", warning = FALSE, message=FALSE}
+TopoEnvData_RastStack <- c(DEM, Curv, Curv.rs, Accum, Accum_fd8, Accum2, AGPot, AGPotNW, EZ, FreshLakeDepth, FreshLakeDepth.12, IntnsCost, IntnsCostNW, LakesBinaryInv, LakesBinaryInvNA, NPP, NPP.rs, NPP.rs.wetMod, SaltLakeBinaryInv, SaltLakeBinaryInvNA, slope, SPI, SPI.01, SPI.01.wetMod, SPI.rs, STI, STI.12, TRI, TRI.01, TRI.01.wetMod, TWI, TWI.01, TWI.12, TWI.12.wetMod, WetAgInv, WetAgPot, WetAgPot2, ErosionPot)
+
+nam = c("DEM", "Curv", "Curv.rs", "Accum", "Accum_fd8", "Accum2", "AGPot", "AGPotNW", "EZ", "FreshLakeDepth", "FreshLakeDepth.12", "IntnsCost", "IntnsCostNW", "LakesBinaryInv", "LakesBinaryInvNA", "NPP", "NPP.rs", "NPP.rs.wetMod", "SaltLakeBinaryInv", "SaltLakeBinaryInvNA", "slope", "SPI", "SPI.01", "SPI.01.wetMod", "SPI.rs", "STI", "STI.12", "TRI", 'TRI.01', "TRI.01.wetMod", "TWI", "TWI.01", "TWI.12", "TWI.12.wetMod", "WetAgInv", "WetAgPot", "WetAgPot2", "ErosionPot")
+
+names(TopoEnvData_RastStack) = nam
+
+terra::writeRaster(TopoEnvData_RastStack, paste0(wd$data_p, "TopoEnvData_RastLayers.tif"), overwrite=T)
+terra::writeRaster(TopoEnvData_RastStack, paste0(wd$data_f, "TopoEnvData_RastLayers.tif"), overwrite=T)
+
+unlink(paste0(wd$data_p, "temp_rasts"), recursive = TRUE)
+
+rm(Catch_List2, x, DEM, Curv.01, Curv, Curv.rs, Accum, Accum_fd8, Accum2, AGPot, AGPotNW, EZ, FreshLakeDepth, FreshLakeDepth.12, IntensCost, IntnsCostNW, LakesBinaryInv, LakesBinaryInvNA, NPP, NPP.01, NPP.rs, NPP.rs.wetMod, NPP2, SaltLakeBinaryInv, SaltLakeBinaryInvNA, slope, SPI, SPI.01, SPI.01.wetMod, SPI.rs, STI, STI.12, tmp.p, tmp.p2, tmp.r, TRI, TRI.01, TRI.01.wetMod, TRI.12, TRI.rs, TWI, TWI.01, TWI.12, TWI.12.wetMod, WetAgInv, WetAgPot, WetAgPot2, ErosionPot, IntnsCost,npp,EZm,TopoEnvData_RastStack)
+```
+
+
+
+# Recombining and Reorganizing the Data
+
+```{r, 'Recombining the Data Part 2', message=FALSE, warning=FALSE}
+# Convert lists of period-wise sites/catchments to single SPDF objects
+All_Agg_SitePoly <-  do.call(rbind, Poly_List)
+All_Agg_CatchPoly <- do.call(rbind, Catch_List)
+
+# variables from site data that needs transfer over to catchment areas
+###colz1 = setdiff(colnames(All_Agg_SitePoly@data),colnames(All_Agg_CatchPoly@data))
+# variables from catchment areas that needs transfer over to site data
+colz2 = setdiff(colnames(All_Agg_CatchPoly@data),colnames(All_Agg_SitePoly@data))
+
+#reorder the data to match
+All_Agg_SitePoly <- All_Agg_SitePoly[order(All_Agg_SitePoly$AggSite),]
+All_Agg_CatchPoly <- All_Agg_CatchPoly[order(All_Agg_CatchPoly$AggSite),]
+
+#check to see that the two datasets are in the right order
+#identical(All_Agg_SitePoly@data$AggSite, All_Agg_CatchPoly@data$AggSite)
+
+# Site data to catchment areas
+###Site_to_Catch <- All_Agg_SitePoly@data %>% dplyr::select(!!!syms(colz1))
+###All_Agg_CatchPoly@data <- cbind(All_Agg_CatchPoly@data,Site_to_Catch)
+
+# catchment area data to sites
+Catch_to_Site <- All_Agg_CatchPoly@data %>% dplyr::select(!!!syms(colz2))
+All_Agg_SitePoly@data <- cbind(All_Agg_SitePoly@data,Catch_to_Site)
+
+#Reorganize the data
+
+ordering <- c(
+  #ID VARIABLES
+      "AggSite","AggID","Site","East","North","SurvReg","Number","CerPhase","Period", 
+      "PeriodType","PeriodLength","PeriodNum","PeriodBegin","PeriodEnd", 
+      "OccSeqLoc","OccSeqLoc.Sites","SubOccSeqLoc","SubOccSeqLoc.Sites",
+      "ComponentNum", "ComponentSites",
+  #CHRONOLOGICAL VARIABLES
+      "PeriodInterval", "PeriodBegin", "PeriodBegin.era", "PeriodMidpoint", 
+      "PeriodMidpoint.era", "PeriodEnd", "PeriodEnd.era", "PeriodLength",
+  #OCCUPATION VARIABLES (COUNTS)
+      "Occ.EF","Occ.EF_MF","Occ.MF","Occ.MF_LF","Occ.LF","Occ.LF_TF",
+      "Occ.TF","Occ.TF_CL","Occ.CL","Occ.CL_ET","Occ.ET","Occ.ET_LTAzI", 
+      "Occ.LTAzI","Occ.LTAzI_EA","Occ.EA","Occ.EA_LA","Occ.LA","Occ.TOT",
+  #SUBOCCUPATION VARIABLES (COUNTS)
+      "SubOcc.EF","SubOcc.EF_MF","SubOcc.MF","SubOcc.MF_LF","SubOcc.LF",
+      "SubOcc.LF_TF","SubOcc.TF","SubOcc.TF_CL","SubOcc.CL","SubOcc.CL_ET",
+      "SubOcc.ET","SubOcc.ET_LTAzI","SubOcc.LTAzI","SubOcc.LTAzI_EA",
+      "SubOcc.EA","SubOcc.EA_LA","SubOcc.LA","SubOcc.TOT",
+  #SITE AREA AND OCCUPATIONAL DENSITY VARS
+      "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
+      "BwOvlp.Assemb", "Net.Assemb",
+  #STEP #2 DEMOGRAPHIC VARIABLES
+      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
+      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+  #STEP #1 DEMOGRAPHIC VARIABLES
+      "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
+      "PctUrban.s1","PctRural.s1",
+  #CONTINUITY VARIABLES
+      "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
+      "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
+  #PERSISTENCE VARIABLES
+      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
+  #STEP #4 CATCHMENT AREA AND POP DENSITY VARIABLES
+      "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens.s2", 
+      "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
+      "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
+  #STEP #4 TRANSPORT VARIABLES
+      "TranspDens.pct", "TranspDens.rank",##,core-periphery
+  #STEP #5 CATCHMENT ENVIRONMENT/TOPOGRAPHY VARIABLES
+      "NPP.tot","NPP.avg","EZ.avg","EZ.sd","TRI.tot","TRI.avg","IrrigPot.tot",
+      "IrrigPot.avg","WetAgPot.tot","WetAgPot.avg","IntnsCost.tot",
+      "IntnsCost.avg","IntnsCostNW.tot","IntnsCostNW.avg","AGPot.tot",
+      "AGPot.avg","AGPotNW.tot","AGPotNW.avg","PopPressure","PopPressureNW",
+      "ErosionPot.tot","ErosionPot.avg", 
+  #SURVEY METADATA
+      "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
+      "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",
+  #OLD tDAR BOM SURVEY VARIABLES
+      "O_Elev","O_ElevMed","O_ElevMin","O_ElevMax","O_EZcode",
+      "O_EnvironmentalZone","O_Soil","O_SoilMed","O_SoilMin","O_SoilMax",
+      "O_Erosion","O_ErosionMed","O_ErosionMin","O_ErosionMax","O_ModernUse",
+      "O_ModernSettlement","O_Rainfall","O_Area","O_MoundDomestic",
+      "O_MoundCeremonial","O_MoundQuestionable","O_MoundTotal",
+      "O_MoundRecorded","O_DMoundArea","O_Architecture","O_TerraceConfidence",
+      "O_TerraceExtent","O_Sherd","O_SherdMed","O_SherdMin","O_SherdMax",
+      "O_Rubble","O_RubbleMed","O_RubbleMin","O_RubbleMax","O_Population",
+      "O_PopMin","O_PopMax","O_PopMethod","O_stcode","O_SiteType",
+      "O_SubPeriod1","O_SubPeriod2","O_OccEF","O_OccMF","O_OccLF","O_OccTF",
+      "O_OccCL","O_OccEC","O_OccMC","O_OccLC","O_OccET","O_OccLT","O_OccAZ",
+      "O_OccEA","O_OccLA","O_OccTot","O_OccSeqLoc","O_SubOc1","O_SubOc2",
+      "O_PdDupSite","O_Group","O_Comments") 
+
+#Make sure everything is kosher
+#setdiff(colnames(All_Agg_CatchPoly@data),ordering)
+#setdiff(colnames(All_Agg_SitePoly@data),ordering)
+#setdiff(ordering,colnames(All_Agg_CatchPoly@data))
+#setdiff(ordering,colnames(All_Agg_SitePoly@data))
+
+# Reorder the data for both sites and catchment areas
+All_Agg_SitePoly@data <- All_Agg_SitePoly@data %>% dplyr::select(!!!syms(ordering))
+All_Agg_CatchPoly@data <- All_Agg_CatchPoly@data %>% dplyr::select(!!!syms(ordering))
+```
+
+
+# Export Data for Script #6
+
+```{r, 'Export Data for Step #4', message=FALSE,warning=FALSE}
+
+#AggSite polygons
+writeOGR(All_Agg_SitePoly, paste0(wd$data_p,"SBOM_AggSitePoly5.gpkg"), "SBOM_AggSitePoly5", driver = "GPKG", overwrite_layer=TRUE)
+
+#Catchment areas
+writeOGR(All_Agg_CatchPoly, paste0(wd$data_p,"SBOM_CatchPoly5.gpkg"), "SBOM_CatchPoly5", driver = "GPKG", overwrite_layer=TRUE)
+
+```
+
+# References
+
