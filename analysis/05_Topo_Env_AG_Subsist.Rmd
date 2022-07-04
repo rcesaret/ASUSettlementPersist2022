@@ -90,21 +90,28 @@ rm(FUNCS)
 ```
 
 
-## Import Data
+## Import Data and Reorganize Data
 
 Data we are importing:
 
-  1. the AggSite polygon data from scripts 2/3
-  2. A simple polygon calculated in QGIS that specifies a hard outter border for the catchment areas of sites (constructed for sensitivity to survey borders and sites not included in the SBOM sample)
+  1. the AggSite polygon and catchment polygon data from script 4 (SPDFs)
+  2. A simple polygon calculated in QGIS that specifies a hard outer border for the catchment areas of sites (constructed for sensitivity to survey borders and sites not included in the SBOM sample)
   3. Cost-distance matrices from script #3
-  4. Least cost path rasters from script #3
-  5. A raster hillshade basemap for the SBOM which includes the lakes
+  4. A raster hillshade basemap for the SBOM which includes the lakes
 
 ```{r, label='Import Data', message=FALSE,warning=FALSE}
 
-#Agg Site polygon data
+#Agg Site and catchment polygon data
 All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggSitePoly4.gpkg"))
 All_CatchPoly <- readOGR(paste0(wd$data_p,"SBOM_CatchPoly4.gpkg"))
+
+#reorder spatial points dataframe by period
+All_AggPoly <- All_AggPoly[order(All_AggPoly$PeriodNum),]
+All_CatchPoly <- All_CatchPoly[order(All_CatchPoly$PeriodNum),]
+
+# Split polygons by Phase, saved as list of SPDF
+Poly_List <- splitByAttributes(spdata = All_AggPoly, attr = "Period", suffix="_SitePoly") 
+Catch_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix="_CatchPoly") 
 
 #Catchment boundary limit polygon
 CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
@@ -123,21 +130,6 @@ CD.mats = lapply(CD.mats, as.matrix)
 names(CD.mats) <- nam.distmat
 CD.mats <- CD.mats[ord]
 names(CD.mats) <- paste0(ord,"_cdmat")
-
-```
-
-
-## Reorganize Data from Step #4
-
-```{r, 'Reorganize Data from Step #4', message=FALSE,warning=FALSE}
-
-#reorder spatial points dataframe by period
-All_AggPoly <- All_AggPoly[order(All_AggPoly$PeriodNum),]
-All_CatchPoly <- All_CatchPoly[order(All_CatchPoly$PeriodNum),]
-
-# Split polygons by Phase, saved as list of SPDF
-Poly_List <- splitByAttributes(spdata = All_AggPoly, attr = "Period", suffix="_SitePoly") 
-Catch_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix="_CatchPoly") 
 
 ```
 
