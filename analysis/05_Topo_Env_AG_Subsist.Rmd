@@ -151,6 +151,18 @@ The metrics calculated here are:
   * **NPP.avg** = Total NPP divided by the catchment area in hectares. This is intended to be an intensive proxy metric of a catchment's subsistence productivity _without any landesque intensification._
 
 
+The Miami model of Helmut Lieth characterizes climatic potential net primary production (NPP) as a function of two limiting factors: mean annual temperature and total annual precipitation. It uses the following empirical functions to relate each variable to potential NPP, the lowest of which (i.e. the limiting factor) is taken as the final NPP estimate:
+
+$$NPP_{precip} = 3000(1 - e^{-0.000664 P})$$
+
+$$NPP_{temp} = \frac{3000}{1 + e^{1.315-0.119T}}$$
+We'll apply this model to 30-year temperature and precipitation averages from the CHELSA dataset, a set of statistically downscaled climate data that corrects for topoclimatic influences like orographic precipitation and temperature inversions.In order to run this code, you will need to download the large CHELSA dataset files "CHELSA_bio10_01.tif" and "CHELSA_bio10_12.tif" from the CHELSA server: ![https://chelsa-climate.org/downloads/](https://chelsa-climate.org/downloads/)
+
+The resulting map gives us climatic potential NPP in grams of dry matter per square meter per year, with a theoretical maximum value of 3,000 $g/m^2$. This can be easily converted to expected crop yields using empirical coefficients for different crop types.
+
+
+
+
 ### Subsistence/Agricultural Zones
 
 Sanders, Parsons & Santley [-@Sanders1979] recognize five major environmental zones in the Southern Basin of Mexico that strongly constrain agricultural practices in the region. Due to the impact of elevation on rainfall, frosts, topographic suitability, vegetation and soils, these environmental zones can be approximated from elevation alone:

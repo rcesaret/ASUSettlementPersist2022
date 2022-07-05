@@ -347,6 +347,302 @@ rm(Catch_List2)
 
 # Spatial Network Models
 
+--Create function that lets you 
+----pick which spatial network model to calculate
+----input cost-distance matrix --> edge weights
+----input stars raster basemap
+----create weighted and unweighted undirected graphs
+----determine distances among all settlements using shortest path distances weighted graph https://igraph.org/r/doc/distances.html https://book.archnetworks.net/exploratory#WalksPathsDistance
+----output revised distance matrix
+----calculates node network stats undirected graph https://book.archnetworks.net/exploratory#Centrality
+----plot output: node size = a centrality metric; includes degree distribution and rank size scaling
+--Add a set of graphs together
+----weighted binary network edgeweights --> weighted centrality?
+----full list of paths
+----determine distances among all settlements using shortest path distances weighted graph
+
+In Chapter 7.5 in Brughmans and Peeples (2022) we go over a series of spatial network models that provide a number of different ways of defining networks from spatial data. In this sub-section we demonstrate how to define and analyze networks using these approaches.
+
+```{r}
+library(sf)
+nodes <- read.csv("data/Hispania_nodes.csv", header = T)
+locs <- st_as_sf(nodes, coords = c("long", "lat"), crs = 4326)
+
+locs
+
+library(ggmap)
+map <- get_stamenmap(bbox = c(-9.5, 36, 3, 43.8),
+                       maptype = "terrain",
+                       zoom = 6)
+ggmap(map)
+
+```
+
+
+## Relative Neighborhood Networks
+
+Relative neighborhood graph: a pair of nodes are connected if there are no other nodes in the area marked by the overlap of a circle around each node with a radius equal to the distance between the nodes.
+
+Let’s use our previously created distance matrix and plot the results.
+
+BOX: The R package cccd contains functions to define relative neighborhood networks from distance data using the rng function. This function can either take a distance matrix object as created above or a set of coordinates to calculate the distance within the call. The output of this function is an igraph object. For large graphs it is also possible to limit the search for possible neighbors to 
+k
+ neighbors.
+
+```{r}
+library(cccd)
+rng1 <- rng(nodes[, c(3, 2)])
+ggraph(rng1, layout = "kk") +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
+
+## We can also plot the results using geographic coordinates.
+
+ggraph(rng1,
+       layout = "manual",
+       x = nodes[, 3],
+       y = nodes[, 2]) +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
+```
+
+## Gabriel Graphs
+
+Gabriel graph: a pair of nodes are connected in a Gabriel graph if no other nodes lie within the circular region with a diameter equal to the distance between the pair of nodes.
+
+Again we can use a function in the cccd package to define Gabriel Graph igraph objects from x and y coordinates. Let’s take a look using the Roman Road data. See ?gg for details on the options including different algorithms for calculating Gabriel Graphs. We define a Gabriel graph here and plot it using an algorithmic layout and then geographic coordinates.
+
+```{r}
+gg1 <- gg(x = nodes[, c(3, 2)])
+ggraph(gg1, layout = "stress") +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
+
+ggraph(gg1,
+       layout = "manual",
+       x = nodes[, 3],
+       y = nodes[, 2]) +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
+```
+
+
+### Beta Skeletons
+
+Beta skeleton: a Gabriel graph in which the diameter of the circle is controlled by a parameter beta.
+
+In R the gg function for producing Gabriel Graphs has the procedure for beta skeletons built directly in. The argument r in the gg function controls the beta parameter. When r = 1 a traditional Gabriel graph is returned. When the parameter r > 1 there is a stricter definition of connection resulting in fewer ties and when r < 1 link criteria are loosened. See ?gg for more details.
+
+```{r}
+beta_s <- gg(x = nodes[, c(3, 2)], r = 1.5)
+ggraph(beta_s,
+       layout = "manual",
+       x = nodes[, 3],
+       y = nodes[, 2]) +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
+```
+
+### Minimum Spanning Trees
+
+Minimum spanning tree: in a set of nodes in the Euclidean plane, edges are created between pairs of nodes to form a tree where each node can be reached by each other node, such that the sum of the Euclidean edge lengths is less than the sum for any other spanning tree.
+
+Perhaps the most common use-case for trees in archaeological networks is to define the minimum spanning tree of a given graph or the minimum set of nodes and edges required for a fully connected graph. The igraph package has a function called mst that defines the minimum spanning tree for a given graph. Let’s try this with the Roman Road and then plot it as a node-link diagram and a map.
+
+```{r}
+mst_net <- igraph::mst(road_net)
+set.seed(4643)
+ggraph(mst_net, layout = "kk") +
+  geom_edge_link() +
+  geom_node_point(size = 4) +
+  theme_graph()
+
+# Extract edgelist from network object
+edgelist <- get.edgelist(mst_net)
+# Create dataframe of beginning and ending points of edges
+edges <- as.data.frame(matrix(NA, nrow(edgelist), 4))
+colnames(edges) <- c("X1", "Y1", "X2", "Y2")
+for (i in seq_len(nrow(edgelist))) {
+  edges[i, ] <- c(nodes[which(nodes$Id == edgelist[i, 1]), 3],
+                  nodes[which(nodes$Id == edgelist[i, 1]), 2],
+                  nodes[which(nodes$Id == edgelist[i, 2]), 3],
+                  nodes[which(nodes$Id == edgelist[i, 2]), 2])
+}
+ggmap(my_map) +
+  geom_segment(
+    data = edges,
+    aes(
+      x = X1,
+      y = Y1,
+      xend = X2,
+      yend = Y2
+    ),
+    col = "black",
+    size = 1
+  ) +
+  geom_point(
+    data = nodes[, c(3, 2)],
+    aes(long, lat),
+    alpha = 0.8,
+    col = "black",
+    fill = "white",
+    shape = 21,
+    size = 1.5,
+    show.legend = FALSE
+  ) +
+  theme_void()
+
+```
+
+
+### Delaunay Triangulation
+
+Delaunay triangulation: a pair of nodes are connected by an edge if and only if their corresponding regions in a Voronoi diagram share a side.
+
+Voronoi diagram or Thiessen polygons: for each node in a set of nodes in a Euclidean plane, a region is created covering the area that is closer or equidistant to that node than it is to any other node in the set.
+
+The package deldir in R allows for the calculation of Delaunay triangles with x and y coordinates as input. By default the deldir function will define a boundary that extends slightly beyond the xy coordinates of all points included in the analysis. This boundary can also be specified within the call using the rw argument. See ?deldir for more details.
+
+The results of the deldir function can be directly plotted and the output also contains coordinates necessary to integrate the results into another type of figure like a ggmap. Let’s take a look.
+
+```{r}
+library(deldir)
+dt1 <- deldir(nodes[, 3], nodes[, 2])
+plot(dt1)
+
+# Extract Voronoi polygons for plotting
+mapdat <- as.data.frame(dt1$dirsgs)
+# Extract network for plotting
+mapdat2 <- as.data.frame(dt1$delsgs)
+ggmap(my_map) +
+  geom_segment(
+    data = mapdat,
+    aes(
+      x = x1,
+      y = y1,
+      xend = x2,
+      yend = y2
+    ),
+    col = "black",
+    size = 1
+  ) +
+  geom_segment(
+    data = mapdat2,
+    aes(
+      x = x1,
+      y = y1,
+      xend = x2,
+      yend = y2
+    ),
+    col = "red",
+    size = 1
+  ) +
+  geom_point(
+    data = nodes,
+    aes(long, lat),
+    alpha = 0.8,
+    col = "black",
+    fill = "white",
+    shape = 21,
+    size = 3,
+    show.legend = FALSE
+  ) +
+  theme_void()
+```
+
+
+### K-nearest Neighbors
+
+K-nearest neighbor network: each node is connected to K other nodes closest to it.
+
+The cccd package has a routine that allows for the calculation of K-nearest neighbor graphs from geographic coordinates or a precomputed distance matrix. In this example we use the Roman Road data and calculate K=1 and K=6 nearest neighbor networks and plot the both simultaneously.
+
+```{r}
+# Calculate k=1 nearest neighbor graph
+nn1 <- nng(x = nodes[, c(3, 2)], k = 1)
+# Calculate k=6 nearest neighbor graph
+nn6 <- nng(x = nodes[, c(3, 2)], k = 6)
+el1 <- as.data.frame(
+  rbind(cbind(get.edgelist(nn6),
+         rep("K=6", nrow(get.edgelist(nn1))
+             )),
+        cbind(get.edgelist(nn1),
+          rep("K=1", nrow(get.edgelist(nn1))
+             ))))
+colnames(el1) <- c("from", "to", "K")
+g <- graph_from_data_frame(el1)
+# Plot both graphs
+ggraph(g, layout = "manual",
+       x = nodes[, 3], y = nodes[, 2]) +
+  geom_edge_link(aes(color = factor(K)), width = 1.5) +
+  geom_node_point(size = 2) +
+  labs(edge_color = "K") +
+  theme_graph()
+```
+
+
+
+### Maximum Distance Networks
+
+Maximum distance network: each node is connected to all other nodes at a distance closer than or equal to a threshold value. In order define a maximum distance network we simply need to define a threshold distance and define all nodes greater than that distance as unconnected and nodes within that distance as connected. This can be done in base R using the dist function we used above.
+
+Since the coordinates we are using here are in decimal degrees we need to calculate distances based on “great circles” across the globe rather than Euclidean distances on a projected plane. There is a function called distm in the geosphere package that allows us to do this. If you are working with projected data, you can simply use the dist function in the place of distm like the example below.
+
+Next, in order to define a minimum distance network we simply binarize this matrix. We can do this using the event2dichot function within the statnet package and easily create an R network objects. Let’s try it out with the Roman Road data for thresholds of 100,000 and 250,000 meters.
+
+```{r}
+library(statnet)
+
+library(geosphere)
+d1 <- distm(nodes[, c(3, 2)])
+# Note we use the leq=TRUE argument here as we want nodes less than
+# the threshold to count.
+net100 <- network(event2dichot(
+  d1,
+  method = "absolute",
+  thresh = 100000,
+  leq = TRUE
+),
+directed = FALSE)
+net250 <- network(event2dichot(
+  d1,
+  method = "absolute",
+  thresh = 250000,
+  leq = TRUE
+),
+directed = FALSE)
+# Plot 100 Km network
+ggraph(net100,
+       layout = "manual",
+       x = nodes[, 3],
+       y = nodes[, 2]) +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
+
+# Plot 250 Km network
+ggraph(net250,
+       layout = "manual",
+       x = nodes[, 3],
+       y = nodes[, 2]) +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
+
+# Plot 250 Km network
+ggraph(net250,
+       layout = "manual",
+       x = nodes[, 3],
+       y = nodes[, 2]) +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
+```
 
 
 

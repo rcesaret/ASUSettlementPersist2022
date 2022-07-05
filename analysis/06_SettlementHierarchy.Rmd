@@ -407,65 +407,11 @@ for (i in 1:length(Poly_List)){
 ```
 
 
-
-
-## Distances to 
-
---urban settlements
---higher hierarchical level (up and down)
-
-spbb$distance <- rowMins(dist_matrix)              # get the dist of nearest element
-spbb$nearest  <- rowMins(dist_matrix, value = T)   # get the index of the nearest element
-
-
-Destination accessibility or centrality or competition 
---distance weighted local access to urban services
---dist weighted local access to economic opportunity AND/OR competition
---regional socioeconomic inertia
---core-periphery location
-
-the potential accessibility of settlement $j$ to all $n$ destination settlements $i$
-$$
-A_{j}=\sum_{i=1}^{n} \left( \frac{W_{i}}{D_{ji}} \right)
-$$
-where $W_{i}$ is the weight of a given destination, and $D_{ji}$ is the distance between settlement $j$ and destination $i$.
-
-this is core-periphery
-
---Among all settlements, with population as the weight, access to economic opportunity/demand/supply 
-
---Among all settlements, with UrbanPop/Urbanization as the weight, access to urban/sociopolitical services + institutions
-
-W_ij as a relational term, dependent on similarity or difference of metrics
-
-For certain variables/relationships, 
---similarity == competition
---difference == complimentarity
-carrying capacity, pop pressurem ag potential, urbanization, urban pop
-rural and urban goods circulation complimentarity; regional division of labor; specialization in the urban hierarchy
-political-economic elites of larger centers competing for control; likewise smaller centers vying for an edge over their neighbors
-ENvironmental differences == complimentary
-
-Growth rates need to be standardized!!!! Perhaps across periods...?
---rescaled [0,1]
-
---
--- is 1-
-
-
-
-
 ## Relative Demographic Scale Metrics
 
---Specialization/concentration/inequality metrics on demography variables
-
-Pop scale = = settlement pop / max settlement pop. Pop size with respect to max of whole region.
+PropMax = scale = settlement value / max settlement value Pop size with respect to max of whole region.
 
 Pop Rank = Overall rank in settlement hierarchy
-
-NO SPATIAL METRICS because the spatial element is going into the gravity model as distance decay!!!
-
-Pop_PropMax.s2
 
 Pop_PropMax.s2
 Pop_Rank.s2
@@ -524,76 +470,63 @@ rm(Poly_List2)
 ```
 
 
-
-Spatial Gini 
-
-
-
-
-
-
-# Local Settlement Hierarchy Variables
-
-Local Spatial Interaction Proxies
-
-Local variability/diversity
---sd
---variance
-
-Standardized against global averages
---global average for a metric; value as a a fraction of the global average
---OR as a Z-score...
-
-https://cran.rstudio.com/web/packages/tabula/vignettes/diversity.html
-
-IN...
---Population.s2
---UrbanPop.s2
---UrbanPop_PropMax.s2
---r12_Pert_Rank.s2
---Catch_Popdens.s2
---Catch_ha
---UrbanScale.s2
---PctUrban.s2
---TranspDens.pct
---NPP.avg
---Elev.avg
---Slope.avg
---TPI.avg
---TRI.avg
---Rough.avg
---EZ.avg
-
-lctools R PACKAGE
-https://cran.r-project.org/web/packages/lctools/index.html
-lctools::spGini = Spatial Gini coefficient
-lctools::spGini.w = Spatial Gini coefficient with a given weights matrix
-lctools::mc.spGini = Monte Carlo simulation for the significance of the Spatial Gini coefficient
-lctools::acc = Spatial Interaction Models: Destination Accessibility
-
-FLQ = Focal Location Quotient
-gw_variable = Spatial Interaction Models: gw / regional variable
-l.moransI = Local Moran’s I classic statistic for assessing spatial autocorrelation
-lcorrel = Local Pearson and GW Pearson Correlation
-mc.lcorrel = Monte Carlo simulation for the significance of the local correlation coefficients
-w.matrix = Weights Matrix based on a number of nearest neighbours or a fixed distance
-https://cran.r-project.org/web/packages/SpatialAcc/SpatialAcc.pdf
-https://cran.r-project.org/web/packages/SpatialML/SpatialML.pdf
-
-
-https://cran.r-project.org/web/packages/ggspatial/ggspatial.pdf
-
+## Population-Area Scaling Residuals (SAMIs)
 
 ```{r}
-#convert to sf class polygons
-AZsf = st_as_sf(AZ[,2:4])
-#calculate 3km average for all sites
-pts_agg <- aggregate(AZsf, AZsf, FUN = mean, na.rm=T, join = function(x, y) st_is_within_distance(x, y, dist = 3000)) 
 
-sd(x, na.rm = FALSE)
+```
 
-var(x, y = NULL, na.rm = FALSE, use)
 
+## Concentration/Dispersion Metrics
+
+Location Quotient and similar
+
+```{r}
+
+```
+
+
+
+# Accessibility Metrics
+
+Should this be local or global?? Both?
+
+
+
+
+potential accessibility
+--pop = core-periphery
+--urban pop
+--settlement popdens
+--catchment popdens = 
+--sett heir level = SettHierAccess (urban services, sociopolitical institutions) = sum(SettHeirLevel^2/CD)
+
+
+
+Destination accessibility or centrality or competition 
+--distance weighted local access to urban services
+--dist weighted local access to economic opportunity AND/OR competition
+--regional socioeconomic inertia
+--core-periphery location
+
+the potential accessibility of settlement $j$ to all $n$ destination settlements $i$
+$$
+A_{j}=\sum_{i=1}^{n} \left( \frac{W_{i}}{D_{ji}} \right)
+$$
+where $W_{i}$ is the weight of a given destination, and $D_{ji}$ is the distance between settlement $j$ and destination $i$.
+
+this is core-periphery
+
+--Among all settlements, with population as the weight, access to economic opportunity/demand/supply 
+
+--Among all settlements, with UrbanPop/Urbanization as the weight, access to urban/sociopolitical services + institutions
+
+lctools::acc = Spatial Interaction Models: Destination Accessibility
+https://cran.r-project.org/web/packages/lctools/index.html
+SpatialAcc::ac Spatial Accessibility measures
+https://cran.r-project.org/web/packages/SpatialAcc/SpatialAcc.pdf
+
+```{r, 'Global Accessibility Metrics', message=FALSE,warning=FALSE}
 
 ```
 
@@ -602,8 +535,21 @@ var(x, y = NULL, na.rm = FALSE, use)
 
 
 
+# Local Settlement Hierarchy Variables
 
-#A Coef
+Standardized against global averages
+--global average for a metric; value as a a fraction of the global value
+--OR as a Z-score...
+
+
+### Agglomeration Index
+
+AgglomIndex
+
+### Rank-Size and A-Coefficient
+
+A_Coef
+RS_slope
 
 ```{r}
 nam <- gsub('_SitePoly', "", sitepoly.names)
@@ -634,13 +580,80 @@ rm(x,xx,tmp)
 ```
 
 
+## Local Concentration and Inequality
+
+lctools R PACKAGE
+https://cran.r-project.org/web/packages/lctools/index.html
+lctools::spGini = Spatial Gini coefficient
+lctools::spGini.w = Spatial Gini coefficient with a given weights matrix
+lctools::mc.spGini = Monte Carlo simulation for the significance of the Spatial Gini coefficient
+lctools::FLQ = Focal Location Quotient
+
+
+Inequality = variability/diversity
+
+Specialization = concentration
+
+
+Standardized against global averages
+
+lctools R PACKAGE
+https://cran.r-project.org/web/packages/lctools/index.html
+lctools::spGini = Spatial Gini coefficient
+lctools::spGini.w = Spatial Gini coefficient with a given weights matrix
+lctools::mc.spGini = Monte Carlo simulation for the significance of the Spatial Gini coefficient
+lctools::FLQ = Focal Location Quotient
+
+Spatial Gini 
+
+https://cran.rstudio.com/web/packages/tabula/vignettes/diversity.html
+
+IN...
+--Population.s2
+--UrbanPop.s2
+--UrbanPop_PropMax.s2
+--r12_Pert_Rank.s2
+--Catch_Popdens.s2
+--Catch_ha
+--UrbanScale.s2
+--PctUrban.s2
+--TranspDens.pct
+--NPP.avg
+--Elev.avg
+--Slope.avg
+--TPI.avg
+--TRI.avg
+--Rough.avg
+--EZ.avg
 
 
 
 
 
+lctools::gw_variable = Spatial Interaction Models: gw / regional variable
+lctools::l.moransI = Local Moran’s I classic statistic for assessing spatial autocorrelation
+lctools::lcorrel = Local Pearson and GW Pearson Correlation
+lctools::mc.lcorrel = Monte Carlo simulation for the significance of the local correlation coefficients
+lctools::w.matrix = Weights Matrix based on a number of nearest neighbours or a fixed distance
+
+https://cran.r-project.org/web/packages/SpatialML/SpatialML.pdf
 
 
+https://cran.r-project.org/web/packages/ggspatial/ggspatial.pdf
+
+
+```{r}
+#convert to sf class polygons
+AZsf = st_as_sf(AZ[,2:4])
+#calculate 3km average for all sites
+pts_agg <- aggregate(AZsf, AZsf, FUN = mean, na.rm=T, join = function(x, y) st_is_within_distance(x, y, dist = 3000)) 
+
+sd(x, na.rm = FALSE)
+
+var(x, y = NULL, na.rm = FALSE, use)
+
+
+```
 
 
 
@@ -755,7 +768,7 @@ All_Agg_CatchPoly@data <- All_Agg_CatchPoly@data %>% select(!!!syms(ordering))
 ```
 
 
-# Export Data for Script #5
+# Export Data for Script #7
 
 ```{r, 'Export Data for Step #4', message=FALSE,warning=FALSE}
 
