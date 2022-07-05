@@ -68,7 +68,7 @@ wd$funcs <- paste0(wd$dir,"functions/")
 
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 # Package names
-packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "classInt", "pacman", "RColorBrewer", "cowplot")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph", "ggnewscale", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "classInt", "pacman", "RColorBrewer", "cowplot", "stars", "ggnewscale")#, "data.table", "zoo", "mgcv","igraph", "ggrepel","ggridges", "movecost",  "datplot", "scales",
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -107,10 +107,12 @@ All_CatchPoly <- readOGR(paste0(wd$data_p,"SBOM_CatchPoly5.gpkg"))
 
 #Catchment boundary limit polygon
 CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
+CatchLims.sf = st_as_sf(CatchLims) #for ggplot 
 
 ## Hillshade Basemap Raster with lake
 HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
 HillshadeLake <- rast(HillshadeLake, crs = 26914)
+Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
 
 #Cost-distance matrices
 ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
@@ -301,18 +303,18 @@ par(mfrow = c(1, 1))
 These two periods are also representative in terms of their mixed geographical distribution of size classes across the region, further cross-validating the Kmeans settlement hierarchy class intervals. 
 
 ```{r, 'Hierarchy Classes Example Maps', echo=FALSE, message=FALSE,warning=FALSE}
+
+# Settlement Heirarchy Period Classification #1
+
 p=15
 x=Pts_List[[p]]
 nc=levels$Mean[p]
 fb=as.numeric(unlist(strsplit(ManualHierClasses$Breaks[p], split=", ")))
 kmbrks <- classIntervals(x$Population.s2, style = "kmeans", n=nc)
-
 x$km_breaks <-  cut(x$Population.s2, kmbrks$brks,labels = FALSE,include.lowest = TRUE)
-
-
-CatchLims.sf = st_as_sf(CatchLims)
 Catch.sf = st_as_sf(Catch_List[[p]])
-Hillshade.s <- st_as_stars(HillshadeLake)
+
+# MAP #1
 
 ggp1 = ggplot() +  geom_stars(data = Hillshade.s)+
   scale_fill_gradientn(colours = c("turquoise", "black", "white"), 
@@ -320,11 +322,10 @@ ggp1 = ggplot() +  geom_stars(data = Hillshade.s)+
   geom_sf(data = CatchLims.sf, color="black", size=2, alpha = 0) +
   #geom_sf(data = Catch.sf, color="black", size=0.3, alpha = 0) +
   ggnewscale::new_scale_fill()+
-  geom_point(data=x@data, mapping=aes(x=East, y=North, fill=as.factor(km_breaks), size=Population.s2), shape=21, color = "black", stroke = 1.05, alpha=0.55)+
+  geom_point(data=x@data, mapping=aes(x=East, y=North, fill=as.factor(km_breaks), size=Population.s2), shape=21, color = "black", stroke = 1, alpha=0.55)+
   guides(fill = guide_legend(order = 1, override.aes = list(size = 3,nrow=6)),
          size = guide_legend(order = 2, override.aes = list(nrow=3)))+
   labs(subtitle = "Period 15, EA (c.AD 1200-1350)", fill="Levels", size="Population")+
-  #geom_polygon()
   scale_fill_brewer(palette = "Dark2")+
   coord_sf()+
   theme_void()+
@@ -335,15 +336,16 @@ ggp1 = ggplot() +  geom_stars(data = Hillshade.s)+
         legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'),
         plot.subtitle = element_text(hjust = 0.5, face="bold", size=16))
 
+# Settlement Heirarchy Period Classification #2
+
 p=5
 x=Pts_List[[p]]
 nc=levels$Mean[p]
-fb=as.numeric(unlist(strsplit(ManualHierClasses$Breaks[p], split=", ")))
 kmbrks <- classIntervals(x$Population.s2, style = "kmeans", n=nc)
-
 x$km_breaks <-  cut(x$Population.s2, kmbrks$brks,labels = FALSE,include.lowest = TRUE)
-
 Catch.sf = st_as_sf(Catch_List[[p]])
+
+# MAP #2
 
 ggp2 = ggplot() +  geom_stars(data = Hillshade.s)+
   scale_fill_gradientn(colours = c("turquoise", "black", "white"), 
@@ -351,11 +353,10 @@ ggp2 = ggplot() +  geom_stars(data = Hillshade.s)+
   geom_sf(data = CatchLims.sf, color="black", size=2, alpha = 0) +
   #geom_sf(data = Catch.sf, color="black", size=0.3, alpha = 0) +
   ggnewscale::new_scale_fill()+
-  geom_point(data=x@data, mapping=aes(x=East, y=North, fill=as.factor(km_breaks), size=Population.s2), shape=21, color = "black", stroke = 1.05, alpha=0.55)+
+  geom_point(data=x@data, mapping=aes(x=East, y=North, fill=as.factor(km_breaks), size=Population.s2), shape=21, color = "black", stroke = 1, alpha=0.55)+
   guides(fill = guide_legend(order = 1, override.aes = list(size = 3,nrow=3)),
          size = guide_legend(order = 2, override.aes = list(nrow=4)))+
   labs(subtitle = "Period 5, LF (c.400-200 BC)", fill="Levels", size="Population")+
-  #geom_polygon()
   scale_fill_brewer(palette = "Dark2")+
   coord_sf()+
   theme_void()+
@@ -365,17 +366,25 @@ ggp2 = ggplot() +  geom_stars(data = Hillshade.s)+
         legend.key = element_rect(colour = "transparent", fill = "white"), 
         legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'),
         plot.subtitle = element_text(hjust = 0.5, face="bold", size=16))
-  #scale_fill_discrete(pal1)legend.title=element_rect(face="bold"),
 
+#combine and arrange using cowplot package
 
-plot_row=plot_grid(ggp2, ggp1, align = "h", nrow = 1, rel_heights = c(1/2, 1/2))
-title <- ggdraw() + 
-  draw_label("SBOM Kmeans Settlement Hierarchy Classes",fontface = 'bold',x = 0.5,hjust = 0.5, size=20 )
-plot_grid(title, plot_row,ncol = 1,
-  # rel_heights values control vertical title margins
-  rel_heights = c(0.1, 1)
-)
-#""
+plot_row <- plot_grid(ggp2, ggp1, align = "h", nrow = 1, rel_heights = c(1/2, 1/2))
+
+title <- ggdraw() + draw_label("SBOM Kmeans Settlement Hierarchy Classes",fontface = 'bold',hjust = 0.5, size=20 )
+
+out <- plot_grid(title, plot_row,ncol = 1, rel_heights = c(0.1,0.9)) + 
+          theme(plot.background = element_rect(fill = "white", colour = NA))
+
+#save figure
+
+ggsave("KmeansSetHierMaps.png", plot = out, device = "png", path = wd$figs, scale = 1, width = 8, height = 4.3,   units = "in",  dpi = 1500)
+
+rm(plot_row,title,ggp1,ggp2,p,x,nc,kmbrks,Catch.sf,out)
+
+# import figure for display
+
+knitr::include_graphics(paste0(wd$figs,"KmeansSetHierMaps.png"), FALSE)
 ```
 
 ### Classifying All Periods
@@ -394,7 +403,7 @@ for (i in 1:length(Poly_List)){
                                       kmbrks$brks, labels = FALSE, 
                                       include.lowest = TRUE)
 }
-dat$SetHierLevel=xx$SetHierLevel
+
 ```
 
 
