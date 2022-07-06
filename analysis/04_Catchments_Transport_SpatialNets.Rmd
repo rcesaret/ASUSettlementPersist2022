@@ -69,7 +69,7 @@ wd$funcs <- paste0(wd$dir,"functions/")
 
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 # Package names
-packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "stars", "dismo", "purrr", "spatialEco", "whitebox", "classInt")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph", "ggnewscale", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "stars", "dismo", "purrr", "spatialEco", "whitebox", "classInt", "deldir")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph", "ggnewscale", "ggrepel","ggridges", "movecost",  "datplot", "scales",
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -107,10 +107,12 @@ All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggPoly2.gpkg"))
 
 #Catchment boundary limit polygon
 CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
+CatchLims.sf <- st_as_sf(CatchLims) #for ggplot
 
 ## Hillshade Basemap Raster with lake
 HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
 HillshadeLake <- rast(HillshadeLake, crs = 26914)
+Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
 
 ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
 
@@ -195,14 +197,36 @@ example <- CatchmentPolys(
               plot.results = F #whetherto output a plot of resulting catchments
               )
 
-#plot results
-plot(example,col="blue")
-plot(ex1,add=T,col="red")
 
-rm(example, ex1)
 ```
 
+```{r, 'example plot of catchment areas', echo=FALSE, message=FALSE,warning=FALSE}
 
+Sites.sf <- st_as_sf(Poly_List[[9]])
+Catch.sf = st_as_sf(example)
+
+ggp1 = ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise", "black", "white"), 
+               values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  ggnewscale::new_scale_fill()+
+  geom_sf(data = CatchLims.sf, aes(geometry = geometry), color="black", size=2, alpha = 0) +
+  geom_sf(data = Catch.sf, aes(geometry = geometry),color="black", size=1, alpha = 0.25, fill="blue") +
+  geom_sf(data = Sites.sf, aes(geometry = geometry),color="black", size=0.1, fill="red") +
+  labs(title= "Defining Settlement Catchment Areas", subtitle = "Period 9, CL (c.AD 100-550)")+
+  coord_sf()+
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=16),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=14),
+        plot.background = element_rect(fill = "white", colour = NA))
+
+#save figure
+ggsave("CatchmentAreaExample.png", plot = ggp1, device = "png", path = wd$figs, scale = 1, width = 7.5, height = 5,   units = "in",  dpi = 1800)
+
+rm(example, ex1, ggp1, Sites.sf, Catch.sf)
+
+# import figure for display
+knitr::include_graphics(paste0(wd$figs,"CatchmentAreaExample.png"), FALSE)
+```
 ## Create Catchment Areas for All Sites/Periods
 
 Having explained the methods and demonstrated the use of the function, we can now calculate catchment areas for all periods by looping over them:
@@ -250,7 +274,40 @@ rm(methods, catch_dist_lim, xx, catch)
 
 # Catchment Area Transport Route Density
 
-Here we calculate the "transport route density" variable for site catchment areas from the least cost path rasters calculated in script #3. This variable gives us a proxy for how central a settlement's territory may have been to the major transport arteries of a given period. 
+Here we calculate the "transport route density" variable for site catchment areas from the least cost path rasters calculated in script #3. This variable gives us a proxy for how central a settlement's territory may have been to the major transport arteries of a given period. Below is an example map of the LCP density rasters.
+
+```{r, 'example plot of LCP Density', echo=FALSE, message=FALSE,warning=FALSE}
+
+Sites.sf <- st_as_sf(Poly_List[[9]])
+Catch.sf = st_as_sf(Catch_List[[9]])
+lcp_dens.s <- st_as_stars(lcp_dens_rasts[[9]])
+
+ggp1 = ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise", "black", "white"), 
+               values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  ggnewscale::new_scale_fill()+
+  geom_stars(data = lcp_dens.s, alpha=0.5)+
+  scale_fill_gradientn(colours = c(NA, "black", "black"), 
+               values = scales::rescale(c(0, 50, 273)), guide="none")+
+  geom_sf(data = CatchLims.sf, aes(geometry = geometry), color="black", size=2, alpha = 0) +
+  geom_sf(data = Catch.sf, aes(geometry = geometry),color="black", size=0.35, alpha = 0) +
+  geom_sf(data = Sites.sf, aes(geometry = geometry),color="black", size=0.1, fill="red") +
+  labs(title= "Least Cost Path Density", subtitle = "Period 9, CL (c.AD 100-550)")+
+  coord_sf()+
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=16),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=14),
+        plot.background = element_rect(fill = "white", colour = NA))
+
+#save figure
+ggsave("LCPDensityExample.png", plot = ggp1, device = "png", path = wd$figs, scale = 1, width = 7.5, height = 5,   units = "in",  dpi = 1800)
+
+rm(lcp_dens.s, ggp1, Sites.sf, Catch.sf)
+
+# import figure for display
+knitr::include_graphics(paste0(wd$figs,"LCPDensityExample.png"), FALSE)
+```
+
 
 Transport route density is calculated _in two ways for each period_:
 
@@ -258,6 +315,7 @@ Transport route density is calculated _in two ways for each period_:
   2. as an **ordinal rank** of the above percentages among all site catchments (highest % = 1)
 
 Here, again, we will loop over all periods using the LCP rasters imported from script #3:
+
 
 ```{r, 'Catchment Area Transport Route Density', message=FALSE,warning=FALSE}
 
@@ -347,6 +405,8 @@ rm(Catch_List2)
 
 # Spatial Network Models
 
+
+
 --Create function that lets you 
 ----pick which spatial network model to calculate
 ----input cost-distance matrix --> edge weights
@@ -364,17 +424,16 @@ rm(Catch_List2)
 In Chapter 7.5 in Brughmans and Peeples (2022) we go over a series of spatial network models that provide a number of different ways of defining networks from spatial data. In this sub-section we demonstrate how to define and analyze networks using these approaches.
 
 ```{r}
-library(sf)
-nodes <- read.csv("data/Hispania_nodes.csv", header = T)
-locs <- st_as_sf(nodes, coords = c("long", "lat"), crs = 4326)
 
-locs
+nodes <- Pts_List[[i]]
+xy <- data.frame(x = nodes$East, y = nodes$North)
+locs <- st_as_sf(Pts_List[[i]])
 
-library(ggmap)
-map <- get_stamenmap(bbox = c(-9.5, 36, 3, 43.8),
-                       maptype = "terrain",
-                       zoom = 6)
-ggmap(map)
+rng1 <- rng(nodes[, c(3, 2)])
+ggraph(rng1, layout = "kk") +
+  geom_edge_link() +
+  geom_node_point(size = 2) +
+  theme_graph()
 
 ```
 
