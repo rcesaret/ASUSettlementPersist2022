@@ -251,8 +251,9 @@ The theoretical information comes from synthesis from the published literature o
 ```{r, 'Calculate and Plot Custom Beta Distributions', message=FALSE, warning=FALSE}
 
 Ch <- CHRON %>% select(Period, Begin, End, param1, param2)
-colnames(Ch) <- c("CeramicComplex", "BeginDate", "EndDate", "alpha", "beta")
-Ch
+colnames(Ch) <- c("CeramicComplex", "Begin", "End", "alpha", "beta")
+
+knitr::kable(Ch, "pipe" ,align="c")
 
 density = list()
 time = list()
@@ -274,7 +275,11 @@ BDistFreq = BetaDist %>%
   select(-Density_freq)
 BDistFreq$CeramicPhase <- factor(BDistFreq$CeramicPhase, levels = c("EF", "MF", "LF", "TF", "CL", "ET","LTAzI", "EA", "LA"))
 
-ggplot() + geom_density(BDistFreq, mapping=aes(Time, ..scaled..*0.00979), fill = "black", alpha=0.35) + 
+```
+
+
+```{r, 'Beta Dist Popularity Plot', message=FALSE, warning=FALSE, echo=FALSE }
+ggp1 <- ggplot() + geom_density(BDistFreq, mapping=aes(Time, ..scaled..*0.00979), fill = "black", alpha=0.35) + 
     geom_density(BDistFreq, mapping=aes(Time,fill=CeramicPhase), color="black",  alpha=0.65) +
     geom_vline(data=MP, aes(xintercept = years), linetype = "dashed", alpha=0.6)+
     labs(title="Custom Beta Distribution Popularity Curves for SBOM Ceramic Complexes", x ="Years BC/AD", y = "Indiv. Phase Density")+
@@ -288,8 +293,15 @@ ggplot() + geom_density(BDistFreq, mapping=aes(Time, ..scaled..*0.00979), fill =
           axis.title.y = element_text(color="black", size=14, face="bold"),
           legend.justification=c(0,1), legend.position=c(0.01,0.97), legend.title=element_blank(),
           legend.spacing.y = unit(0.1,"line"),legend.key = element_rect(colour = "transparent", fill = "white"), 
-          legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'), plot.title = element_text(hjust = 0.5, face="bold"))
+          legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'), plot.title = element_text(hjust = 0.5, face="bold"))+theme(plot.background = element_rect(fill = "white", colour = NA))
 
+#save figure
+ggsave("BetaDistPopularity.png", plot = ggp1, device = "png", path = wd$figs, scale = 1, width = 8, height = 5.143,   units = "in",  dpi = 1500)
+
+rm(ggp1)
+
+# import figure for display
+knitr::include_graphics(paste0(wd$figs,"BetaDistPopularity.png"), FALSE)
 ```
 
 
@@ -349,7 +361,7 @@ Assembs5 <- t(Assembs4)
 colnames(Assembs5) <- Assembs3$Period
 Assembs5 <- as.data.frame(cbind(MP2,Assembs5))
 
-Assembs5
+knitr::kable(Assembs5, "pipe" ,align="c")
 
 rm(Assembs, Assembs2, Assembs3, Assembs4)
 
@@ -401,6 +413,8 @@ dim(PC.mat2) <- c(nrow(Aemp.mat), ncol(Aemp.mat))
 colnames(PC.mat2) <- MyColnames
 rownames(PC.mat2) <- rownames(Aemp.mat)
 
+knitr::kable(PC.mat2, "pipe" ,align="c")
+
 rm(ar,BProbs.df,BProbs.df2,Bprob.mat,Aemp.mat,df.list,Complexes,alpha,beta,df,rs.lims,lims,i,j)
 
 ```
@@ -432,12 +446,13 @@ AssembsFreq = Assembs5.long %>%
   datplot::scaleweight(var = 2)
 
 ```
+
 The graphs below show the resulting aoristic distributions, which serve as our as empirical popularity curves. The second figure shows the unweighted unweighted kernel density PDFs for comparison with the the aoristically-weighted PDFs.
 
 
 ```{r, 'Popularity Curve Variant 2 Figure', echo=FALSE, message=FALSE, warning=FALSE}
 
-ggplot() +
+ggp1 <- ggplot() +
   geom_density(data = AssembsFreq, aes(fill = variable, x = DAT_step), color = "white", size=0, alpha = 0.5) + 
   geom_density(data = AssembsFreq, aes(fill = variable, x = DAT_step, weight = weight), color = "white", size = 0, alpha = 0.3)+
   geom_density(data = AssembsFreq, aes(fill = variable, x = DAT_step), color = "black", size=0.9, alpha = 0.0, show.legend = F) + 
@@ -454,8 +469,15 @@ geom_vline(data=MP, aes(xintercept = years), linetype = "dashed", alpha=0.6)+
           legend.justification=c(0,1), legend.position=c(0.01,0.97), legend.title=element_blank(),
           legend.spacing.y = unit(0.1,"line"),legend.key = element_rect(colour = "transparent", fill = "white"), 
           legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'), 
-          plot.title = element_text(hjust = 0.5, face="bold"), plot.subtitle = element_text(hjust = 0.5, face="bold"))
+          plot.title = element_text(hjust = 0.5, face="bold"), plot.subtitle = element_text(hjust = 0.5, face="bold"))+theme(plot.background = element_rect(fill = "white", colour = NA))
 
+#save figure
+ggsave("AoristicVar2Popularity.png", plot = ggp1, device = "png", path = wd$figs, scale = 1, width = 8, height = 5.143,   units = "in",  dpi = 1500)
+
+rm(ggp1)
+
+# import figure for display
+knitr::include_graphics(paste0(wd$figs,"AoristicVar2Popularity.png"), FALSE)
 ```
 
 Next, the theoretical and empirical distributions are then combined multiplicatively per Bayes' theorem, producing "posterior" popularity curves for each of the $j=9$ ceramic complexes. Integration of these posterior popularity curves for each of the $i=17$ modelling periods is then performed to obtain the probability of occupation in each modelling period for each of the $j=9$ ceramic complexes.
@@ -507,7 +529,7 @@ colnames(PC.mat) <- MyColnames
 From the table below, we can see that different numerical methods of estimating the probability of the distribution for each ceramic complex via integration were very similar, meaning that our numerical methods were accurate. 
 
 ```{r, 'Integrated Popularity Curves for Variant 2 Table', echo=FALSE, message=FALSE, warning=FALSE}
-Probs.df
+knitr::kable(PC.mat, "pipe" ,align="c")
 rm(tmp, Beta.df, Assemb.df, densBeta, densAssemb, PC, PDF, Probs, Dens.list, lims, Beta, Assemb, Complexes,i, Probs.df,Probs.df2)
 ```
 
@@ -516,7 +538,7 @@ The figure below shows the Variant #2 "posterior" popularity curve distributions
 
 ```{r, 'Plot Popularity Curves variant 2', echo=FALSE, message=FALSE, warning=FALSE}
 
-ggplot() + 
+ggp1 <- ggplot() + 
   geom_ridgeline(data=Dens.df, aes(x=Years, y=Complex, height=Density*300, fill=Distribution, color=Distribution),alpha=0.3,size=0.7)+
   scale_fill_discrete(name = "Distribution", labels = c("Theoretical Beta (Prior)", "Empirical Aoristic (Conditional)", "Final Bayesian Prior (Posterior)") ) +
   scale_colour_discrete(name = "Distribution", labels = c("Theoretical Beta (Prior)", "Empirical Aoristic (Conditional)", "Final Bayesian Prior (Posterior)"), drop = FALSE)+
@@ -533,7 +555,15 @@ ggplot() +
           legend.justification=c(0,1), legend.position=c(0.55,0.97), legend.title=element_text(color="black", face="bold"),#element_blank(),
           legend.spacing.y = unit(0.1,"line"),legend.key = element_rect(colour = "transparent", fill = "white"), 
           legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'), 
-          plot.title = element_text(hjust = 0.5, face="bold"), plot.subtitle = element_text(hjust = 0.5, face="bold"))
+          plot.title = element_text(hjust = 0.5, face="bold"), plot.subtitle = element_text(hjust = 0.5, face="bold"))+theme(plot.background = element_rect(fill = "white", colour = NA))
+
+#save figure
+ggsave("BayesCompareVar2PC.png", plot = ggp1, device = "png", path = wd$figs, scale = 1, width = 7, height = 4.5,   units = "in",  dpi = 1500)
+
+rm(ggp1)
+
+# import figure for display
+knitr::include_graphics(paste0(wd$figs,"BayesCompareVar2PC.png"), FALSE)
 
 ```
 
@@ -749,40 +779,110 @@ plot_grid(plt, plt2, align = "v", nrow = 2, rel_heights = c(1/2, 1/2))
 
 ```
 
+```{r, 'spda.ggplot trajectory plot outputs', echo=FALSE, message=FALSE, warning=FALSE}
 
-# Results and Interpretation
+############################ UPDF_example.png ###################################
+
+ex1.site <- Agg[which(Agg$SubOccSeqLoc=='TX-IX-1-A'),]
+ex1.site_NoOvlp <- Agg_NoOvlp[which(Agg_NoOvlp$SubOccSeqLoc=='TX-IX-1-A'),]
+
+ex1 <- spda(site = ex1.site$SubOccSeqLoc,  
+            ID = ex1.site$AggID, 
+            ph.sites = ex1.site$AggSite,
+            ph.periods = ex1.site$Period,
+            cer.type = ex1.site_NoOvlp$Period,
+            ct = ex1.site_NoOvlp$Tot.Assemb,
+            start = ex1.site_NoOvlp$Begin,
+            start.era = ex1.site_NoOvlp$Begin.era,
+            end = ex1.site_NoOvlp$End,
+            end.era = ex1.site_NoOvlp$End.era,
+            pop.ests = ex1.site$Population, 
+            pc.input = PC.mat,
+            obs.input = ex1.site$Tot.Assemb,
+            interval=1,
+            cutoff = 0.05,
+            min.period = 25, 
+            pc.method = "uniform", 
+            method = "bayesian")
+
+plt = spda.ggplot(ex1, method="bayesian", 
+                  pc.method="uniform", 
+                  legend_position = "top", 
+                  PopLogScale = F, 
+                  xlabels = MyLabs, 
+                  xbreaks = MyBreaks)
+
+plt = plt + theme(plot.caption = element_blank())+theme(plot.background = element_rect(fill = "white", colour = NA))
+
+#save figure
+ggsave("UPDF_example.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 7, height = 4.5,   units = "in",  dpi = 1500)
 
 
-## "Mean Occupational Probabilities" vs. Ortman's (2016) Bayesian Methods
+############################ SettlementPopTraj.png ###################################
 
-The first issue we need to decide is whether the "Mean Occupational Probabilities" method outlined above actually performs better than Ortman's [-@Ortman2016] Bayesian Method for our survey data. The two graphs below compare the output of the two methods for two SBOM SubOccSeqLoc sites, TX-IX-1-A (La Magdalena Atlicpac) and CH-192-A (Xico). The immediately observable difference here is that the two methods produce substantially different occupational time series', which depart most notably from the empirical data for certain transition periods (highlighted in yellow).
+ex1.site <- Agg[which(Agg$SubOccSeqLoc=='CH-186-A'),]
+ex1.site_NoOvlp <- Agg_NoOvlp[which(Agg_NoOvlp$SubOccSeqLoc=='CH-186-A'),]
 
-```{r, 'Comparing the Likelihood and Conditional outputs of spda', echo=FALSE, out.width = '100%'}
-knitr::include_graphics(paste0(wd$figs,"BayesMeanOccuCompare.png"), FALSE)
-```
+ex1 <- spda(site = ex1.site$SubOccSeqLoc,  
+            ID = ex1.site$AggID, 
+            ph.sites = ex1.site$AggSite,
+            ph.periods = ex1.site$Period,
+            cer.type = ex1.site_NoOvlp$Period,
+            ct = ex1.site_NoOvlp$Tot.Assemb,
+            start = ex1.site_NoOvlp$Begin,
+            start.era = ex1.site_NoOvlp$Begin.era,
+            end = ex1.site_NoOvlp$End,
+            end.era = ex1.site_NoOvlp$End.era,
+            pop.ests = ex1.site$Population, 
+            pc.input = PC.mat,
+            obs.input = ex1.site$Tot.Assemb,
+            interval=1,
+            cutoff = 0.05,
+            min.period = 25, 
+            pc.method = "input", 
+            method = "mean.obs",
+            alpha = ex1.site_NoOvlp$param1,
+            beta = ex1.site_NoOvlp$param2)
 
-As expected from the discussion in previous sections, this is a product of the Bayesian conditional probability distributions (bottom row, dashed blue lines), which intentionally weight the probability of occupation of the transition periods greater than non-overlap periods. By contrast, the mean occupational probability estimates are more measured modifications of the empirical data from each site, and do not experience rises in transition period occupation beyond the extent suggested by the survey data. 
+plt = spda.ggplot(ex1, method="mean.obs", 
+                  pc.method="input", 
+                  legend_position = "top", 
+                  PopLogScale = F, 
+                  xlabels = MyLabs, 
+                  xbreaks = MyBreaks, 
+                  Pert.plot = F,
+                  yaxtitle = "Occupational Probability")
 
-We can see this effect at the aggregate level in the violin plot below, which compares occupational probabilities for both methods by period type (i.e. overlap/transition periods and main ceramic complex phases). Here, we can see that the distributions for main ceramic phases (on the right) are very similar for both methods. Both an independent samples t-test and Bayes Factor fail to reject the null hypothesis that the two distributions were sampled from the same parent distribution. By contrast, the two overlap/transition phase distributions are sharply divergent, and the t-tests and Bayes Factor reject the null hypothesis. 
+plt2 = spda.ggplot(ex1, method="mean.obs", 
+                   pc.method="input", 
+                   legend_position = "top", 
+                   PopLogScale = T, 
+                   xlabels = MyLabs, 
+                   xbreaks = MyBreaks, 
+                   Pert.plot = F,
+                   yaxtitle = "Occupational Probability")
 
-```{r, 'Independent samples t-tests by SPDA method and PeriodType', echo=FALSE, out.width = '100%'}
-knitr::include_graphics(paste0(wd$figs,"OccuProb_Method_PeriodType.png"), FALSE)
-```
+plt = plt + labs(title = "Chronologically Refined Settlement Population Time Series", subtitle="S. Basin of Mexico Site CH-186-A (500 BC - AD 1520)", y = "Occupational Probability") + theme(axis.text.x=element_blank(), axis.title.x=element_blank(), plot.caption = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))
+plt2 = plt2 + labs(y = "Occupational Probability") + theme(legend.position = "none",plot.title = element_blank(), plot.subtitle = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))
 
+ggp <- plot_grid(plt, plt2, align = "v", nrow = 2, rel_heights = c(1/2, 1/2))+theme(plot.background = element_rect(fill = "white", colour = NA))
 
-The wider range of higher values for the Bayesian method are, again, the product of its conditional probabilities. These differences stem from the fact that the mean occupational probabilities do not depart from empirical patterns in the data, whereas the conditionals involve a contextually invalid theoretical assumption for our dataset. Thus, we can say that the mean occupational probability estimates have key advantages over their Bayesian counterparts because they are tailor-made for our data.
+plt = spda.ggplot(ex1, method="mean.obs", 
+                  pc.method="input", 
+                  legend_position = c(0.01,0.99), 
+                  PopLogScale = F, 
+                  xlabels = MyLabs, 
+                  xbreaks = MyBreaks, 
+                  Pert.plot = F,
+                  yaxtitle = "Occupational Probability")
 
+plt = plt + labs(title = "'Chronologically Refined' Settlement Population Time Series", subtitle="S. Basin of Mexico; Site CH-186-A (500 BC - AD 1520)", y = "Occupational Probability") + theme(plot.caption = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))+theme(plot.background = element_rect(fill = "white", colour = NA))
 
-## Comparing the two Popularity Curve Variants
+#save figure
+ggsave("SettlementPopTraj.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 7, height = 4.5,   units = "in",  dpi = 1800)
 
-The second issue we need to decide is which of the two popularity curves outlined above performs better for our survey data. Recall that the two variants are:
+######################## PopCurvCompare_spdaTraj.png ####################
 
-  1. The mean of (A) the regional theoretical beta distribution probabilities, and (B) aggregate regional assemblage probabilities (relative frequencies) for each modelling period
-  2. The bayesian posterior distribution probability for each modelling period, calculated via Bayes' Theorem from (A) the regional theoretical beta distribution probabilities (serving as the Prior), and (B) the Aoristically-weighted aggregate regional assemblage probability distributions (serving as the Likelihood/Conditional)
-  
-As seen in the graphs below, there is little difference between the two popularity curves. This holds for all sites that I examined. Nevertheless, Variant #1 does tend to produce straighter logarithmic lines between periods, so I have used Variant #1 to produce the data for script #3. You can change this by simply modifying the inputs in the code from the following section.
-
-```{r, 'Comparing the two Popularity Curve Variants', echo=FALSE, message=FALSE, warning=FALSE}
 ex1.site <- Agg[which(Agg$SubOccSeqLoc=='CH-186-A'),]
 ex1.site_NoOvlp <- Agg_NoOvlp[which(Agg_NoOvlp$SubOccSeqLoc=='CH-186-A'),]
 
@@ -837,8 +937,48 @@ plt2 <- spda.ggplot(ex1, method="mean.obs", pc.method="input", legend_position =
 plt = plt + labs(subtitle="(A) Variant #1 Mean Prob. Popularity Curve") + theme(axis.text.x=element_blank(), axis.title.x=element_blank(), plot.caption = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))
 plt2 = plt2 + labs(subtitle="(B) Variant #2 Aoristic Popularity Curve") + theme(plot.title = element_blank(), axis.title.y = element_text(color="black", size=12, face="bold"))
 
-plot_grid(plt, plt2, align = "v", nrow = 2, rel_heights = c(0.42, 0.58))
+plt = plot_grid(plt, plt2, align = "v", nrow = 2, rel_heights = c(0.42, 0.58))+theme(plot.background = element_rect(fill = "white", colour = NA))
 
+#save figure
+ggsave("PopCurvCompare_spdaTraj.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 7.5, height = 6.5,   units = "in",  dpi = 1600)
+
+rm(plt,plt2,ex1,ex1.site,ex1.site_NoOvlp)
+```
+
+
+# Results and Interpretation
+
+## "Mean Occupational Probabilities" vs. Ortman's (2016) Bayesian Methods
+
+The first issue we need to decide is whether the "Mean Occupational Probabilities" method outlined above actually performs better than Ortman's [-@Ortman2016] Bayesian Method for our survey data. The two graphs below compare the output of the two methods for two SBOM SubOccSeqLoc sites, TX-IX-1-A (La Magdalena Atlicpac) and CH-192-A (Xico). The immediately observable difference here is that the two methods produce substantially different occupational time series', which depart most notably from the empirical data for certain transition periods (highlighted in yellow).
+
+```{r, 'Comparing the Likelihood and Conditional outputs of spda', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"BayesMeanOccuCompare.png"), FALSE)
+```
+
+As expected from the discussion in previous sections, this is a product of the Bayesian conditional probability distributions (bottom row, dashed blue lines), which intentionally weight the probability of occupation of the transition periods greater than non-overlap periods. By contrast, the mean occupational probability estimates are more measured modifications of the empirical data from each site, and do not experience rises in transition period occupation beyond the extent suggested by the survey data. 
+
+We can see this effect at the aggregate level in the violin plot below, which compares occupational probabilities for both methods by period type (i.e. overlap/transition periods and main ceramic complex phases). Here, we can see that the distributions for main ceramic phases (on the right) are very similar for both methods. Both an independent samples t-test and Bayes Factor fail to reject the null hypothesis that the two distributions were sampled from the same parent distribution. By contrast, the two overlap/transition phase distributions are sharply divergent, and the t-tests and Bayes Factor reject the null hypothesis. 
+
+```{r, 'Independent samples t-tests by SPDA method and PeriodType', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"OccuProb_Method_PeriodType.png"), FALSE)
+```
+
+
+The wider range of higher values for the Bayesian method are, again, the product of its conditional probabilities. These differences stem from the fact that the mean occupational probabilities do not depart from empirical patterns in the data, whereas the conditionals involve a contextually invalid theoretical assumption for our dataset. Thus, we can say that the mean occupational probability estimates have key advantages over their Bayesian counterparts because they are tailor-made for our data.
+
+
+## Comparing the two Popularity Curve Variants
+
+The second issue we need to decide is which of the two popularity curves outlined above performs better for our survey data. Recall that the two variants are:
+
+  1. The mean of (A) the regional theoretical beta distribution probabilities, and (B) aggregate regional assemblage probabilities (relative frequencies) for each modelling period
+  2. The bayesian posterior distribution probability for each modelling period, calculated via Bayes' Theorem from (A) the regional theoretical beta distribution probabilities (serving as the Prior), and (B) the Aoristically-weighted aggregate regional assemblage probability distributions (serving as the Likelihood/Conditional)
+  
+As seen in the graphs below, there is little difference between the two popularity curves. This holds for all sites that I examined. Nevertheless, Variant #1 does tend to produce straighter logarithmic lines between periods, so I have used Variant #1 to produce the data for script #3. You can change this by simply modifying the inputs in the code from the following section.
+
+```{r, 'Comparing the two Popularity Curve Variants', echo=FALSE, out.width = '80%'}
+knitr::include_graphics(paste0(wd$figs,"PopCurvCompare_spdaTraj.png"), FALSE)
 ```
 
 
@@ -915,9 +1055,9 @@ Thus, in spite of the pessimistic picture painted at the settlement level by the
 While this is only one case study (SBOM), we might use the above patterns as a working hypothesis to be tested across the preindustrial/ancient world
 
 
-# Output and Export for Step #3
 
-## Running the analysis for multiple sites
+
+# Running the analysis for multiple sites
 
 One simple way to run these analyses and generate output for multiple sites is to use loops and lists. In the following chunk of code we define a list and loop over all sites included in our data file to run this analysis site by site. Here we limit ourselves to the first 3 sites in the dataset but this could easily be applied to all. Also, the output could be wrapped in a pdf() function to output plots directly to a file. 
 
@@ -966,7 +1106,7 @@ out.tbl = bind_rows(out.list)
 
 ```
 
-## Recombining the Data, Part 1
+## Recombining the Data
 
 ```{r, 'Recombining the Data Part 1', message=FALSE, warning=FALSE}
 
@@ -974,10 +1114,14 @@ out.tbl <- out.tbl[order(out.tbl$AggID),]
 Agg <- Agg[order(Agg$AggID),]
 #identical(Agg$AggSite, out.tbl$AggSite)
 #identical(Agg$AggID, out.tbl$AggID)
-colnames(out.tbl) <- c("AggID","SubOccSeqLoc", "AggSite", "Period", "PeriodInterval", "PeriodBegin", "PeriodBegin.era", "PeriodMidpoint", 
-"PeriodMidpoint.era", "PeriodEnd", "PeriodEnd.era", "PeriodLength", "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2", "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2")
-out.tbl <- out.tbl %>% select(-SubOccSeqLoc,-Period, -AggSite)
 
+names(out.tbl)[names(out.tbl) == 'Interval'] <- 'PeriodInterval'
+names(out.tbl)[names(out.tbl) == 'Log_Population'] <- 'Log_Population.s2'
+names(out.tbl)[names(out.tbl) == 'Population'] <- 'Population.s2'
+names(out.tbl)[names(out.tbl) == 'UrbanPop'] <- 'UrbanPop.s2'
+names(out.tbl)[names(out.tbl) == 'Assemb'] <- 'ApportAssemb'
+
+out.tbl <- out.tbl %>% select(-SubOccSeqLoc,-Period, -AggSite)
 
 namez <- c("Population","PopDens","UrbanScale","UrbanPop","RuralPop", "PctUrban","PctRural")
 
@@ -985,8 +1129,8 @@ for (i in 1:length(namez)){
   names(Agg)[names(Agg) == namez[i]] <- paste0(namez[i],".s1")
 }
 
-Agg <- Agg %>% select(-PeriodLength,-PeriodBegin,-PeriodEnd)
-Agg = Agg[,-c(43:56)]
+Agg <- Agg %>% select(-PeriodLength,-PeriodBegin,-PeriodEnd, -OccuIntertia)
+Agg = Agg[,-c(43:55)]
 Agg2 <- left_join(Agg,out.tbl,by="AggID")
 
 #rm(out.list, out.tbl, sites, site.qv_NoOvlp, app.out, site.qv, out.list, sites, Agg)
@@ -999,20 +1143,60 @@ Agg2 <- left_join(Agg,out.tbl,by="AggID")
 UrbanThresh = 1500
 
 Agg2 <- Agg2 %>% rowwise() %>% mutate(
-              UrbanPop.s2 = ifelse(Population.s2 > 1500, Population.s2 - UrbanThresh, 0),
               RuralPop.s2 = ifelse(Population.s2 < 1500, Population.s2, UrbanThresh)) %>%
        ungroup() %>% mutate(
               PopDens.s2 = Population.s2 / Area_ha,
               UrbanScale.s2 = Population.s2 / UrbanThresh,
               PctUrban.s2 = UrbanPop.s2 / Population.s2,
               PctRural.s2 = RuralPop.s2 / Population.s2)
+
+```
+
+```{r, '02_FigureScript.R', echo=FALSE, message=FALSE, warning=FALSE}
+invisible(source(paste0(wd$analysis,"02_FigureScript.R")))
+```
+
+```{r, 'Demographic rates', message=FALSE, warning=FALSE}
+
+## Demographic rates rescaled (RS), Logged, and Absolute Value; their quantiles
+Agg2 <- Agg2 %>% mutate(Abs_rPert = abs(rPert),
+                        RS_rPert = scales::rescale(rPert),
+                        LogRS_rPert = log(RS_rPert),
+                        LogAbs_rPert = log(Abs_rPert),
+                        Q.rPert = ecdf(rPert)(rPert),
+                        Q.Abs_rPert = ecdf(Abs_rPert)(Abs_rPert),
+                        Q.RS_rPert = ecdf(RS_rPert)(RS_rPert),
+                        Q.LogRS_rPert = ecdf(LogRS_rPert)(LogRS_rPert),
+                        Q.LogAbs_rPert = ecdf(LogAbs_rPert)(LogAbs_rPert),
+                        Urb_Abs_rPert = abs(Urb_rPert),
+                        Urb_RS_rPert = scales::rescale(Urb_rPert),
+                        Urb_LogRS_rPert = log(Urb_RS_rPert),
+                        Urb_LogAbs_rPert = log(Urb_Abs_rPert),
+                        Q.Urb_rPert = ecdf(Urb_rPert)(Urb_rPert),
+                        Q.Urb_Abs_rPert = ecdf(Urb_Abs_rPert)(Urb_Abs_rPert),
+                        Q.Urb_RS_rPert = ecdf(Urb_RS_rPert)(Urb_RS_rPert),
+                        Q.Urb_LogRS_rPert = ecdf(Urb_LogRS_rPert)(Urb_LogRS_rPert),
+                        Q.Urb_LogAbs_rPert = ecdf(Urb_LogAbs_rPert)(Urb_LogAbs_rPert)) %>%
+                  group_by(Period) %>% mutate(
+                        Qp.rPert = ecdf(rPert)(rPert),
+                        Qp.Abs_rPert = ecdf(Abs_rPert)(Abs_rPert),
+                        Qp.RS_rPert = ecdf(RS_rPert)(RS_rPert),
+                        Qp.LogRS_rPert = ecdf(LogRS_rPert)(LogRS_rPert),
+                        Qp.LogAbs_rPert = ecdf(LogAbs_rPert)(LogAbs_rPert)) %>% ungroup()
+
+  Agg2 <- do.call(data.frame, lapply(Agg2, function(x) replace(x, is.infinite(x), NA)))
+  Agg2 <- do.call(data.frame, lapply(Agg2, function(x) replace(x, is.nan(x), NA)))
 ```
 
 
-## Recombining the Data, Part 2
+
+# Data Integration and Export
+
+## Recombining the Data
 
 ```{r, 'Recombining the Data Part 2', message=FALSE, warning=FALSE}
 colz = setdiff(colnames(All_AggPoly@data),colnames(Agg2))
+colz2 = setdiff(colnames(Agg2),colnames(All_AggPoly@data))
 colz <- c("AggID",colz)
 All_AggPoly@data <- All_AggPoly@data %>% select(!!!syms(colz))
 
@@ -1042,9 +1226,19 @@ ordering <- c(
       "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
       "BwOvlp.Assemb", "Net.Assemb",
   #STEP #2 DEMOGRAPHIC VARIABLES
-      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
-      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "Population.s2","Log_Population.s2", "ApportAssemb", "PopDens.s2",
       "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+      "Prior", "Observed", "MeanOccuProb", 
+  #STEP #2 DEMOGRAPHIC RATES
+      "Pct_deltaPop12", "Pct_deltaPop01", "r12_Pert", "r01_Pert",
+      "r23_Pert", "rPert", "rPert0", "rPert2", 
+      "Pct_UrbdeltaPop12", "Pct_UrbdeltaPop01", "Urb_r12_Pert", "Urb_r01_Pert",
+      "Urb_r23_Pert", "Urb_rPert", "Urb_rPert0", "Urb_rPert2",
+      "Abs_rPert","RS_rPert","LogRS_rPert","LogAbs_rPert","Q.rPert","Q.Abs_rPert",
+      "Q.RS_rPert","Q.LogRS_rPert","Q.LogAbs_rPert","Urb_Abs_rPert",
+      "Urb_RS_rPert","Urb_LogRS_rPert","Urb_LogAbs_rPert","Q.Urb_rPert","Q.Urb_Abs_rPert",
+      "Q.Urb_RS_rPert","Q.Urb_LogRS_rPert","Q.Urb_LogAbs_rPert",
+      "Qp.rPert","Qp.Abs_rPert","Qp.RS_rPert","Qp.LogRS_rPert","Qp.LogAbs_rPert",
   #STEP #1 DEMOGRAPHIC VARIABLES
       "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
       "PctUrban.s1","PctRural.s1",
@@ -1052,7 +1246,8 @@ ordering <- c(
       "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
       "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
   #PERSISTENCE VARIABLES
-      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
+      "Found","FoundInit","Abandon","Persist","DewarType",
+      "OccuTime","OccuInertia","UrbOccuTime","UrbOccuInertia",
   #SURVEY METADATA
       "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
       "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",

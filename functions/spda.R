@@ -8,7 +8,7 @@
 #### from artifact counts and artifact type ranges (see adjoining .Rmd for details)
 
 
-pak <- c("compiler", "msm", "snowfall", "parallel", "doParallel", "tidyverse", "era", "zoo", "scales")
+pak <- c("compiler", "msm", "snowfall", "parallel", "doParallel", "tidyverse", "era", "zoo", "scales", "data.table")
 # Install packages not yet installed
 ip <- pak %in% rownames(installed.packages())
 if (any(ip == FALSE)) {
@@ -49,7 +49,8 @@ spda <- function(
     method = c("bayesian","mean.obs"),
     z = rep_len(2,length.out=length(cer.type)),
     alpha = rep_len(2,length.out=length(cer.type)),
-    beta = rep_len(2,length.out=length(cer.type))){
+    beta = rep_len(2,length.out=length(cer.type)),
+    UrbanThresh = 1500){
   
   site2 <- site
   
@@ -312,6 +313,9 @@ spda <- function(
   
   rownames(out) = ID
   # calculate exponential growth rates using Pert equation via approximation method of Kintigh & Peeples (2020)
+  #PertTab <- data.frame(Period = c(out$Period)
+  
+  
   out$r12_Pert <- NA
   for (i in 1:(nrow(out))) {
     out$r12_Pert[i] <- ((out$Population[i+1]/out$Population[i])^(1/(abs((out$PeriodMidpoint[i]) - (out$PeriodMidpoint[i+1])))))-1
@@ -323,6 +327,57 @@ spda <- function(
     }
   }
   
+  out <- out %>% mutate(Pct_deltaPop12 = lead(Population, n=1, default = 1) / Population,
+                        Pct_deltaPop01 = Population / lag(Population, n=1, default = 1),
+                        r01_Pert = lag(r12_Pert, n=1),
+                        r23_Pert = lead(r12_Pert, n=1),
+                        helper = lag(PeriodLength/2, default = 0)) %>% rowwise() %>%
+                 mutate(rPert = mean(c(rep(r12_Pert,(PeriodLength/2)), rep(r01_Pert,helper)),na.rm=T)) %>% ungroup() %>%
+                 mutate(rPert0 = lag(rPert, n=1),
+                        rPert2 = lead(rPert, n=1)) %>% 
+                 rowwise() %>% 
+                 mutate(Pct_deltaPop12 = ifelse(PeriodEnd == 1520, NA, Pct_deltaPop12),
+                        UrbanPop = ifelse(Population > 1500, Population - UrbanThresh, 0),
+                        UrbanOccu = ifelse(Population > 1500, PeriodLength, 0),
+                        helper = ifelse(Population > 1500, 1, 0)) %>%
+                 ungroup() %>%
+                 mutate(OccuTime = cumsum(PeriodLength),
+                        OccuInertia = cumsum((PeriodLength*Population)))
+  
+  out$UrbOccuTime <- as.numeric(unlist(by(out$UrbanOccu, rleid(out$helper), cumsum)))
+  out$UrbOccuInertia <- as.numeric(unlist(by((out$UrbanPop*out$PeriodLength), rleid(out$helper), cumsum)))
+  out <- out %>% dplyr::select(-UrbanOccu, -helper) %>% 
+                 mutate(Pct_UrbdeltaPop12 =  ifelse(lead(UrbanPop, n=1, default = 1) == 0, 1, lead(UrbanPop, n=1, default = 1))/UrbanPop,
+                        Pct_UrbdeltaPop12 =  ifelse(Pct_UrbdeltaPop12 == 0, NA, Pct_UrbdeltaPop12),
+                        Pct_UrbdeltaPop01 = UrbanPop / lag(UrbanPop, n=1, default = 0)) %>%
+                 rowwise() %>% 
+                 mutate(Pct_UrbdeltaPop12 = ifelse(PeriodEnd == 1520, NA, Pct_UrbdeltaPop12),
+                        UP = ifelse(UrbanPop == 0, 1, UrbanPop)) %>% ungroup()
+                 
+  
+  out$Urb_r12_Pert <- NA
+  
+  for (i in 1:(nrow(out))) {
+    out$Urb_r12_Pert[i] <- ((out$UP[i+1]/out$UP[i])^(1/(abs((out$PeriodMidpoint[i]) - (out$PeriodMidpoint[i+1])))))-1
+    ## If site is abandoned, calculate growth rate from Period Midpoint to EndPoint, from population to 1
+    if (is.na(out$Urb_r12_Pert[i])){
+      if (out$PeriodEnd[i] == 1520) {out$Urb_r12_Pert[i] <- NA} else {
+        out$Urb_r12_Pert[i] <- ((1/out$UP[i])^(1/(abs((out$PeriodMidpoint[i]) - (out$PeriodEnd[i])))))-1
+      }
+    }
+  }
+  out <- out %>% mutate(Urb_r12_Pert = ifelse(Urb_r12_Pert == 0, NA, Urb_r12_Pert),
+                        Urb_r01_Pert = lag(Urb_r12_Pert, n=1),
+                        Urb_r23_Pert = lead(Urb_r12_Pert, n=1),
+                        helper = lag(PeriodLength/2, default = 0)) %>% rowwise() %>%
+                 mutate(Urb_rPert = mean(c(rep(Urb_r12_Pert,(PeriodLength/2)), rep(Urb_r01_Pert,helper)),na.rm=T)) %>% ungroup() %>%
+                 mutate(Urb_rPert0 = lag(rPert, n=1),
+                        Urb_rPert2 = lead(rPert, n=1)) %>% dplyr::select(-UP, -helper)
+  
+  out <- do.call(data.frame, lapply(out, function(x) replace(x, is.infinite(x), NA)))
+  out <- do.call(data.frame, lapply(out, function(x) replace(x, is.nan(x), NA)))
+                                                    
   return(out)
 }
+
 
