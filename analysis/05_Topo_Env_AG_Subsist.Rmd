@@ -119,6 +119,7 @@ CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
 ## Hillshade Basemap Raster with lake
 HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
 HillshadeLake <- rast(HillshadeLake, crs = 26914)
+Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
 
 #Cost-distance matrices
 ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
@@ -137,6 +138,25 @@ names(CD.mats) <- paste0(ord,"_cdmat")
 # Catchment Area Topographic/Environmental Metrics
 
 The environmental characteristics of site catchment areas may be a causally important factor in long-term settlement persistence. Two major environmental processes that might contribute to settlement persistence include subsistence/agricultural productivity and landscape degradation. We have therefore calculated a number of targeted environmental proxy metrics for these theoretical dimensions, outlined below. **All of these metrics use only online environmental data and superficial contextual info about the study region**
+
+```{r, label='import raster data', message=FALSE,warning=FALSE}
+#create temp directory for rasters we will delete later
+# we will stack and save these together at the end of this chunk
+dir.create(paste0(wd$data_p,"temp_rasts"))
+
+## Import 90 meter DEM
+DEM <- raster(paste0(wd$data_r, "SBOM_DEM_90m.tif"))
+DEM <- rast(DEM, crs = 26914)
+
+## Import SBOM Lake rasters calculated in GRASS GIS
+LakesBinaryInv <- rast(paste0(wd$data_r, "LakesBinaryInv.tif"))
+LakesBinaryInvNA <- LakesBinaryInv
+LakesBinaryInvNA[LakesBinaryInvNA == 0] <- NA
+SaltLakeBinaryInv <- rast(paste0(wd$data_r, "SaltLakeBinaryInv.tif"))
+SaltLakeBinaryInvNA <- SaltLakeBinaryInv
+SaltLakeBinaryInvNA[SaltLakeBinaryInvNA == 0] <- NA
+FreshLakeDepth <- rast(paste0(wd$data_r, "FreshLakeDepth.tif"))
+```
 
 
 ### Potential Productivity
@@ -160,7 +180,33 @@ We'll apply this model to 30-year temperature and precipitation averages from th
 
 The resulting map gives us climatic potential NPP in grams of dry matter per square meter per year, with a theoretical maximum value of 3,000 $g/m^2$. This can be easily converted to expected crop yields using empirical coefficients for different crop types.
 
+```{r, label='NPP', message=FALSE,warning=FALSE}
+######### NPP ######### 
 
+## Calculate net primary productivity (NPP) using Nick Gauthier's script
+npp <- read_stars(c(paste0(wd$data_r,'CHELSA_bio10_01_SBOM.tif'), paste0(wd$data_r,'CHELSA_bio10_12_SBOM.tif'))) %>% 
+  setNames(c('temperature', 'precipitation')) %>%
+  mutate(temperature = temperature / 10, # temperature is in degrees C * 10
+         ### the miami model
+         npp_prec = 3000 * (1 - exp(-0.000664 * precipitation)),
+         npp_temp = 3000 / (1 + exp(1.315 - 0.119 * temperature)),
+         npp = pmin(npp_prec, npp_temp)) %>%
+  dplyr::select(npp)
+
+# convert from stars to raster
+NPP <- as(npp, "Raster")
+NPP <- rast(NPP, crs = 26914)
+
+#Downscale to DEM resolution using DEM
+NPP <- terra::resample(NPP, DEM, method="bilinear")
+
+NPP <- NPP * SaltLakeBinaryInvNA
+
+NPP.rs <- RescaleSpatRast(NPP) # rescale 0-1
+NPP.rs <- NPP.rs+0.5# rescale 0.5-1.5
+
+ggplot() +  geom_stars(data = npp)
+```
 
 
 ### Subsistence/Agricultural Zones
@@ -181,6 +227,25 @@ The metrics calculated here are:
   * **EZ.sd** = StDev of ordinal numeric codes (see above)
 
 
+```{r, label='Env Zones', message=FALSE,warning=FALSE}
+######### EnvZones ######### 
+
+## Calculate BOM Environmental Zones from elevation (DEM)
+m <- c(0,    2240, 0, # Inundation Zone / Lakebed Alluvium
+       2240, 2275, 1, # Lakeshore Alluvial Plain
+       2275, 2350, 2, # Lower Piedmont
+       2350, 2500, 3, # Middle Piedmont
+       2500, 2700, 4, # Upper Piedmont
+       2700, 6000, 5) # Sierra
+
+EZm <- matrix(m, ncol=3, byrow=TRUE) #make into a matrix
+EZ <- terra::classify(DEM, EZm, include.lowest=TRUE) # reclassify groups of values
+
+stz = st_as_stars(EZ)
+ggplot() +geom_stars(data = stz)
+```
+
+
 ### Terrain Ruggedness
 
 A major constraint of agriculture in any region is the suitability of local topography to arable cultivation. More steeply-sloping topography requires heavy labor inputs in the form of terracing to create arable surfaces and constrain erosion/runoff. By contrast, flat alluvial areas generally lack these _de facto_ labor constraints, and are often better watered and blanketed in fertile and easily tilled sediment. 
@@ -191,6 +256,17 @@ The metrics calculated here are:
 
   * **TRI.tot** = Total (catchment sum) TRI = extensive metric intended to capture the total scale/magnitude of land that may need to be terraced
   * **TRI.avg** = Mean TRI = intensive metric intended to capture the mean catchment area need for terracing
+  
+```{r, label='Terrain Ruggedness', message=FALSE,warning=FALSE}
+######### TRI ######### 
+
+TRI <- terra::terrain(DEM, v="TRI")# calc Terrain Ruggedness Index
+TRI <- TRI * SaltLakeBinaryInvNA
+TRI.01 <- RescaleSpatRast(TRI) # rescale 0-1
+
+stz = st_as_stars(TRI)
+ggplot() +geom_stars(data = stz)
+```
 
 
 ### Hydraulic Agriculture Potential
@@ -206,8 +282,43 @@ The suitability of an area to wetland agriculture is contexually dependent by re
   * **WetAgPot.tot** = Total Wetland Agriculture Potential = sum freshwater lake raster in catchment
   * **WetAgPot.avg** = Mean Wetland Agriculture = sum freshwater lake divided by catchment area
   
+```{r, label='Hydraulic Agriculture', message=FALSE,warning=FALSE}
+######### TWI ######### 
+
+wbt_breach_depressions(dem = paste0(wd$data_r,"SBOM_DEM_90m.tif"), output = paste0(wd$data_p,"temp_rasts/DEM_breach.tif"))
+
+#DEM2 <- as(DEM, "Raster")
+slope <- terra::terrain(DEM, v="slope", unit="degrees")#Slope
+writeRaster(slope,paste0(wd$data_p,"temp_rasts/Slope.tif"), overwrite=TRUE)
+
+wbt_d8_flow_accumulation(paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), output=paste0(wd$data_p,"temp_rasts/Accum.tif"), out_type = "specific contributing area")
+Accum <- rast(paste0(wd$data_p, "temp_rasts/Accum.tif"))
+Accum[is.nan(Accum)] <- NA
+
+wbt_wetness_index(sca=paste0(wd$data_p,"temp_rasts/Accum.tif"), slope=paste0(wd$data_p,"temp_rasts/Slope.tif"), output=paste0(wd$data_p,"temp_rasts/TWI.tif"), verbose_mode = FALSE)
+TWI <- rast(paste0(wd$data_p, "temp_rasts/TWI.tif"))
+TWI <- TWI * SaltLakeBinaryInvNA
+
+TWI.01 <- RescaleSpatRast(TWI) # rescale 0-1
+TWI.12 <- TWI.01+1
+
+
+######### WetAG ######### 
+
+WetAgPot <- rast(paste0(wd$data_r, "FreshLakeBinary.tif"))#binary 0,1 raster of lake
+
+WetAgPot2 <- WetAgPot*2
+
+WetAgInv <- rast(paste0(wd$data_r, "FreshLakeBinaryInv.tif")) #binary wetAg area=0, other is 1
+
+stz = st_as_stars(TWI)
+ggplot() +geom_stars(data = stz)
+```
   
-### Intensification costs
+  
+  
+  
+### Intensification Costs
 
 The costs of agricultural intensification are another possible factor in settlement persistence. The **cost of terracing** should be proportional to **TRI**, as noted above. 
 
@@ -228,6 +339,35 @@ The metrics calculated here are:
   * **IntnsCostNW.tot** = Total catchment intensification costs excluding wetland agriculture = sum(TRI[0,1]) + sum(SPI[0,1])
   * **IntnsCostNW.avg** = Average catchment intensification costs = sum(TRI[0,1]) + sum(SPI[0,1])/Area
 
+```{r, label='Intensification Costs', message=FALSE,warning=FALSE}
+######### SPI ######### 
+
+wbt_stream_power_index(sca=paste0(wd$data_p,"temp_rasts/Accum.tif"),slope=paste0(wd$data_p,"temp_rasts/Slope.tif"),output=paste0(wd$data_p,"temp_rasts/SPI.tif"),exponent = 1)
+SPI <- rast(paste0(wd$data_p, "temp_rasts/SPI.tif"))
+SPI <- SPI * SaltLakeBinaryInvNA
+SPI.01 <- RescaleSpatRast(SPI)
+SPI.rs <- RescaleSpatRast(SPI.01)+0.5
+SPI.rs <- SPI.rs * WetAgInv
+
+
+######### FreshLakeDepth ######### 
+
+FreshLakeDepth[is.nan(FreshLakeDepth)] <- NA
+FreshLakeDepth.12 <- RescaleSpatRast(FreshLakeDepth)
+FreshLakeDepth.12 <- FreshLakeDepth.12+1
+FreshLakeDepth.12[is.na(FreshLakeDepth.12)] <- 0
+
+######### IntnsCost ######### 
+
+IntnsCost = TRI.01+SPI.rs+FreshLakeDepth.12
+TRI.01.wetMod <- LakesBinaryInvNA*TRI.01
+SPI.01.wetMod <- LakesBinaryInvNA*SPI.rs
+IntnsCostNW = TRI.01.wetMod+SPI.01.wetMod
+
+stz = st_as_stars(IntnsCost)
+ggplot() +geom_stars(data = stz)
+```
+
 
 ### Agricultural Potential
 
@@ -240,6 +380,19 @@ The metrics calculated here are:
   * **AGPotNW.tot** = same as above but with 0 for wetland areas 
   * **AGPotNW.avg** = same as above but with 0 for wetland AG 
 
+```{r, label='Agricultural Potential', message=FALSE,warning=FALSE}
+######### AGPot ######### 
+
+TWI.12.wetMod <- LakesBinaryInvNA*TWI.12
+NPP.rs.wetMod <- LakesBinaryInvNA*NPP.rs
+
+AGPot = max(WetAgPot2, TWI.12,NPP.rs)
+AGPotNW = max(TWI.12.wetMod, NPP.rs.wetMod)
+
+stz = st_as_stars(AGPot)
+ggplot() +geom_stars(data = stz)
+
+```
 
 ### Population Pressure
 
@@ -289,129 +442,7 @@ Given that Runoff Erosion Potential= STI[1,2] and Diffusion Erosion Potential= P
   * **ErosionPot.tot** = Total Erosion Potential = sum(max(STI[1,2],Curv[0,1.5]))/DrainDens = take the max of the rescaled STI and Curv rasters, sum them over the catchment, and divide by the drainage density.
   * **ErosionPot.avg** = Mean Erosion Potential = sum(max(STI[1,2],Curv[0,1]))/DrainDens/Area
 
-
-## Calculate Metric Rasters
-
-```{r, "Calculate Topographic/Environmental Metrics", warning = FALSE, message=FALSE}
-
-#create temp directory for rasters we will delete later
-# we will stack and save these together at the end of this chunk
-dir.create(paste0(wd$data_p,"temp_rasts"))
-
-## Import 90 meter DEM
-DEM <- raster(paste0(wd$data_r, "SBOM_DEM_90m.tif"))
-DEM <- rast(DEM, crs = 26914)
-
-## Import SBOM Lake rasters calculated in GRASS GIS
-LakesBinaryInv <- rast(paste0(wd$data_r, "LakesBinaryInv.tif"))
-LakesBinaryInvNA <- LakesBinaryInv
-LakesBinaryInvNA[LakesBinaryInvNA == 0] <- NA
-SaltLakeBinaryInv <- rast(paste0(wd$data_r, "SaltLakeBinaryInv.tif"))
-SaltLakeBinaryInvNA <- SaltLakeBinaryInv
-SaltLakeBinaryInvNA[SaltLakeBinaryInvNA == 0] <- NA
-FreshLakeDepth <- rast(paste0(wd$data_r, "FreshLakeDepth.tif"))
-
-
-######### NPP ######### 
-
-## Calculate net primary productivity (NPP) using Nick Gauthier's script
-npp <- read_stars(c(paste0(wd$data_r,'CHELSA_bio10_01_SBOM.tif'), paste0(wd$data_r,'CHELSA_bio10_12_SBOM.tif'))) %>% 
-  setNames(c('temperature', 'precipitation')) %>%
-  mutate(temperature = temperature / 10, # temperature is in degrees C * 10
-         ### the miami model
-         npp_prec = 3000 * (1 - exp(-0.000664 * precipitation)),
-         npp_temp = 3000 / (1 + exp(1.315 - 0.119 * temperature)),
-         npp = pmin(npp_prec, npp_temp)) %>%
-  dplyr::select(npp)
-
-# convert from stars to raster
-NPP <- as(npp, "Raster")
-NPP <- rast(NPP, crs = 26914)
-
-#Downscale to DEM resolution using DEM
-NPP <- terra::resample(NPP, DEM, method="bilinear")
-
-NPP <- NPP * SaltLakeBinaryInvNA
-
-NPP.rs <- RescaleSpatRast(NPP) # rescale 0-1
-NPP.rs <- NPP.rs+0.5# rescale 0.5-1.5
-
-######### EnvZones ######### 
-
-## Calculate BOM Environmental Zones from elevation (DEM)
-m <- c(0,    2240, 0, # Inundation Zone / Lakebed Alluvium
-       2240, 2275, 1, # Lakeshore Alluvial Plain
-       2275, 2350, 2, # Lower Piedmont
-       2350, 2500, 3, # Middle Piedmont
-       2500, 2700, 4, # Upper Piedmont
-       2700, 6000, 5) # Sierra
-
-EZm <- matrix(m, ncol=3, byrow=TRUE) #make into a matrix
-EZ <- terra::classify(DEM, EZm, include.lowest=TRUE) # reclassify groups of values
-
-######### TRI ######### 
-
-TRI <- terra::terrain(DEM, v="TRI")# calc Terrain Ruggedness Index
-TRI <- TRI * SaltLakeBinaryInvNA
-TRI.01 <- RescaleSpatRast(TRI) # rescale 0-1
-
-######### TWI ######### 
-
-wbt_breach_depressions(dem = paste0(wd$data_r,"SBOM_DEM_90m.tif"), output = paste0(wd$data_p,"temp_rasts/DEM_breach.tif"))
-
-#DEM2 <- as(DEM, "Raster")
-slope <- terra::terrain(DEM, v="slope", unit="degrees")#Slope
-writeRaster(slope,paste0(wd$data_p,"temp_rasts/Slope.tif"), overwrite=TRUE)
-
-wbt_d8_flow_accumulation(paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), output=paste0(wd$data_p,"temp_rasts/Accum.tif"), out_type = "specific contributing area")
-Accum <- rast(paste0(wd$data_p, "temp_rasts/Accum.tif"))
-Accum[is.nan(Accum)] <- NA
-
-wbt_wetness_index(sca=paste0(wd$data_p,"temp_rasts/Accum.tif"), slope=paste0(wd$data_p,"temp_rasts/Slope.tif"), output=paste0(wd$data_p,"temp_rasts/TWI.tif"), verbose_mode = FALSE)
-TWI <- rast(paste0(wd$data_p, "temp_rasts/TWI.tif"))
-TWI <- TWI * SaltLakeBinaryInvNA
-
-TWI.01 <- RescaleSpatRast(TWI) # rescale 0-1
-TWI.12 <- TWI.01+1
-
-######### WetAG ######### 
-
-WetAgPot <- rast(paste0(wd$data_r, "FreshLakeBinary.tif"))#binary 0,1 raster of lake
-
-WetAgPot2 <- WetAgPot*2
-
-WetAgInv <- rast(paste0(wd$data_r, "FreshLakeBinaryInv.tif")) #binary wetAg area=0, other is 1
-
-######### SPI ######### 
-
-wbt_stream_power_index(sca=paste0(wd$data_p,"temp_rasts/Accum.tif"),slope=paste0(wd$data_p,"temp_rasts/Slope.tif"),output=paste0(wd$data_p,"temp_rasts/SPI.tif"),exponent = 1)
-SPI <- rast(paste0(wd$data_p, "temp_rasts/SPI.tif"))
-SPI <- SPI * SaltLakeBinaryInvNA
-SPI.01 <- RescaleSpatRast(SPI)
-SPI.rs <- RescaleSpatRast(SPI.01)+0.5
-SPI.rs <- SPI.rs * WetAgInv
-
-######### AGPot ######### 
-
-TWI.12.wetMod <- LakesBinaryInvNA*TWI.12
-NPP.rs.wetMod <- LakesBinaryInvNA*NPP.rs
-
-AGPot = max(WetAgPot2, TWI.12,NPP.rs)
-AGPotNW = max(TWI.12.wetMod, NPP.rs.wetMod)
-
-######### FreshLakeDepth ######### 
-
-FreshLakeDepth[is.nan(FreshLakeDepth)] <- NA
-FreshLakeDepth.12 <- RescaleSpatRast(FreshLakeDepth)
-FreshLakeDepth.12 <- FreshLakeDepth.12+1
-FreshLakeDepth.12[is.na(FreshLakeDepth.12)] <- 0
-
-######### IntnsCost ######### 
-
-IntnsCost = TRI.01+SPI.rs+FreshLakeDepth.12
-TRI.01.wetMod <- LakesBinaryInvNA*TRI.01
-SPI.01.wetMod <- LakesBinaryInvNA*SPI.rs
-IntnsCostNW = TRI.01.wetMod+SPI.01.wetMod
+```{r, label='Erosion Potential', message=FALSE,warning=FALSE}
 
 ######### STI ######### 
 
@@ -443,14 +474,14 @@ Accum2<- RescaleSpatRast(Accum2)
 
 ErosionPot <- max(STI.12,Curv.rs)
 
+stz = st_as_stars(ErosionPot)
+ggplot() +geom_stars(data = stz)
 
-rm(EZm, m, npp)
-
+rm(EZm, m, npp, stz)
 ```
 
 
-
-## Calculate Metrics for Site Catchment Areas
+## Calculate Metrics for Catchments/Periods
 
 ```{r, "Catchment Area Topographic/Environmental Metrics", warning = FALSE, message=FALSE}
 
@@ -599,9 +630,19 @@ ordering <- c(
       "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
       "BwOvlp.Assemb", "Net.Assemb",
   #STEP #2 DEMOGRAPHIC VARIABLES
-      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
-      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "Population.s2","Log_Population.s2", "ApportAssemb", "PopDens.s2",
       "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+      "Prior", "Observed", "MeanOccuProb", 
+  #STEP #2 DEMOGRAPHIC RATES
+      "Pct_deltaPop12", "Pct_deltaPop01", "r12_Pert", "r01_Pert",
+      "r23_Pert", "rPert", "rPert0", "rPert2", 
+      "Pct_UrbdeltaPop12", "Pct_UrbdeltaPop01", "Urb_r12_Pert", "Urb_r01_Pert",
+      "Urb_r23_Pert", "Urb_rPert", "Urb_rPert0", "Urb_rPert2",
+      "Abs_rPert","RS_rPert","LogRS_rPert","LogAbs_rPert","Q.rPert","Q.Abs_rPert",
+      "Q.RS_rPert","Q.LogRS_rPert","Q.LogAbs_rPert","Urb_Abs_rPert",
+      "Urb_RS_rPert","Urb_LogRS_rPert","Urb_LogAbs_rPert","Q.Urb_rPert","Q.Urb_Abs_rPert",
+      "Q.Urb_RS_rPert","Q.Urb_LogRS_rPert","Q.Urb_LogAbs_rPert",
+      "Qp.rPert","Qp.Abs_rPert","Qp.RS_rPert","Qp.LogRS_rPert","Qp.LogAbs_rPert",
   #STEP #1 DEMOGRAPHIC VARIABLES
       "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
       "PctUrban.s1","PctRural.s1",
@@ -609,13 +650,20 @@ ordering <- c(
       "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
       "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
   #PERSISTENCE VARIABLES
-      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
+      "Found","FoundInit","Abandon","Persist","DewarType",
+      "OccuTime","OccuInertia","UrbOccuTime","UrbOccuInertia",
+  #STEP #4 TRANSPORT NETWORK VARIABLES
+      "TranspDens.pct", "TranspDens.rank","centr_deg","centr_btw","centr_eig",
+      "centr_clos","centr_hrmo","centr_hub","centr_auth","centr_pgrk",
+      "centr_deg_n","centr_btw_n","centr_eig_n","centr_clos_n","centr_hrmo_n",
+      "centr_hub_n","centr_auth_n","centr_avg","trans_loc","trans_locavg",
+      "density","connectiv","trans_glob","cntrlz_deg","cntrlz_btw","cntrlz_eig",
+      "cntrlz_clo","cntrlz_hub","cntrlz_auth","cntrlz_deg_n","cntrlz_btw_n",
+      "cntrlz_eig_n","cntrlz_clo_n","cntrlz_hub_n","cntrlz_auth_n","cntrlz_avg",
   #STEP #4 CATCHMENT AREA AND POP DENSITY VARIABLES
       "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens.s2", 
       "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
       "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
-  #STEP #4 TRANSPORT VARIABLES
-      "TranspDens.pct", "TranspDens.rank",##,core-periphery
   #STEP #5 CATCHMENT ENVIRONMENT/TOPOGRAPHY VARIABLES
       "NPP.tot","NPP.avg","EZ.avg","EZ.sd","TRI.tot","TRI.avg","IrrigPot.tot",
       "IrrigPot.avg","WetAgPot.tot","WetAgPot.avg","IntnsCost.tot",

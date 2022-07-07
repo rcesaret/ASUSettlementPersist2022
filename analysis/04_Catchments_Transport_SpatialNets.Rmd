@@ -69,7 +69,13 @@ wd$funcs <- paste0(wd$dir,"functions/")
 
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 # Package names
-packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "stars", "dismo", "purrr", "spatialEco", "whitebox", "classInt", "deldir")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph", "ggnewscale", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", 
+              "gdistance", "lwgeom", "tidyverse","tidyr", "stars", "dismo", 
+               "spatialEco", "whitebox", "classInt", "deldir", "spdep",
+              "igraph", "dbscan", "cowplot", "deldir", "cccd", "ggraph", 
+              "geosphere", "statnet", "intergraph","ggnewscale")
+              
+              #, "data.table", "zoo", "era", "JOPS", "mgcv","", , "ggrepel","ggridges", "movecost",  "datplot", "scales",
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -83,7 +89,8 @@ invisible(lapply(packages, library, character.only = TRUE))
 rm(packages,installed_packages)
 
 #Read in custom R functions located in the wd$funcs directory folder
-FUNCS <- list("splitByAttributes.R", "CatchmentPolys.R")
+FUNCS <- list("splitByAttributes.R", "CatchmentPolys.R", "SpatialNets.R", 
+              "net_stats.R", "bbox_polygon.R")
 invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
 rm(FUNCS)
 
@@ -122,11 +129,10 @@ nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
 nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
 CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
 CD.mats = lapply(CD.mats, as.matrix)
+CD.mats = lapply(CD.mats, function(x) `colnames<-`(x, rownames(x)))
 names(CD.mats) <- nam.distmat
 CD.mats <- CD.mats[ord]
 names(CD.mats) <- paste0(ord,"_cdmat")
-#All_Agg_SitePoly <- All_Agg_SitePoly[order(All_Agg_SitePoly$AggSite),]
-
 
 #Least cost path rasters
 temp = list.files(path = paste0(wd$data_p,"lcp_dens_rasts/"), full.names = TRUE, pattern = ".grd")
@@ -199,7 +205,6 @@ example <- CatchmentPolys(
 
 
 ```
-
 ```{r, 'example plot of catchment areas', echo=FALSE, message=FALSE,warning=FALSE}
 
 Sites.sf <- st_as_sf(Poly_List[[9]])
@@ -403,305 +408,248 @@ rm(Catch_List2)
 ```
 
 
-# Spatial Network Models
+# Modelling Transport Networks
+
+Spatial network models provide one way of modeling the transportation networks interconnecting the settlements of our survey regions. The approach taken here employs the methods and code from [Chapter 7 of Peeples and Brughmans' Online Companion to Archaeological Network Science](https://book.archnetworks.net/spatialnetworks) [see @Peeples_Brughmans_2022; @Brughmans_Peeples], as well as from the [spdep R package and its vignettes and author publications](https://cran.r-project.org/web/packages/spdep/) [@Bivand2018; @Bivand2022; @Bivand2013]. A combination of the following spatial network methods is to model potential transport networks:
+
+  * **Gabriel Graphs** -- Edges are formed between pairs of nodes if there are no other nodes located within a circle whose diameter is a straight line between those two nodes (see below)
+
+```{r, echo=FALSE, fig.dim = c(4, 2), fig.cap="Gabriel Graphs"}
+knitr::include_graphics(paste0(wd$figs,"GabrielGraph.PNG"), FALSE)
+```
+  
+  * **Relative Neighborhood Networks (RNN)** -- Very similar to the Gabriel graph, edges are formed between pairs of nodes if there are no other nodes located within the 'Venn Diagram' intersection of two circles surrounding the two nodes. As seen below, the radii of these circles is the the distance between the two nodes
+  
+```{r, echo=FALSE, fig.dim = c(3, 2), fig.cap="Relative Neighbor Network"}
+knitr::include_graphics(paste0(wd$figs,"RelativeNeighborNet.PNG"), FALSE)
+```
+  
+  * **Sphere of Influence Graph (SOI)** -- Similar again to both Gabrial graphs and relative neighbor networks, sphere of inflence graphs have nodes construct a single circle from the distance to their nearest neighbor, and then form edges with all other nodes whose circles intersect their circle (see below)
+  
+```{r, echo=FALSE, fig.dim = c(3, 2), fig.cap="Delaunay Triangulation"}
+knitr::include_graphics(paste0(wd$figs,"SOIgraph.PNG"), FALSE)
+```
+  
+  * **Delaunay Triangulation** -- Network topology formed among nodes whose corresponding Voronoi/Thessien polygons share a border (see below)
+  
+```{r, echo=FALSE, fig.dim = c(3, 2), fig.cap="Delaunay Triangulation"}
+knitr::include_graphics(paste0(wd$figs,"DelaunayTriangulation.PNG"), FALSE)
+```
+  
+  * **Polygon Border Neighbors** -- A more generalized form of Delaunay triangulation, this method simply uses any set of polygons and creates a graph topology from all polygons that share an edge. _Using this method, we can construct spatial networks from our quasi-Voronoi catchment areas calculated above._
+  * **K Nearest Neighbors (KNN)** -- nodes form edges with their _k_ nearest neighbors (where _k_ is a parameter specified exogenously)
+  * **Maximum Distance Networks** -- each node forms edges with all other nodes that fall within a user-specified distance/radius of that node
+
+Examples of each of these networks in the SBOM are shown in the figure below:
+
+```{r, 'transport net figs calc', echo=FALSE, warning=FALSE, message=FALSE}
+p = 9 # Select Period Number
+
+ggbasemap <- ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise", "black", "white"), 
+                       values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  xlim(485000, 529500)+ylim(2106800, 2150600)+theme_void()
 
 
+spnet <- SpatialNets(CD.mat = CD.mats[[p]]/3600,#select cost-dist matrix and convert to hrs (hrs=seconds/3600)
+                        nodes = Pts_List[[p]]@data,#create node data
+                        coords = coordinates(Pts_List[[p]]),# coordinate pairs for sites 
+                        Pts.sf = st_as_sf(Pts_List[[p]]),# sf class site points
+                        Sites.sf = st_as_sf(Poly_List[[p]]),# sf class site polygons
+                        Catch.sf = st_as_sf(Catch_List[[p]]),# sf class catchment polygons
+                        limits = CatchLims, #
+                        bounds = extent(limits),
+                        window = c(bounds@xmin, bounds@xmax, bounds@ymin, bounds@ymax),
+                        ggplots = "MultiPlot",
+                        ggbasemap = ggbasemap, 
+                        mode = "multi",
+                        method = c("gabriel", "rnn", "delaunay", "soi", "poly", "knn", "maxdist"),
+                        combine = "weighted",
+                        plotNodeStat = "centr_clos_n",
+                        ggPlotTitle = "SBOM Spatial Networks: CL (AD 100-550)",
+                        knn_k = 5,
+                        maxdist = 1,
+                        outputs = "none")
 
---Create function that lets you 
-----pick which spatial network model to calculate
-----input cost-distance matrix --> edge weights
-----input stars raster basemap
-----create weighted and unweighted undirected graphs
-----determine distances among all settlements using shortest path distances weighted graph https://igraph.org/r/doc/distances.html https://book.archnetworks.net/exploratory#WalksPathsDistance
-----output revised distance matrix
-----calculates node network stats undirected graph https://book.archnetworks.net/exploratory#Centrality
-----plot output: node size = a centrality metric; includes degree distribution and rank size scaling
---Add a set of graphs together
-----weighted binary network edgeweights --> weighted centrality?
-----full list of paths
-----determine distances among all settlements using shortest path distances weighted graph
+ggsave("MultiSpatNetModels_CL.png", plot = spnet[[1]], device = "png", path = wd$figs, scale = 1, width = 6.5, height = 6.5,   units = "in",  dpi = 2000)
 
-In Chapter 7.5 in Brughmans and Peeples (2022) we go over a series of spatial network models that provide a number of different ways of defining networks from spatial data. In this sub-section we demonstrate how to define and analyze networks using these approaches.
+p = 13 # Select Period Number
 
-```{r}
+spnet <- SpatialNets(CD.mat = CD.mats[[p]]/3600,#select cost-dist matrix and convert to hrs (hrs=seconds/3600)
+                        nodes = Pts_List[[p]]@data,#create node data
+                        coords = coordinates(Pts_List[[p]]),# coordinate pairs for sites 
+                        Pts.sf = st_as_sf(Pts_List[[p]]),# sf class site points
+                        Sites.sf = st_as_sf(Poly_List[[p]]),# sf class site polygons
+                        Catch.sf = st_as_sf(Catch_List[[p]]),# sf class catchment polygons
+                        limits = CatchLims, #
+                        bounds = extent(limits),
+                        window = c(bounds@xmin, bounds@xmax, bounds@ymin, bounds@ymax),
+                        ggplots = "MultiPlot",#,"PlotResults", "none"),
+                        ggbasemap = ggbasemap, 
+                        mode = "multi",#c("single", "multi", "multicombine"),
+                        method = c("gabriel", "rnn", "delaunay", "soi", "poly", "knn", "maxdist"),
+                        combine = "weighted",#("weighted","unweighted"),
+                        plotNodeStat = "centr_clos_n",
+                        ggPlotTitle = "SBOM Spatial Networks: LTAzI (950-1200)",
+                        knn_k = 5,
+                        maxdist = 1,
+                        outputs = "none")
 
-nodes <- Pts_List[[i]]
-xy <- data.frame(x = nodes$East, y = nodes$North)
-locs <- st_as_sf(Pts_List[[i]])
+ggsave("MultiSpatNetModels_LTAzI.png", plot = spnet[[1]], device = "png", path = wd$figs, scale = 1, width = 6.5, height = 6.5,   units = "in",  dpi = 2000)
 
-rng1 <- rng(nodes[, c(3, 2)])
-ggraph(rng1, layout = "kk") +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
+p = 9 # Select Period Number
 
+spnet <- SpatialNets(CD.mat = CD.mats[[p]]/3600,#select cost-dist matrix and convert to hrs (hrs=seconds/3600)
+                        nodes = Pts_List[[p]]@data,#create node data
+                        coords = coordinates(Pts_List[[p]]),# coordinate pairs for sites 
+                        Pts.sf = st_as_sf(Pts_List[[p]]),# sf class site points
+                        Sites.sf = st_as_sf(Poly_List[[p]]),# sf class site polygons
+                        Catch.sf = st_as_sf(Catch_List[[p]]),# sf class catchment polygons
+                        limits = CatchLims, #
+                        bounds = extent(limits),
+                        window = c(bounds@xmin, bounds@xmax, bounds@ymin, bounds@ymax),
+                        ggplots = "PlotResults",#,"PlotResults", "none"),
+                        ggbasemap = ggbasemap, 
+                        mode = "single",#c("single", "multi", "multicombine"),
+                        method = "gabriel",
+                        combine = "weighted",#("weighted","unweighted"),
+                        plotNodeStat = "centr_clos_n",
+                        ggPlotTitle = "SBOM CL (AD 100-550) Transport Network Modelled as",
+                        knn_k = 5,
+                        maxdist = 1,
+                        outputs = "none")
+
+ggsave("GabrielNet_CL.png", plot = spnet[[1]], device = "png", path = wd$figs, scale = 1, width = 6.5, height = 6,   units = "in",  dpi = 2000)
+```
+
+Gabriel, RNN and KNN-5 perform the best
+
+```{r, echo=FALSE, fig.cap="Classic Period Spatial Network Models", out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"MultiSpatNetModels_CL.png"), FALSE)
 ```
 
 
-## Relative Neighborhood Networks
-
-Relative neighborhood graph: a pair of nodes are connected if there are no other nodes in the area marked by the overlap of a circle around each node with a radius equal to the distance between the nodes.
-
-Let’s use our previously created distance matrix and plot the results.
-
-BOX: The R package cccd contains functions to define relative neighborhood networks from distance data using the rng function. This function can either take a distance matrix object as created above or a set of coordinates to calculate the distance within the call. The output of this function is an igraph object. For large graphs it is also possible to limit the search for possible neighbors to 
-k
- neighbors.
-
-```{r}
-library(cccd)
-rng1 <- rng(nodes[, c(3, 2)])
-ggraph(rng1, layout = "kk") +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
-
-## We can also plot the results using geographic coordinates.
-
-ggraph(rng1,
-       layout = "manual",
-       x = nodes[, 3],
-       y = nodes[, 2]) +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
-```
-
-## Gabriel Graphs
-
-Gabriel graph: a pair of nodes are connected in a Gabriel graph if no other nodes lie within the circular region with a diameter equal to the distance between the pair of nodes.
-
-Again we can use a function in the cccd package to define Gabriel Graph igraph objects from x and y coordinates. Let’s take a look using the Roman Road data. See ?gg for details on the options including different algorithms for calculating Gabriel Graphs. We define a Gabriel graph here and plot it using an algorithmic layout and then geographic coordinates.
-
-```{r}
-gg1 <- gg(x = nodes[, c(3, 2)])
-ggraph(gg1, layout = "stress") +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
-
-ggraph(gg1,
-       layout = "manual",
-       x = nodes[, 3],
-       y = nodes[, 2]) +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
+```{r, echo=FALSE, fig.cap="LT-AzI Period Spatial Network Models", out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"MultiSpatNetModels_LTAzI.png"), FALSE)
 ```
 
 
-### Beta Skeletons
-
-Beta skeleton: a Gabriel graph in which the diameter of the circle is controlled by a parameter beta.
-
-In R the gg function for producing Gabriel Graphs has the procedure for beta skeletons built directly in. The argument r in the gg function controls the beta parameter. When r = 1 a traditional Gabriel graph is returned. When the parameter r > 1 there is a stricter definition of connection resulting in fewer ties and when r < 1 link criteria are loosened. See ?gg for more details.
-
-```{r}
-beta_s <- gg(x = nodes[, c(3, 2)], r = 1.5)
-ggraph(beta_s,
-       layout = "manual",
-       x = nodes[, 3],
-       y = nodes[, 2]) +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
+```{r, echo=FALSE, fig.cap="Final Proposed Model for Transport Nets: Classic Period", out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"GabrielNet_CL.png"), FALSE)
 ```
 
-### Minimum Spanning Trees
 
-Minimum spanning tree: in a set of nodes in the Euclidean plane, edges are created between pairs of nodes to form a tree where each node can be reached by each other node, such that the sum of the Euclidean edge lengths is less than the sum for any other spanning tree.
+# Calculate Networks for All Periods 
 
-Perhaps the most common use-case for trees in archaeological networks is to define the minimum spanning tree of a given graph or the minimum set of nodes and edges required for a fully connected graph. The igraph package has a function called mst that defines the minimum spanning tree for a given graph. Let’s try this with the Roman Road and then plot it as a node-link diagram and a map.
 
-```{r}
-mst_net <- igraph::mst(road_net)
-set.seed(4643)
-ggraph(mst_net, layout = "kk") +
-  geom_edge_link() +
-  geom_node_point(size = 4) +
-  theme_graph()
+```{r, 'calulate transport nets for all periods', warning=FALSE, message=FALSE}
+per <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
 
-# Extract edgelist from network object
-edgelist <- get.edgelist(mst_net)
-# Create dataframe of beginning and ending points of edges
-edges <- as.data.frame(matrix(NA, nrow(edgelist), 4))
-colnames(edges) <- c("X1", "Y1", "X2", "Y2")
-for (i in seq_len(nrow(edgelist))) {
-  edges[i, ] <- c(nodes[which(nodes$Id == edgelist[i, 1]), 3],
-                  nodes[which(nodes$Id == edgelist[i, 1]), 2],
-                  nodes[which(nodes$Id == edgelist[i, 2]), 3],
-                  nodes[which(nodes$Id == edgelist[i, 2]), 2])
+TrsprtNet_CDmatList <- list()
+TrsprtNet_igList <- list()
+TrsprtNet_igwtList <- list()
+TrsprtNet_lines_sfList <- list()
+TrsprtNet_adjmat <- list()
+TrsprtNet_adjmatCD <- list()
+TrsprtNet_nb <- list()
+TrsprtNet_ggplots <- list()
+
+for (p in 1:length(Pts_List)){
+  
+  tmp <- SpatialNets(CD.mat = CD.mats[[p]]/3600,
+                        nodes = Pts_List[[p]]@data,
+                        coords = coordinates(Pts_List[[p]]),
+                        Pts.sf = st_as_sf(Pts_List[[p]]),
+                        Sites.sf = st_as_sf(Poly_List[[p]]),
+                        Catch.sf = st_as_sf(Catch_List[[p]]),
+                        limits = CatchLims, #
+                        bounds = extent(limits),
+                        window = c(bounds@xmin, bounds@xmax, bounds@ymin, bounds@ymax),
+                        ggplots = "PlotResults",#,"PlotResults", "none"),
+                        ggbasemap = ggbasemap, 
+                        mode = "single",#c("single", "multi", "multicombine"),
+                        method = "gabriel",
+                        combine = "weighted",#("weighted","unweighted"),
+                        plotNodeStat = "centr_clos_n",
+                        ggPlotTitle = per[p],
+                        knn_k = 5,
+                        maxdist = 1,
+                        outputs = c("net_distmat", "netstats_df", "igraph", 
+                                    "igraph_wt", "lines_sf", "adjmat", "adjmatCD",
+                                    "nb"))
+  
+  TrsprtNet_CDmatList[[p]] <- tmp[[1]][[1]]
+  write.csv(tmp[[1]][[1]], file=paste0(wd$data_p,"TrsprtNet_CDmats/",per[p],"_TrsprtNet_CDmat.csv"))
+  stat <- tmp[[2]][[1]][,c(5:ncol(tmp[[2]][[1]]))]
+  Poly_List[[p]] <- cbind(Poly_List[[p]],stat)
+  TrsprtNet_igList[[p]] <- tmp[[3]][[1]]
+  TrsprtNet_igwtList[[p]] <- tmp[[4]][[1]]
+  TrsprtNet_lines_sfList[[p]] <- tmp[[5]][[1]]
+  TrsprtNet_adjmat[[p]] <- tmp[[6]][[1]]
+  TrsprtNet_adjmatCD[[p]] <- tmp[[7]][[1]]
+  TrsprtNet_nb[[p]] <- tmp[[8]][[1]]
+  ggtmp <- tmp[[9]]+scale_size(range = c(1,2))+theme(legend.position="none", plot.title = element_blank(),
+                                          plot.subtitle = element_blank(),plot.margin = unit(c(0,0,0,0), "cm"))
+  TrsprtNet_ggplots[[p]] <- ggtmp
 }
-ggmap(my_map) +
-  geom_segment(
-    data = edges,
-    aes(
-      x = X1,
-      y = Y1,
-      xend = X2,
-      yend = Y2
-    ),
-    col = "black",
-    size = 1
-  ) +
-  geom_point(
-    data = nodes[, c(3, 2)],
-    aes(long, lat),
-    alpha = 0.8,
-    col = "black",
-    fill = "white",
-    shape = 21,
-    size = 1.5,
-    show.legend = FALSE
-  ) +
-  theme_void()
+names(TrsprtNet_CDmatList) <- per
+names(TrsprtNet_igList) <- per
+names(TrsprtNet_igwtList) <- per
+names(TrsprtNet_lines_sfList) <- per
+names(TrsprtNet_adjmat) <- per
+names(TrsprtNet_adjmatCD) <- per
+names(TrsprtNet_nb) <- per
+names(TrsprtNet_ggplots) <- per
 
+saveRDS(TrsprtNet_CDmatList, file=paste0(wd$data_p,"TrsprtNet_CDmatList.RData"))
+saveRDS(TrsprtNet_igList, file=paste0(wd$data_p,"TrsprtNet_igList.RData"))
+saveRDS(TrsprtNet_igwtList, file=paste0(wd$data_p,"TrsprtNet_igwtList.RData"))
+saveRDS(TrsprtNet_lines_sfList, file=paste0(wd$data_p,"TrsprtNet_lines_sfList.RData"))
+saveRDS(TrsprtNet_adjmat, file=paste0(wd$data_p,"TrsprtNet_adjmat.RData"))
+saveRDS(TrsprtNet_adjmatCD, file=paste0(wd$data_p,"TrsprtNet_adjmatCD.RData"))
+saveRDS(TrsprtNet_nb, file=paste0(wd$data_p,"TrsprtNet_nb.RData"))
+
+ggplotgrid = plot_grid(TrsprtNet_ggplots[[1]], TrsprtNet_ggplots[[2]], TrsprtNet_ggplots[[3]],
+                           TrsprtNet_ggplots[[4]], TrsprtNet_ggplots[[5]], TrsprtNet_ggplots[[6]],
+                           TrsprtNet_ggplots[[7]], TrsprtNet_ggplots[[8]], TrsprtNet_ggplots[[9]],
+                           labels = per[1:9], align="hv", nrow = 3, ncol = 3)
+    
+    title <- ggdraw() + draw_label("SBOM Gabriel Graph Transport Nets",fontface = 'bold',hjust = 0.5, size=20 )
+    
+    ggout <- plot_grid(title, ggplotgrid, ncol = 1, rel_heights = c(0.05,0.95)) + 
+      theme(plot.background = element_rect(fill = "white", colour = NA))
+    ggsave("GabrielTrnspNets_1.png", plot = ggout, device = "png", path = wd$figs, 
+           scale = 1, width = 7, height = 6.5,   units = "in",  dpi = 2000)
+      
+    ggplotgrid = plot_grid(TrsprtNet_ggplots[[10]], TrsprtNet_ggplots[[11]], TrsprtNet_ggplots[[12]],
+                           TrsprtNet_ggplots[[13]], TrsprtNet_ggplots[[14]], TrsprtNet_ggplots[[15]],
+                           TrsprtNet_ggplots[[16]], TrsprtNet_ggplots[[17]], 
+                           labels = per[10:17], align="hv", nrow = 3, ncol = 3)
+    
+    ggout <- plot_grid(title, ggplotgrid, ncol = 1, rel_heights = c(0.05,0.95)) + 
+      theme(plot.background = element_rect(fill = "white", colour = NA))
+    ggsave("GabrielTrnspNets_2.png", plot = ggout, device = "png", path = wd$figs, 
+           scale = 1, width = 7, height = 6.5,   units = "in",  dpi = 2000)
 ```
 
+```{r, echo=FALSE, fig.cap="SBOM Gabriel Graph Transport Nets, 1-9", out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"GabrielTrnspNets_1.png"), FALSE)
+```
 
-### Delaunay Triangulation
-
-Delaunay triangulation: a pair of nodes are connected by an edge if and only if their corresponding regions in a Voronoi diagram share a side.
-
-Voronoi diagram or Thiessen polygons: for each node in a set of nodes in a Euclidean plane, a region is created covering the area that is closer or equidistant to that node than it is to any other node in the set.
-
-The package deldir in R allows for the calculation of Delaunay triangles with x and y coordinates as input. By default the deldir function will define a boundary that extends slightly beyond the xy coordinates of all points included in the analysis. This boundary can also be specified within the call using the rw argument. See ?deldir for more details.
-
-The results of the deldir function can be directly plotted and the output also contains coordinates necessary to integrate the results into another type of figure like a ggmap. Let’s take a look.
+```{r, echo=FALSE, fig.cap="SBOM Gabriel Graph Transport Nets, 10-17", out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"GabrielTrnspNets_2.png"), FALSE)
+```
 
 ```{r}
-library(deldir)
-dt1 <- deldir(nodes[, 3], nodes[, 2])
-plot(dt1)
-
-# Extract Voronoi polygons for plotting
-mapdat <- as.data.frame(dt1$dirsgs)
-# Extract network for plotting
-mapdat2 <- as.data.frame(dt1$delsgs)
-ggmap(my_map) +
-  geom_segment(
-    data = mapdat,
-    aes(
-      x = x1,
-      y = y1,
-      xend = x2,
-      yend = y2
-    ),
-    col = "black",
-    size = 1
-  ) +
-  geom_segment(
-    data = mapdat2,
-    aes(
-      x = x1,
-      y = y1,
-      xend = x2,
-      yend = y2
-    ),
-    col = "red",
-    size = 1
-  ) +
-  geom_point(
-    data = nodes,
-    aes(long, lat),
-    alpha = 0.8,
-    col = "black",
-    fill = "white",
-    shape = 21,
-    size = 3,
-    show.legend = FALSE
-  ) +
-  theme_void()
-```
-
-
-### K-nearest Neighbors
-
-K-nearest neighbor network: each node is connected to K other nodes closest to it.
-
-The cccd package has a routine that allows for the calculation of K-nearest neighbor graphs from geographic coordinates or a precomputed distance matrix. In this example we use the Roman Road data and calculate K=1 and K=6 nearest neighbor networks and plot the both simultaneously.
-
-```{r}
-# Calculate k=1 nearest neighbor graph
-nn1 <- nng(x = nodes[, c(3, 2)], k = 1)
-# Calculate k=6 nearest neighbor graph
-nn6 <- nng(x = nodes[, c(3, 2)], k = 6)
-el1 <- as.data.frame(
-  rbind(cbind(get.edgelist(nn6),
-         rep("K=6", nrow(get.edgelist(nn1))
-             )),
-        cbind(get.edgelist(nn1),
-          rep("K=1", nrow(get.edgelist(nn1))
-             ))))
-colnames(el1) <- c("from", "to", "K")
-g <- graph_from_data_frame(el1)
-# Plot both graphs
-ggraph(g, layout = "manual",
-       x = nodes[, 3], y = nodes[, 2]) +
-  geom_edge_link(aes(color = factor(K)), width = 1.5) +
-  geom_node_point(size = 2) +
-  labs(edge_color = "K") +
-  theme_graph()
+xx <-  do.call(rbind, Poly_List)
+per_meanz <- xx@data %>% group_by(PeriodNum,Period) %>% summarise_at(vars(Area_ha:PopFwCont,FwOvlp.Area:FwOvlp.Pop,BwOvlp.Area:Persist,OccuTime:UrbOccuInertia,centr_deg:cntrlz_avg), mean, na.rm = TRUE)
+per_sumz <- xx@data %>% group_by(PeriodNum,Period) %>% summarise_at(vars(Area_ha:PopFwCont,FwOvlp.Area:FwOvlp.Pop,BwOvlp.Area:Persist,OccuTime:UrbOccuInertia,centr_deg:cntrlz_avg), sum, na.rm = TRUE)
+ggplot(per_meanz, aes(x=PeriodNum))+geom_line(aes(y=scales::rescale(cntrlz_avg)),color="blue")+geom_line(aes(y=scales::rescale(density)),color="black")+geom_line(aes(y=scales::rescale(trans_glob)),color="red")+geom_line(aes(y=scales::rescale(connectiv)),color="green3")
+per_sumz$connectiv
 ```
 
 
 
-### Maximum Distance Networks
-
-Maximum distance network: each node is connected to all other nodes at a distance closer than or equal to a threshold value. In order define a maximum distance network we simply need to define a threshold distance and define all nodes greater than that distance as unconnected and nodes within that distance as connected. This can be done in base R using the dist function we used above.
-
-Since the coordinates we are using here are in decimal degrees we need to calculate distances based on “great circles” across the globe rather than Euclidean distances on a projected plane. There is a function called distm in the geosphere package that allows us to do this. If you are working with projected data, you can simply use the dist function in the place of distm like the example below.
-
-Next, in order to define a minimum distance network we simply binarize this matrix. We can do this using the event2dichot function within the statnet package and easily create an R network objects. Let’s try it out with the Roman Road data for thresholds of 100,000 and 250,000 meters.
-
-```{r}
-library(statnet)
-
-library(geosphere)
-d1 <- distm(nodes[, c(3, 2)])
-# Note we use the leq=TRUE argument here as we want nodes less than
-# the threshold to count.
-net100 <- network(event2dichot(
-  d1,
-  method = "absolute",
-  thresh = 100000,
-  leq = TRUE
-),
-directed = FALSE)
-net250 <- network(event2dichot(
-  d1,
-  method = "absolute",
-  thresh = 250000,
-  leq = TRUE
-),
-directed = FALSE)
-# Plot 100 Km network
-ggraph(net100,
-       layout = "manual",
-       x = nodes[, 3],
-       y = nodes[, 2]) +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
-
-# Plot 250 Km network
-ggraph(net250,
-       layout = "manual",
-       x = nodes[, 3],
-       y = nodes[, 2]) +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
-
-# Plot 250 Km network
-ggraph(net250,
-       layout = "manual",
-       x = nodes[, 3],
-       y = nodes[, 2]) +
-  geom_edge_link() +
-  geom_node_point(size = 2) +
-  theme_graph()
-```
 
 
 
@@ -715,7 +663,7 @@ All_Agg_SitePoly <-  do.call(rbind, Poly_List)
 All_Agg_CatchPoly <- do.call(rbind, Catch_List)
 
 # variables from site data that needs transfer over to catchment areas
-###colz1 = setdiff(colnames(All_Agg_SitePoly@data),colnames(All_Agg_CatchPoly@data))
+colz1 = setdiff(colnames(All_Agg_SitePoly@data),colnames(All_Agg_CatchPoly@data))
 # variables from catchment areas that needs transfer over to site data
 colz2 = setdiff(colnames(All_Agg_CatchPoly@data),colnames(All_Agg_SitePoly@data))
 
@@ -727,15 +675,15 @@ All_Agg_CatchPoly <- All_Agg_CatchPoly[order(All_Agg_CatchPoly$AggSite),]
 #identical(All_Agg_SitePoly@data$AggSite, All_Agg_CatchPoly@data$AggSite)
 
 # Site data to catchment areas
-###Site_to_Catch <- All_Agg_SitePoly@data %>% dplyr::select(!!!syms(colz1))
-###All_Agg_CatchPoly@data <- cbind(All_Agg_CatchPoly@data,Site_to_Catch)
+Site_to_Catch <- All_Agg_SitePoly@data %>% dplyr::select(!!!syms(colz1))
+All_Agg_CatchPoly@data <- cbind(All_Agg_CatchPoly@data,Site_to_Catch)
 
 # catchment area data to sites
 Catch_to_Site <- All_Agg_CatchPoly@data %>% dplyr::select(!!!syms(colz2))
 All_Agg_SitePoly@data <- cbind(All_Agg_SitePoly@data,Catch_to_Site)
 
 #Reorganize the data
-
+      
 ordering <- c(
   #ID VARIABLES
       "AggSite","AggID","Site","East","North","SurvReg","Number","CerPhase","Period", 
@@ -758,9 +706,19 @@ ordering <- c(
       "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
       "BwOvlp.Assemb", "Net.Assemb",
   #STEP #2 DEMOGRAPHIC VARIABLES
-      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
-      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "Population.s2","Log_Population.s2", "ApportAssemb", "PopDens.s2",
       "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+      "Prior", "Observed", "MeanOccuProb", 
+  #STEP #2 DEMOGRAPHIC RATES
+      "Pct_deltaPop12", "Pct_deltaPop01", "r12_Pert", "r01_Pert",
+      "r23_Pert", "rPert", "rPert0", "rPert2", 
+      "Pct_UrbdeltaPop12", "Pct_UrbdeltaPop01", "Urb_r12_Pert", "Urb_r01_Pert",
+      "Urb_r23_Pert", "Urb_rPert", "Urb_rPert0", "Urb_rPert2",
+      "Abs_rPert","RS_rPert","LogRS_rPert","LogAbs_rPert","Q.rPert","Q.Abs_rPert",
+      "Q.RS_rPert","Q.LogRS_rPert","Q.LogAbs_rPert","Urb_Abs_rPert",
+      "Urb_RS_rPert","Urb_LogRS_rPert","Urb_LogAbs_rPert","Q.Urb_rPert","Q.Urb_Abs_rPert",
+      "Q.Urb_RS_rPert","Q.Urb_LogRS_rPert","Q.Urb_LogAbs_rPert",
+      "Qp.rPert","Qp.Abs_rPert","Qp.RS_rPert","Qp.LogRS_rPert","Qp.LogAbs_rPert",
   #STEP #1 DEMOGRAPHIC VARIABLES
       "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
       "PctUrban.s1","PctRural.s1",
@@ -768,13 +726,20 @@ ordering <- c(
       "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
       "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
   #PERSISTENCE VARIABLES
-      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
+      "Found","FoundInit","Abandon","Persist","DewarType",
+      "OccuTime","OccuInertia","UrbOccuTime","UrbOccuInertia",
+  #STEP #4 TRANSPORT NETWORK VARIABLES
+      "TranspDens.pct", "TranspDens.rank","centr_deg","centr_btw","centr_eig",
+      "centr_clos","centr_hrmo","centr_hub","centr_auth","centr_pgrk",
+      "centr_deg_n","centr_btw_n","centr_eig_n","centr_clos_n","centr_hrmo_n",
+      "centr_hub_n","centr_auth_n","centr_avg","trans_loc","trans_locavg",
+      "density","connectiv","trans_glob","cntrlz_deg","cntrlz_btw","cntrlz_eig",
+      "cntrlz_clo","cntrlz_hub","cntrlz_auth","cntrlz_deg_n","cntrlz_btw_n",
+      "cntrlz_eig_n","cntrlz_clo_n","cntrlz_hub_n","cntrlz_auth_n","cntrlz_avg",
   #STEP #4 CATCHMENT AREA AND POP DENSITY VARIABLES
       "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens.s2", 
       "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
       "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
-  #STEP #4 TRANSPORT VARIABLES
-      "TranspDens.pct", "TranspDens.rank",##,core-periphery
   #SURVEY METADATA
       "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
       "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",
