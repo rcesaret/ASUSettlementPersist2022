@@ -236,6 +236,7 @@ knitr::kable(levels, "pipe" ,align="c")
 
 rm(Manual, Sturges, Scott, HeadTails, HTbreaks)
 ```
+
 Surprisingly, the _median_ of the four methods is **_very_** close to the "Manual" archaeological reasoning method undertaken by myself -- only differing by 1 for a single period (otherwise identical). The difference between the mean and the median is also quite small. More specifically, the mean is higher than the median by 1 for four periods (otherwise identical).
 
 The Heads/Tails method has a very low sensitivity to such changes overall by design. Because Heads/Tails splits progressively down the distribution by cutting at the mean of the left tail, the increasing number of classes only reflects the magnitude of right-skew (completely insensitive to the number + variability of cases in the left tail). By contrast, Sturges' and Scott's methods are especially responsive to the growing ranges of the distributions, estimating systematically much higher numbers of classes for periods with a large number+range of settlements in a wide-ranging hierarchy (and vice versa). As such, they are both very sensitive to changes in the distribution as a whole. 
@@ -413,51 +414,46 @@ PropMax = scale = settlement value / max settlement value Pop size with respect 
 
 Pop Rank = Overall rank in settlement hierarchy
 
-Pop_PropMax.s2
-Pop_Rank.s2
-UrbanPop_PropMax.s2
-UrbanPop_Rank.s2
-r12_Pert_Rank.s2
-PopDens_PropMax.s2
-PopDens_Rank.s2
-UrbanScale_PropMax.s2
-UrbanScale_Rank.s2
+Pop_PropMax
+Pop_Rank
+UrbanPop_PropMax
+UrbanPop_Rank
+PopDens_PropMax
+PopDens_Rank
+UrbanScale_PropMax
+UrbanScale_Rank
 
 
 ```{r, 'Global Settlement Hierarchy Metrics', message=FALSE,warning=FALSE}
-
+sitepoly.names <- names(Poly_List)
 Poly_List2 <- list() #create output list
 
 for(i in 1:length(Catch_List)){
   
   tmp.p <- Poly_List[[i]] #define site polys as temp object
   
-  tmp.p@data$Pop_PropMax.s2 <- tmp.p@data$Population.s2/(max(tmp.p@data$Population.s2, na.rm=T))
+  tmp.p@data$Pop_PropMax <- tmp.p@data$Population.s2/(max(tmp.p@data$Population.s2, na.rm=T))
   
-  tmp.p@data$Pop_Rank.s2 <- rank(-tmp.p@data$Population.s2, na.last = "keep", ties.method = "average")
-  
-  if((max(tmp.p@data$UrbanPop.s2, na.rm=T)) > 0){
-    tmp.p@data$UrbanPop_PropMax.s2 <- tmp.p@data$UrbanPop.s2/(max(tmp.p@data$UrbanPop.s2, na.rm=T))} else{tmp.p@data$UrbanPop_PropMax.s2 <- NA}
+  tmp.p@data$Pop_Rank <- rank(-tmp.p@data$Population.s2, na.last = "keep", ties.method = "average")
   
   if((max(tmp.p@data$UrbanPop.s2, na.rm=T)) > 0){
-    tmp.p@data$UrbanPop_Rank.s2 <- rank(-tmp.p@data$UrbanPop.s2, na.last = "keep", ties.method = "average")} else {tmp.p@data$UrbanPop_Rank.s2 <- NA}
+    tmp.p@data$UrbanPop_PropMax <- tmp.p@data$UrbanPop.s2/(max(tmp.p@data$UrbanPop.s2, na.rm=T))} else{tmp.p@data$UrbanPop_PropMax <- NA}
   
-  tmp.p@data$r12_Pert_Rank.s2 <- rank(-tmp.p@data$r12_Pert.s2, na.last = "keep", ties.method = "average")
+  if((max(tmp.p@data$UrbanPop, na.rm=T)) > 0){
+    tmp.p@data$UrbanPop_Rank <- rank(-tmp.p@data$UrbanPop.s2, na.last = "keep", ties.method = "average")} else {tmp.p@data$UrbanPop_Rank <- NA}
   
-  tmp.p@data$PopDens_PropMax.s2 <- tmp.p@data$PopDens.s2/(max(tmp.p@data$PopDens.s2, na.rm=T))
+  tmp.p@data$PopDens_PropMax <- tmp.p@data$PopDens.s2/(max(tmp.p@data$PopDens.s2, na.rm=T))
   
-  tmp.p@data$PopDens_Rank.s2 <- rank(-tmp.p@data$PopDens.s2, na.last = "keep", ties.method = "average")
+  tmp.p@data$PopDens_Rank <- rank(-tmp.p@data$PopDens.s2, na.last = "keep", ties.method = "average")
   
-  tmp.p@data$UrbanScale_PropMax.s2 <- tmp.p@data$UrbanScale.s2/(max(tmp.p@data$UrbanScale.s2, na.rm=T))
+  tmp.p@data$UrbanScale_PropMax <- tmp.p@data$UrbanScale.s2/(max(tmp.p@data$UrbanScale.s2, na.rm=T))
   
-  tmp.p@data$UrbanScale_Rank.s2 <- rank(-tmp.p@data$UrbanScale.s2, na.last = "keep", ties.method = "average")
+  tmp.p@data$UrbanScale_Rank <- rank(-tmp.p@data$UrbanScale.s2, na.last = "keep", ties.method = "average")
   
   tmp.p@data <- tmp.p@data %>% rowwise() %>% 
-    mutate(
-        r12_Pert_Rank.s2 = ifelse(is.na(r12_Pert_Rank.s2), max(r12_Pert_Rank.s2)+1, r12_Pert_Rank.s2),
-        UrbanPop_Rank.s2 = ifelse(is.na(UrbanPop_Rank.s2), max(UrbanPop_Rank.s2)+1, UrbanPop_Rank.s2),
-        Pop_Rank.s2 = ifelse(is.na(Pop_Rank.s2), max(Pop_Rank.s2)+1, Pop_Rank.s2),
-        UrbanScale_Rank.s2 = ifelse(is.na(UrbanScale_Rank.s2), max(UrbanScale_Rank.s2)+1, UrbanScale_Rank.s2)) %>% ungroup()
+    mutate(UrbanPop_Rank = ifelse(is.na(UrbanPop_Rank), max(UrbanPop_Rank)+1, UrbanPop_Rank),
+        Pop_Rank = ifelse(is.na(Pop_Rank), max(Pop_Rank.s2)+1, Pop_Rank),
+        UrbanScale_Rank = ifelse(is.na(UrbanScale_Rank), max(UrbanScale_Rank)+1, UrbanScale_Rank)) %>% ungroup()
   
   Poly_List2[[i]] <- tmp.p #save to output list
   

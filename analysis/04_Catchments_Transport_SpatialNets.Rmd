@@ -410,7 +410,7 @@ rm(Catch_List2)
 
 # Modelling Transport Networks
 
-Spatial network models provide one way of modeling the transportation networks interconnecting the settlements of our survey regions. The approach taken here employs the methods and code from [Chapter 7 of Peeples and Brughmans' Online Companion to Archaeological Network Science](https://book.archnetworks.net/spatialnetworks) [see @Peeples_Brughmans_2022; @Brughmans_Peeples], as well as from the [spdep R package and its vignettes and author publications](https://cran.r-project.org/web/packages/spdep/) [@Bivand2018; @Bivand2022; @Bivand2013]. A combination of the following spatial network methods is to model potential transport networks:
+Spatial network models provide one way of modeling the transportation networks interconnecting the settlements of our survey regions. The approach taken here employs the methods and code from [Chapter 7 of Peeples and Brughmans' Online Companion to Archaeological Network Science](https://book.archnetworks.net/spatialnetworks) [see @Peeples_Brughmans_2022; @Brughmans_Peeples_2022], as well as from the [spdep R package and its vignettes and author publications](https://cran.r-project.org/web/packages/spdep/) [@Bivand2018; @Bivand2022; @Bivand2013]. A combination of the following spatial network methods is to model potential transport networks:
 
   * **Gabriel Graphs** -- Edges are formed between pairs of nodes if there are no other nodes located within a circle whose diameter is a straight line between those two nodes (see below)
 

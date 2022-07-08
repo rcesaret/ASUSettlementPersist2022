@@ -205,7 +205,11 @@ NPP <- NPP * SaltLakeBinaryInvNA
 NPP.rs <- RescaleSpatRast(NPP) # rescale 0-1
 NPP.rs <- NPP.rs+0.5# rescale 0.5-1.5
 
-ggplot() +  geom_stars(data = npp)
+ggplot() +  geom_stars(data = npp)+
+  scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Potential net primary production', 'Maximum terrestrial biomass given modern temperature and precipitation') +
+  theme_bw() +
+  labs(x = 'Easting', y = 'Northing')
 ```
 
 
@@ -242,7 +246,11 @@ EZm <- matrix(m, ncol=3, byrow=TRUE) #make into a matrix
 EZ <- terra::classify(DEM, EZm, include.lowest=TRUE) # reclassify groups of values
 
 stz = st_as_stars(EZ)
-ggplot() +geom_stars(data = stz)
+ggplot() +geom_stars(data = stz)+
+  scale_fill_gradientn(colors=terrain.colors(6), values=c(0,0.2,0.4,0.6,0.8,1.2)) +
+  ggtitle('Elevation-Conditioned Ecological Zones in the SBOM', 'Determinants of Subsistence/Agricultural Practices') +
+  theme_bw() +
+  labs(x = 'Easting', y = 'Northing')
 ```
 
 
@@ -265,7 +273,11 @@ TRI <- TRI * SaltLakeBinaryInvNA
 TRI.01 <- RescaleSpatRast(TRI) # rescale 0-1
 
 stz = st_as_stars(TRI)
-ggplot() +geom_stars(data = stz)
+ggplot() +geom_stars(data = stz)+
+  scale_fill_viridis_c(option = "inferno", na.value = NA, name = "TRI")+
+  ggtitle('Topographic Need for Terracing in the SBOM', 'Proxied by the Terrain Ruggedness Index (TRI)') +
+  theme_bw() +
+  labs(x = 'Easting', y = 'Northing')
 ```
 
 
@@ -312,7 +324,11 @@ WetAgPot2 <- WetAgPot*2
 WetAgInv <- rast(paste0(wd$data_r, "FreshLakeBinaryInv.tif")) #binary wetAg area=0, other is 1
 
 stz = st_as_stars(TWI)
-ggplot() +geom_stars(data = stz)
+ggplot() +geom_stars(data = stz)+
+  scale_fill_viridis_c(option = "mako", na.value = NA, name = "TWI")+
+  ggtitle('Irrigation Agriculture Potential in the SBOM', 'Proxied by the Topographic Wetness Index (TWI)') +
+  theme_bw() +
+  labs(x = 'Easting', y = 'Northing')
 ```
   
   
@@ -365,7 +381,11 @@ SPI.01.wetMod <- LakesBinaryInvNA*SPI.rs
 IntnsCostNW = TRI.01.wetMod+SPI.01.wetMod
 
 stz = st_as_stars(IntnsCost)
-ggplot() +geom_stars(data = stz)
+ggplot() +geom_stars(data = stz)+
+  scale_fill_viridis_c(option = "magma", na.value = NA, name = "IntnsCost")+
+  ggtitle('Agricultural Intensification Cost Index in the SBOM', 'as a function of TRI, SPI and Freshwater Lake Depth') +
+  theme_bw() +
+  labs(x = 'Easting', y = 'Northing')
 ```
 
 
@@ -390,7 +410,11 @@ AGPot = max(WetAgPot2, TWI.12,NPP.rs)
 AGPotNW = max(TWI.12.wetMod, NPP.rs.wetMod)
 
 stz = st_as_stars(AGPot)
-ggplot() +geom_stars(data = stz)
+ggplot() +geom_stars(data = stz)+
+  scale_fill_viridis_c(na.value = NA, name = "AGPot")+
+  ggtitle('Agricultural Potential Index in the SBOM', 'as a function of NPP, TWI and Freshwater Lake') +
+  theme_bw() +
+  labs(x = 'Easting', y = 'Northing')
 
 ```
 
@@ -475,7 +499,11 @@ Accum2<- RescaleSpatRast(Accum2)
 ErosionPot <- max(STI.12,Curv.rs)
 
 stz = st_as_stars(ErosionPot)
-ggplot() +geom_stars(data = stz)
+ggplot() +geom_stars(data = stz)+
+  scale_fill_viridis_c(option = "turbo",na.value = NA, name = "ErosionPot")+
+  ggtitle('Topographic Erosion Potential Index in the SBOM', 'as a function of STI, Curvature and Drainage Density') +
+  theme_bw() +
+  labs(x = 'Easting', y = 'Northing')
 
 rm(EZm, m, npp, stz)
 ```
