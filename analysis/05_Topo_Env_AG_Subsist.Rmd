@@ -689,9 +689,9 @@ ordering <- c(
       "cntrlz_clo","cntrlz_hub","cntrlz_auth","cntrlz_deg_n","cntrlz_btw_n",
       "cntrlz_eig_n","cntrlz_clo_n","cntrlz_hub_n","cntrlz_auth_n","cntrlz_avg",
   #STEP #4 CATCHMENT AREA AND POP DENSITY VARIABLES
-      "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens.s2", 
-      "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
-      "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
+      "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens", 
+      "Catch_Popdens_PropMax","Catch_Popdens_Rank","CatchB_Popdens",
+      "CatchB_Popdens_PropMax", "CatchB_Popdens_Rank", 
   #STEP #5 CATCHMENT ENVIRONMENT/TOPOGRAPHY VARIABLES
       "NPP.tot","NPP.avg","EZ.avg","EZ.sd","TRI.tot","TRI.avg","IrrigPot.tot",
       "IrrigPot.avg","WetAgPot.tot","WetAgPot.avg","IntnsCost.tot",

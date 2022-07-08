@@ -1,0 +1,48 @@
+
+# Accessibility Metrics
+
+Should this be local or global?? Both?
+
+
+
+
+potential accessibility
+--pop = core-periphery
+--urban pop
+--settlement popdens
+--catchment popdens = 
+--sett heir level = SettHierAccess (urban services, sociopolitical institutions) = sum(SettHeirLevel^2/CD)
+
+
+
+Destination accessibility or centrality or competition 
+--distance weighted local access to urban services
+--dist weighted local access to economic opportunity AND/OR competition
+--regional socioeconomic inertia
+--core-periphery location
+
+the potential accessibility of settlement $j$ to all $n$ destination settlements $i$
+$$
+A_{j}=\sum_{i=1}^{n} \left( \frac{W_{i}}{D_{ji}} \right)
+$$
+where $W_{i}$ is the weight of a given destination, and $D_{ji}$ is the distance between settlement $j$ and destination $i$.
+
+this is core-periphery
+
+--Among all settlements, with population as the weight, access to economic opportunity/demand/supply 
+
+--Among all settlements, with UrbanPop/Urbanization as the weight, access to urban/sociopolitical services + institutions
+
+lctools::acc = Spatial Interaction Models: Destination Accessibility
+https://cran.r-project.org/web/packages/lctools/index.html
+SpatialAcc::ac Spatial Accessibility measures
+https://cran.r-project.org/web/packages/SpatialAcc/SpatialAcc.pdf
+
+```{r, 'Global Accessibility Metrics', message=FALSE,warning=FALSE}
+
+```
+
+
+
+
+

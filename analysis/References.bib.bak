@@ -393,3 +393,849 @@ doi = {10.1038/nature05302}
   note = {R package version 1.8.7},
   url = {https://CRAN.R-project.org/package=leastcostpath},
 }
+
+
+@book{Chisholm1979,
+  title={Rural Settlement and Land Use: An Essay in Location},
+  author={Chisholm, Michael C.},
+  year={1979},
+  publisher={Hutchinson},
+  address = {London},
+  edition = {Third}
+}
+
+@article{Roper1979,
+  title={The Method and Theory of Site Catchment Analysis: A Review},
+  author={Roper, Donna C.},
+  journal={Advances in Archaeological Method and Theory},
+  volume={2},
+  pages={119--140},
+  year={1979}
+}
+
+@incollection{Higgs1972,
+  address = {Cambridge},
+  author = {Higgs, Eric S. and Vita-Finzi, Claudio},
+  booktitle = {Papers in Economic Prehistory},
+  editor = {Higgs, Eric S.},
+  pages = {27--36},
+  publisher = {Cambridge University Press},
+  title = {{Prehistoric Economies: A Territorial Approach}},
+  year = {1972}
+}
+
+@book{Jarman1982,
+  address = {Cambridge},
+  title={Early European Agriculture: Its Foundation and Development},
+  editor={Jarman, Michael R. and Bailey, Geoffrey N. and Jarman, Heather N. and Higgs, Eric S.},
+  volume={3},
+  year={1982},
+  publisher={Cambridge University Press}
+}
+
+
+@article{Beven1979,
+  title={A physically based, variable contributing area model of basin hydrology},
+  author={Beven, Keith J. and Kirkby, Michael J.},
+  journal={Hydrological Sciences Journal},
+  volume={24},
+  number={1},
+  pages={43--69},
+  year={1979}
+}
+
+@book{Anderson2010,
+  address = {Cambridge},
+  author = {Anderson, Robert S. and Anderson, Suzanne P.},
+  publisher = {Cambridge University Press},
+  title = {{Geomorphology: The Mechanics and Chemistry of Landscaoes}},
+  year = {2010}
+}
+
+@article{Whipple2004,
+  title={Bedrock rivers and the geomorphology of active orogens},
+  author={Whipple, Kelin X.},
+  journal={Annu. Rev. Earth Planet. Sci.},
+  volume={32},
+  pages={151--185},
+  year={2004}
+}
+
+@article{Whipple1999,
+  title={Dynamics of the stream-power river incision model: Implications for height limits of mountain ranges, landscape response timescales, and research needs},
+  author={Whipple, Kelin X. and Tucker, Gregory E.},
+  journal={Journal of Geophysical Research: Solid Earth},
+  volume={104},
+  number={B8},
+  pages={17661--17674},
+  year={1999}
+}
+
+@article{Moore1993,
+  title={GIS and land-surface-subsurface process modeling},
+  author={Moore, Ian D. and Turner, A. Keith and Wilson, John P. and Jenson, Susan K. and Band, Lawrence E.},
+  journal={Environmental Modeling with GIS},
+  volume={20},
+  pages={196--230},
+  year={1993}
+}
+
+@article{Wilson1999,
+  title={Dynamic Modeling, Geostatistics, and Fuzzy Classificaiton: New Sneakers for a New Geography?},
+  author={Wilson, John P. and Burrough, Peter A.},
+  journal={Annals of the Association of American Geographers},
+  year={1999},
+  volume={89},
+  number={4},
+  pages={736--746}
+}
+
+@book{Selby1993,
+  title={Hillslope Materials and Processes},
+  author={Selby, Michael John},
+  year={1993},
+  publisher={Oxford University Press},
+  address = {Oxford}
+}
+
+@article{Roering1999,
+  title={Evidence for nonlinear, diffusive sediment transport on hillslopes and implications for landscape morphology},
+  author={Roering, Joshua J. and Kirchner, James W. and Dietrich, William E.},
+  journal={Water Resources Research},
+  volume={35},
+  number={3},
+  pages={853--870},
+  year={1999}
+}
+
+@article{Hurst2012,
+  title={Using hilltop curvature to derive the spatial distribution of erosion rates},
+  author={Hurst, Martin D. and Mudd, Simon M. and Walcott, Rachel and Attal, Mikael and Yoo, Kyungsoo},
+  journal={Journal of Geophysical Research: Earth Surface},
+  volume={117},
+  number={F2},
+  year={2012}
+}
+
+@article{Montgomery2002,
+  title={Topographic controls on erosion rates in tectonically active mountain ranges},
+  author={Montgomery, David R. and Brandon, Mark T.},
+  journal={Earth and Planetary Science Letters},
+  volume={201},
+  number={3-4},
+  pages={481--489},
+  year={2002}
+}
+
+@article{Palumbo2010,
+  title={Topographic and lithologic control on catchment-wide denudation rates derived from cosmogenic 10Be in two mountain ranges at the margin of NE Tibet},
+  author={Palumbo, Luigi and Hetzel, Ralf and Tao, M. and Li, X.},
+  journal={Geomorphology},
+  volume={117},
+  number={1-2},
+  pages={130--142},
+  year={2010}
+}
+
+@article{Horton1945,
+  title={Erosional development of streams and their drainage basins; hydrophysical approach to quantitative morphology},
+  author={Horton, Robert E.},
+  journal={Geological Society of America Bulletin},
+  volume={56},
+  number={3},
+  pages={275--370},
+  year={1945}
+}
+
+@article{Montgomery1988,
+  title={Where do channels begin?},
+  author={Montgomery, David R. and Dietrich, William E.},
+  journal={Nature},
+  volume={336},
+  number={6196},
+  pages={232--234},
+  year={1988}
+}
+
+@article{Montgomery1992,
+  title={Channel initiation and the problem of landscape scale},
+  author={Montgomery, David R. and Dietrich, William E.},
+  journal={Science},
+  volume={255},
+  number={5046},
+  pages={826--830},
+  year={1992}
+}
+
+@article{Tucker1997,
+  title={Drainage basin responses to climate change},
+  author={Tucker, Gregory E. and Slingerland, Rudy},
+  journal={Water Resources Research},
+  volume={33},
+  number={8},
+  pages={2031--2047},
+  year={1997}
+}
+
+@article{Tucker1998,
+  title={Hillslope processes, drainage density, and landscape morphology},
+  author={Tucker, Gregory E. and Bras, Rafael L.},
+  journal={Water Resources Research},
+  volume={34},
+  number={10},
+  pages={2751--2764},
+  year={1998}
+}
+
+@book{Scott1992,
+  title={Multivariate Density Estimation: Theory, Practice, and Visualization},
+  author={Scott, David W.},
+  year={1992},
+  publisher={Wiley}
+}
+
+@article{Sturges1926,
+  title={The choice of a class interval},
+  author={Sturges, Herbert A.},
+  journal={Journal of the American Statistical Association},
+  volume={21},
+  number={153},
+  pages={65--66},
+  year={1926}
+}
+
+@article{Jiang2013,
+  title={Head/Tail Breaks: A New Classification Scheme for Data with a Heavy-Tailed Distribution},
+  author={Jiang, Bin},
+  journal={The Professional Geographer},
+  volume={65},
+  number={3},
+  pages={482--494},
+  year={2013},
+  publisher={Taylor \& Francis}
+}
+
+@Article{Lindsay2016,
+  title = {Whitebox GAT: A case study in geomorphometric analysis.},
+  author = {J. B. Lindsay},
+  journal = {Computers & Geosciences},
+  year = {2016},
+  volume = {95},
+  pages = {75-84},
+  url = {http://dx.doi.org/10.1016/j.cageo.2016.07.003},
+}
+
+@Manual{Hijmans2022,
+  title = {terra: Spatial Data Analysis},
+  author = {Robert J. Hijmans},
+  year = {2022},
+  note = {R package version 1.5-34},
+  url = {https://CRAN.R-project.org/package=terra},
+}
+
+@Manual{R2022,
+  title = {R: A Language and Environment for Statistical Computing},
+  author = {{R Core Team}},
+  organization = {R Foundation for Statistical Computing},
+  address = {Vienna, Austria},
+  year = {2022},
+  url = {https://www.R-project.org/},
+}
+
+@Manual{Bivand2022,
+  title = {classInt: Choose Univariate Class Intervals},
+  author = {Roger Bivand},
+  year = {2022},
+  note = {R package version 0.4-7},
+  url = {https://CRAN.R-project.org/package=classInt},
+}
+
+@book{Fotheringham1989,
+  title={Spatial Interaction Models: Formulations and Applications},
+  author={Fotheringham, A. Stewart and O'Kelly, Morton E.},
+  year={1989},
+  publisher={Kluwer Academic Publishers},
+  address = {Dordrecht}
+}
+
+@book{Sen1995,
+  title={Gravity Models of Spatial Interaction Behavior},
+  author={Sen, Ashish and Smith, Tony E.},
+  year={1995},
+  publisher={Springer-Verlag}
+}
+
+@book{Wilson2013,
+  title={Entropy in Urban and Regional Modelling},
+  author={Wilson, Alan Geoffrey},
+  year={2013},
+  origdate = {1970},
+  publisher={Routledge}
+}
+
+@book{Wilson1998,
+  title={Complex Spatial Systems: The Modelling Foundations of Urban and Regional Analysis},
+  author={Wilson, Alan Geoffrey},
+  year={2000},
+  publisher={Prentice Hall}
+}
+
+@book{Isard1998,
+  title={Methods of Interregional and Regional Analysis},
+  author={Isard, Walter and Azis, Iwan J. and Drennan, Matthew P. and Miller, Ronald E. and Saltzman, Sidney and Thorbecke, Erik},
+  year={1998},
+  publisher={Ashgate}
+}
+
+@article{Wilson1998,
+  title={Land-use/transport interaction models: Past and future},
+  author={Wilson, Alan Geoffrey},
+  journal={Journal of Transport Economics and Policy},
+  pages={3--26},
+  year={1998}
+}
+
+@article{Wilson1971,
+  title={A family of spatial interaction models, and associated developments},
+  author={Wilson, Alan Geoffrey},
+  journal={Environment and Planning A},
+  volume={3},
+  number={1},
+  pages={1--32},
+  year={1971}
+}
+
+@article{DiClemente2021,
+  title={Urbanization and economic complexity},
+  author={Di Clemente, Riccardo and Strano, Emanuele and Batty, Michael},
+  journal={Scientific Reports},
+  volume={11},
+  number={1},
+  pages={1--10},
+  year={2021}
+}
+
+@article{Oshan2016,
+  title={A primer for working with the Spatial Interaction modeling (SpInt) module in the python spatial analysis library (PySAL)},
+  author={Oshan, Taylor M.},
+  journal={Region},
+  volume={3},
+  number={2},
+  pages={R11--R23},
+  year={2016}
+}
+
+@book{Cameron2013,
+  title={Regression Analysis of Count Data},
+  author={Cameron, A. Colin and Trivedi, Pravin K.},
+  edition = {Second},
+  year={2013},
+  publisher={Cambridge University Press},
+  address = {Cambridge}
+}
+
+@article{Palmisano2017,
+  title = {Confronting scales of settlement hierarchy in state-level societies: Upper Mesopotamia and Central Anatolia in the Middle Bronze Age},
+  journal = {Journal of Archaeological Science: Reports},
+  volume = {14},
+  pages = {220--240},
+  year = {2017},
+  doi = {https://doi.org/10.1016/j.jasrep.2017.05.029},
+  author = {Palmisano, Alessio}
+}
+
+@article{Crema2014,
+  title={A simulation model of fission--fusion dynamics and long-term settlement change},
+  author={Crema, Enrico R.},
+  journal={Journal of Archaeological Method and Theory},
+  volume={21},
+  number={2},
+  pages={385--404},
+  year={2014}
+}
+
+@article{Drennan2004,
+  title = {Comparing archaeological settlement systems with rank-size graphs: a measure of shape and statistical confidence},
+  journal = {Journal of Archaeological Science},
+  volume = {31},
+  number = {5},
+  pages = {533--549},
+  year = {2004},
+  doi = {https://doi.org/10.1016/j.jas.2003.10.002},
+  author = {Drennan Robert D. and Peterson, Christian E.},
+}
+
+@book{Zipf1949,
+  title={Human behavior and the principle of least effort: An introduction to human ecology},
+  author={Zipf, George Kingsley},
+  year={1949},
+  publisher={Harvard University Press},
+  address = {Cambridge, MA}
+}
+
+@phdthesis{Crema2013,
+  title={Spatial and Temporal Models of Jomon Settlement},
+  author={Crema, Enrico R.},
+  year={2013},
+  school={Institute of Archaeology, University College London}
+}
+
+@article{Pearson1980,
+  title={Rank-size distributions and the analysis of prehistoric settlement systems},
+  author={Pearson, Charles E.},
+  journal={Journal of Anthropological Research},
+  volume={36},
+  number={4},
+  pages={453--462},
+  year={1980}
+}
+
+@article{Savage1997,
+  title={Assessing departures from log-normality in the rank-size rule},
+  author={Savage, Stephen H.},
+  journal={Journal of Archaeological Science},
+  volume={24},
+  number={3},
+  pages={233--244},
+  year={1997}
+}
+
+@article{Berry1961,
+  title={City size distributions and economic development},
+  author={Berry, Brian Joe Lobley},
+  journal={Economic Development and Cultural Change},
+  volume={9},
+  number={4, Part 1},
+  pages={573--588},
+  year={1961}
+}
+
+@book{Berry1967,
+  title={The Geography of Market Centers and Retail Distribution},
+  author={Berry, Brian Joe Lobley},
+  year={1967},
+  publisher={Prentice-Hall},
+  address = {Englewood Cliffs, NJ}
+}
+
+@article{Johnson1977,
+  title={Aspects of Regional Analysis in Archaeology},
+  author={Johnson, Gregory A.},
+  journal={Annual Review of Anthropology},
+  volume={6},
+  pages={479--508},
+  year={1977}
+}
+
+@article{Johnson1980,
+  title={Rank-Size Convexity and System Integration: A View from Archaeology},
+  author={Johnson, Gregory A.},
+  journal={Economic Geography},
+  volume={56},
+  number={3},
+  pages={234--247},
+  year={1980}
+}
+
+@article{johnson1982organizational,
+  title={Organizational structure and scalar stress},
+  author={},
+  journal={Theory and explanation in archaeology},
+  pages={389--421},
+  year={1982}
+}
+
+@incollection{Johnson1982,
+  address = {New York},
+  author = {Johnson, Gregory A.},
+  booktitle = {Theory and Explanation in Archaeology: The Southampton Conference},
+  editor = {Renfrew, Colin and Rowlands, Michael J. and Segraves, B. A.},
+  pages = {87--112},
+  publisher = {Academic Press},
+  title = {{Organizational Structure and Scalar Stress}},
+  year = {1982}
+}
+
+@article{Krugman1991,
+  title={Increasing Returns and Economic Geography},
+  author={Krugman, Paul R.},
+  journal={Journal of Political Economy},
+  volume={99},
+  number={3},
+  pages={483--499},
+  year={1991}
+}
+
+@book{Krugman1992,
+  title={Geography and Trade},
+  author={Krugman, Paul R.},
+  year={1992},
+  publisher={MIT press}
+}
+
+@article{Cesaretti2020,
+  title={Increasing returns to scale in the towns of early Tudor England},
+  author={Cesaretti, Rudolf and Lobo, Jos{\'e} and Bettencourt, Luis M. A. and Smith, Michael E.},
+  journal={Historical Methods: A Journal of Quantitative and Interdisciplinary History},
+  volume={53},
+  number={3},
+  pages={147--165},
+  year={2020},
+  doi = {10.1080/01615440.2020.1722775},
+}
+
+@article{Ortman2016Settlement,
+  title={Settlement scaling and economic change in the Central Andes},
+  author={Ortman, Scott G. and Davis, Kaitlyn E. and Lobo, Jos{\'e} and Smith, Michael E. and Bettencourt, Lu{\'\i}s M. A. and Trumbo, Aaron},
+  journal={Journal of Archaeological Science},
+  volume={73},
+  pages={94--106},
+  year={2016}
+}
+
+@article{Ortman2017,
+  title={Settlement Scaling in Middle-Range Societies},
+  author={Ortman, Scott G. and Coffey, Grant D.},
+  journal={American Antiquity},
+  volume={82},
+  number={4},
+  pages={662--682},
+  year={2017}
+}
+
+@article{Ortman2015,
+  title={Settlement scaling and increasing returns in an ancient society},
+  author={Ortman, Scott G. and Cabaniss, Andrew H. F. and Sturm, Jennie O. and Bettencourt, Lu{\'\i}s M. A.},
+  journal={Science Advances},
+  volume={1},
+  number={1},
+  pages={e1400066},
+  year={2015}
+}
+
+@article{Ortman2014,
+  title={The pre-history of urban scaling},
+  author={Ortman, Scott G. and Cabaniss, Andrew H. F. and Sturm, Jennie O. and Bettencourt, Lu{\'\i}s M. A.},
+  journal={PloS one},
+  volume={9},
+  number={2},
+  pages={e87902},
+  year={2014}
+}
+
+@article{Batty2013,
+  title={A Theory of City Size},
+  author={Batty, Michael},
+  journal={Science},
+  volume={340},
+  number={6139},
+  pages={1418--1419},
+  year={2013},
+  publisher={American Association for the Advancement of Science}
+}
+
+@article{Batty2010,
+  title={Space, Scale, and Scaling in Entropy Maximizing},
+  author={Batty, Michael},
+  journal={Geographical Analysis},
+  volume={42},
+  number={4},
+  pages={395--421},
+  year={2010}
+}
+
+@article{Oshan2021,
+  title={The spatial structure debate in spatial interaction modeling: 50 years on},
+  author={Oshan, Taylor M.},
+  journal={Progress in Human Geography},
+  volume={45},
+  number={5},
+  pages={925--950},
+  year={2021},
+  publisher={SAGE Publications Sage UK: London, England}
+}
+
+@article{Dennett2018,
+  title={Modelling population flows using spatial interaction models},
+  author={Dennett, Adam},
+  journal={Australian Population Studies},
+  volume={2},
+  number={2},
+  pages={33--58},
+  year={2018}
+}
+
+@book{Batty2013b,
+  title={The New Science of Cities},
+  author={Batty, Michael},
+  year={2013},
+  publisher = {The MIT Press}
+}
+
+@book{Fujita1999,
+  title={The Spatial Economy: Cities, Regions, and International Trade},
+  author={Fujita, Masahisa and Krugman, Paul R. and Venables, Anthony J.},
+  year={1999},
+  publisher={The MIT Press}
+}
+
+@article{Youn2016,
+  title={Scaling and universality in urban economic diversification},
+  author={Youn, Hyejin and Bettencourt, Lu{\'\i}s M. A. and Lobo, Jos{\'e} and Strumsky, Deborah and Samaniego, Horacio and West, Geoffrey B.},
+  journal={Journal of The Royal Society Interface},
+  volume={13},
+  number={114},
+  pages={20150937},
+  year={2016}
+}
+
+@article{Bettencourt2014,
+  title={Professional diversity and the productivity of cities},
+  author={Bettencourt, Lu{\'\i}s M. A. and Samaniego, Horacio and Youn, Hyejin},
+  journal={Scientific Reports},
+  volume={4},
+  number={1},
+  pages={1--6},
+  year={2014}
+}
+
+@article{Bettencourt2013,
+  title={The origins of scaling in cities},
+  author={Bettencourt, Lu{\'\i}s M. A.},
+  journal={Science},
+  volume={340},
+  number={6139},
+  pages={1438--1441},
+  year={2013}
+}
+
+@incollection{Ottaviano2004,
+  title={Agglomeration and Economic Geography},
+  author={Ottaviano, Gianmarco and Thisse, Jacques-Fran{\c{c}}ois},
+  booktitle={Handbook of Regional and Urban Economics},
+  volume={4},
+  pages={2563--2608},
+  year={2004},
+  publisher={Elsevier}
+}
+
+@misc{OshanND,
+  author = {Oshan, Taylor M.},
+  title  = {Spatial Interaction Modeling},
+  month  = {May},
+  year   = {2022},
+  howpublished = {Unpublished Preprint},
+  url = {https://osf.io/m3ah8},
+  doi = {10.31219/osf.io/m3ah8}
+}
+
+@article{Gauthier2021,
+  title={Hydroclimate variability influenced social interaction in the prehistoric American Southwest},
+  author={Gauthier, Nicolas},
+  journal={Frontiers in Earth Science},
+  volume={8},
+  pages={620856},
+  year={2021}
+}
+
+@article{Cottineau2019,
+  title={Defining urban clusters to detect agglomeration economies},
+  author={Cottineau, Cl{\'e}mentine and Finance, Olivier and Hatna, Erez and Arcaute, Elsa and Batty, Michael},
+  journal={Environment and Planning B: Urban Analytics and City Science},
+  volume={46},
+  number={9},
+  pages={1611--1626},
+  year={2019}
+}
+
+@article{Zhong2014,
+  title={Detecting the dynamics of urban structure through spatial network analysis},
+  author={Zhong, Chen and Arisona, Stefan M{\"u}ller and Huang, Xianfeng and Batty, Michael and Schmitt, Gerhard},
+  journal={International Journal of Geographical Information Science},
+  volume={28},
+  number={11},
+  pages={2178--2199},
+  year={2014}
+}
+
+@article{Glaeser2014,
+    author = {Glaeser, Edward L.},
+    title = "{A World of Cities: The Causes and Consequences of Urbanization in Poorer Countries}",
+    journal = {Journal of the European Economic Association},
+    volume = {12},
+    number = {5},
+    pages = {1154-1199},
+    year = {2014},
+    doi = {10.1111/jeea.12100},
+    url = {https://doi.org/10.1111/jeea.12100}
+}
+
+@article{Amati2018,
+  title={Reconstructing archaeological networks with structural holes},
+  author={Amati, Viviana and Shafie, Termeh and Brandes, Ulrik},
+  journal={Journal of archaeological method and theory},
+  volume={25},
+  number={1},
+  pages={226--253},
+  year={2018},
+  publisher={Springer}
+}
+
+@article{Shyu2014,
+  title={Calculating second derivatives of population growth rates for ecology and evolution},
+  author={Shyu, Esther and Caswell, Hal},
+  journal={Methods in ecology and evolution},
+  volume={5},
+  number={5},
+  pages={473--482},
+  year={2014}
+}
+
+@article{Simini2012,
+  title={A universal model for mobility and migration patterns},
+  author={Simini, Filippo and Gonz{\'a}lez, Marta C. and Maritan, Amos and Barab{\'a}si, Albert-L{\'a}szl{\'o}},
+  journal={Nature},
+  volume={484},
+  number={7392},
+  pages={96--100},
+  year={2012}
+}
+
+@article{Rihll1987,
+  title={Spatial Interaction and Structural Models in Historical Analysis: Some Possibilities and an Example},
+  author={Rihll, Tracey Elizabeth and Wilson, Alan Geoffrey},
+  journal={Histoire \& Mesure},
+  pages={5--32},
+  year={1987},
+  volume={2},
+  number={1}
+}
+
+@Manual{Peeples_Brughmans_2022,
+  title = {Online Companion to Archaeological Network Science},
+  publisher = {Cambridge University Press},
+  author = {Peeples, Matthew A. and Brughmans, Tom},
+  year = {2022}
+  url = {https://github.com/mpeeples2008/ArchNetSci}
+}
+
+@book{Brughmans_Peeples_2022,
+  title = {Archaeological Network Science},
+  publisher = {Cambridge University Press},
+  author = {Brughmans, Tom and Peeples, Matthew A.},
+  year = {2022}
+}
+
+@article{Evans2017,
+  title={Was Thebes Necessary? Contingency in Spatial Modeling},
+  author={Evans, Tim S. and Rivers, Ray J.},
+  journal={Frontiers in Digital Humanities},
+  volume={4},  
+  pages={21},
+  year={2017},
+  doi={10.3389/fdigh.2017.00008},  
+}
+
+@article{Bevan2013,
+  title={Models of settlement hierarchy based on partial evidence},
+  author={Bevan, Andrew and Wilson, Alan Geoffrey},
+  journal={Journal of Archaeological Science},
+  volume={40},
+  number={5},
+  pages={2415--2427},
+  year={2013}
+}
+
+@article{Evans2012,
+  title={Interactions in space for archaeological models},
+  author={Evans, Tim S and Rivers, Ray J and Knappett, C},
+  journal={Advances in Complex Systems},
+  volume={15},
+  number={01n02},
+  pages={1150009},
+  year={2012},
+  doi={doi:10.1142/S021952591100327X}
+}
+
+@incollection{Rivers2013,
+  title={{Network models and archaeological spaces}},
+  author={Rivers, Ray and Knappett, Carl and Evans, Tim},
+  booktitle = {Computational Approaches to Archaeological Spaces},
+  editor = {Bevan, Andrew and Lake, Mark},
+  pages={99--126},
+  year={2013},
+  publisher={Left Coast Press},
+  address={Walnut Creek}
+}
+
+@article{Avis1985,
+  title={Remarks on the sphere of influence graph},
+  author={Avis, David and Horton, Joe},
+  journal={Annals of the New York Academy of Sciences},
+  volume={440},
+  number={1},
+  pages={323--327},
+  year={1985}
+}
+
+@article{Matula1980,
+  title={Properties of Gabriel graphs relevant to geographic variation research and the clustering of points in the plane},
+  author={Matula, David W. and Sokal, Robert R.},
+  journal={Geographical Analysis},
+  volume={12},
+  number={3},
+  pages={205--222},
+  year={1980}
+}
+
+@article{Toussaint1980,
+  title={The relative neighbourhood graph of a finite planar set},
+  author={Toussaint, Godfried T.},
+  journal={Pattern Recognition},
+  volume={12},
+  number={4},
+  pages={261--268},
+  year={1980}
+}
+
+@Article{Bivand2018,
+  author = {Roger Bivand and David W. S. Wong},
+  title = {Comparing implementations of global and local indicators of spatial association},
+  journal = {TEST},
+  year = {2018},
+  volume = {27},
+  number = {3},
+  pages = {716--748},
+  url = {https://doi.org/10.1007/s11749-018-0599-x}
+}
+
+@Article{Bivand2022,
+  author = {Roger Bivand},
+  title = {R Packages for Analyzing Spatial Data: A Comparative Case Study with Areal Data},
+  journal = {Geographical Analysis},
+  year = {2022},
+  url = {https://doi.org/10.1111/gean.12319}
+}
+
+@Book{Bivand2013,
+  author = {Roger S. Bivand and Edzer Pebesma and Virgilio Gomez-Rubio},
+  title = {Applied spatial data analysis with {R}, Second edition},
+  year = {2013},
+  publisher = {Springer, NY},
+  url = {https://asdar-book.org/},
+}
+
+@Manual{Policastro2022,
+  title = {robin: ROBustness in Network},
+  author = {Valeria Policastro and Dario Righelli and Luisa Cutillo and Italia {De Feis} and Annamaria Carissimo},
+  year = {2022},
+  note = {R package version 1.1.1},
+  url = {https://CRAN.R-project.org/package=robin},
+}
+
+@article{Policastro2021,
+  title={ROBustness In Network (robin): an R package for comparison and validation of communities},
+  author={Policastro, Valeria and Righelli, Dario and Carissimo, Annamaria and Cutillo, Luisa and De Feis, Italia},
+  journal={arXiv preprint arXiv:2102.03106},
+  year={2021}
+}

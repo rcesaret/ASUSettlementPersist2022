@@ -364,12 +364,12 @@ These three metrics are also calculated for the catchment area (ha) beyonjd the 
 
 Altogether, the metrics are as follows:
 
-  1. **Catch_Popdens.s2** = Catchment Population Density
-  2. **Catch_Popdens_PropMax.s2** = Catchment Population Density as a proportion of the global maximum
-  3. **Catch_Popdens_Rank.s2** = Catchment Population Density global rank
-  4. **CatchB_Popdens.s2** = Catchment Population Density for the area beyond the site polygon
-  5. **CatchB_Popdens_PropMax.s2** = Catchment Population Density for the area beyond the site polygon as a proportion of the global maximum 
-  6. **CatchB_Popdens_Rank.s2** = Global rank of Catchment Population Density for the area beyond the site polygon
+  1. **Catch_Popdens** = Catchment Population Density
+  2. **Catch_Popdens_PropMax** = Catchment Population Density as a proportion of the global maximum
+  3. **Catch_Popdens_Rank** = Catchment Population Density global rank
+  4. **CatchB_Popdens** = Catchment Population Density for the area beyond the site polygon
+  5. **CatchB_Popdens_PropMax** = Catchment Population Density for the area beyond the site polygon as a proportion of the global maximum 
+  6. **CatchB_Popdens_Ran** = Global rank of Catchment Population Density for the area beyond the site polygon
 
 
 ```{r, 'Catchment Area Demographic Densities', message=FALSE,warning=FALSE}
@@ -380,22 +380,22 @@ for(i in 1:length(Catch_List)){
   
   tmp.p <- Catch_List[[i]] #define catchment area polys as temp object
 
-  tmp.p@data$Catch_Popdens.s2 <- tmp.p@data$Population.s2/tmp.p@data$Catchment_ha
+  tmp.p@data$Catch_Popdens <- tmp.p@data$Population.s2/tmp.p@data$Catchment_ha
   
-  tmp.p@data$CatchB_Popdens.s2 <- tmp.p@data$Population.s2/tmp.p@data$CatchmentBeyond_ha
+  tmp.p@data$CatchB_Popdens <- tmp.p@data$Population.s2/tmp.p@data$CatchmentBeyond_ha
   
-  tmp.p@data$Catch_Popdens_PropMax.s2 <- tmp.p@data$Catch_Popdens.s2/(max(tmp.p@data$Catch_Popdens.s2))
+  tmp.p@data$Catch_Popdens_PropMax <- tmp.p@data$Catch_Popdens/(max(tmp.p@data$Catch_Popdens.s2))
   
-  tmp.p@data$Catch_Popdens_Rank.s2 <- rank(-tmp.p@data$Catch_Popdens.s2, na.last = "keep", ties.method = "average")
+  tmp.p@data$Catch_Popdens_Rank <- rank(-tmp.p@data$Catch_Popdens, na.last = "keep", ties.method = "average")
   
-  tmp.p@data$CatchB_Popdens_PropMax.s2 <- (tmp.p@data$CatchB_Popdens.s2 / (max(tmp.p@data$CatchB_Popdens.s2)))
+  tmp.p@data$CatchB_Popdens_PropMax <- (tmp.p@data$CatchB_Popdens / (max(tmp.p@data$CatchB_Popdens)))
   
-  tmp.p@data$CatchB_Popdens_Rank.s2 <- rank(-tmp.p@data$CatchB_Popdens.s2, na.last = "keep", ties.method = "average")
+  tmp.p@data$CatchB_Popdens_Rank <- rank(-tmp.p@data$CatchB_Popdens, na.last = "keep", ties.method = "average")
   
   tmp.p@data <- tmp.p@data %>% rowwise() %>% 
     mutate(
-        Catch_Popdens_Rank.s2 = ifelse(is.na(Catch_Popdens_Rank.s2), max(Catch_Popdens_Rank.s2)+1, Catch_Popdens_Rank.s2),
-        CatchB_Popdens_Rank.s2 = ifelse(is.na(CatchB_Popdens_Rank.s2), max(CatchB_Popdens_Rank.s2)+1, CatchB_Popdens_Rank.s2)) %>% ungroup()
+        Catch_Popdens_Rank = ifelse(is.na(Catch_Popdens_Rank), max(Catch_Popdens_Rank)+1, Catch_Popdens_Rank),
+        CatchB_Popdens_Rank = ifelse(is.na(CatchB_Popdens_Rank), max(CatchB_Popdens_Rank)+1, CatchB_Popdens_Rank)) %>% ungroup()
   
   Catch_List2[[i]] <- tmp.p #save to output list
 }
@@ -737,9 +737,9 @@ ordering <- c(
       "cntrlz_clo","cntrlz_hub","cntrlz_auth","cntrlz_deg_n","cntrlz_btw_n",
       "cntrlz_eig_n","cntrlz_clo_n","cntrlz_hub_n","cntrlz_auth_n","cntrlz_avg",
   #STEP #4 CATCHMENT AREA AND POP DENSITY VARIABLES
-      "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens.s2", 
-      "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
-      "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
+      "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens", 
+      "Catch_Popdens_PropMax","Catch_Popdens_Rank","CatchB_Popdens",
+      "CatchB_Popdens_PropMax", "CatchB_Popdens_Rank", 
   #SURVEY METADATA
       "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
       "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",

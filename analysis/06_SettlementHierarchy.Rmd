@@ -68,7 +68,12 @@ wd$funcs <- paste0(wd$dir,"functions/")
 
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 # Package names
-packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "classInt", "pacman", "RColorBrewer", "cowplot", "stars", "ggnewscale")#, "data.table", "zoo", "mgcv","igraph", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+packages <- c("rgdal","rgeos","sp","sf","GISTools","raster","Matrix","gdistance",
+              "lwgeom","tidyverse","tidyr","classInt","pacman","RColorBrewer",
+              "cowplot","stars","ggnewscale","broom","zoo","lmtest","sandwich",
+              "lctools","REAT","ineq")
+              
+              #, "data.table",  "mgcv","igraph", "ggrepel","ggridges", "movecost",  "datplot", "scales",
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -82,7 +87,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 rm(packages,installed_packages)
 
 #Read in custom R functions located in the wd$funcs directory folder
-FUNCS <- list("splitByAttributes.R", "RS_Acoef.R", "SettHierClass_ggplot.R")
+FUNCS <- list("splitByAttributes.R", "RS_Acoef.R", "PopAreaResids.R", "LQ.R")
 invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
 rm(FUNCS)
 
@@ -121,10 +126,13 @@ nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
 nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
 CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
 CD.mats = lapply(CD.mats, as.matrix)
+CD.mats = lapply(CD.mats, function(x) `colnames<-`(x, rownames(x)))
 names(CD.mats) <- nam.distmat
 CD.mats <- CD.mats[ord]
 names(CD.mats) <- paste0(ord,"_cdmat")
 
+TrsprtNet_CDmatList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_CDmatList.RData"))
+#TrsprtNet_CDmatList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_CDmatList.RData"))
 ```
 
 
@@ -468,67 +476,24 @@ rm(Poly_List2)
 
 ## Population-Area Scaling Residuals (SAMIs)
 
-```{r}
+```{r, 'Population-Area Scaling Residuals', message=FALSE,warning=FALSE}
+#resid_list <- list()
+#gg_list <- list()
+#coef_list <- list()
+for (i in 1:length(Poly_List)){
+  rr <- PopAreaResids(dat=Poly_List[[i]]@data)
+  #coef_list[[i]] <- rr[[1]]
+  #resid_list[[i]] <- rr[[2]]
+  Poly_List[[i]]$ScalResid <- rr[[2]]$Resid
+  Poly_List[[i]]$ScalSlope <- rr[[1]]$estimate[2]
+  Poly_List[[i]]$ScalInt <- rr[[1]]$estimate[1]
+}
+#resids <- resids[match(All_AggPoly$AggID,resids$AggID),]
+#scaling <-  do.call(rbind, coef_list)
+#resids <-  do.call(rbind, resid_list)
+
 
 ```
-
-
-## Concentration/Dispersion Metrics
-
-Location Quotient and similar
-
-```{r}
-
-```
-
-
-
-# Accessibility Metrics
-
-Should this be local or global?? Both?
-
-
-
-
-potential accessibility
---pop = core-periphery
---urban pop
---settlement popdens
---catchment popdens = 
---sett heir level = SettHierAccess (urban services, sociopolitical institutions) = sum(SettHeirLevel^2/CD)
-
-
-
-Destination accessibility or centrality or competition 
---distance weighted local access to urban services
---dist weighted local access to economic opportunity AND/OR competition
---regional socioeconomic inertia
---core-periphery location
-
-the potential accessibility of settlement $j$ to all $n$ destination settlements $i$
-$$
-A_{j}=\sum_{i=1}^{n} \left( \frac{W_{i}}{D_{ji}} \right)
-$$
-where $W_{i}$ is the weight of a given destination, and $D_{ji}$ is the distance between settlement $j$ and destination $i$.
-
-this is core-periphery
-
---Among all settlements, with population as the weight, access to economic opportunity/demand/supply 
-
---Among all settlements, with UrbanPop/Urbanization as the weight, access to urban/sociopolitical services + institutions
-
-lctools::acc = Spatial Interaction Models: Destination Accessibility
-https://cran.r-project.org/web/packages/lctools/index.html
-SpatialAcc::ac Spatial Accessibility measures
-https://cran.r-project.org/web/packages/SpatialAcc/SpatialAcc.pdf
-
-```{r, 'Global Accessibility Metrics', message=FALSE,warning=FALSE}
-
-```
-
-
-
-
 
 
 # Local Settlement Hierarchy Variables
@@ -538,11 +503,91 @@ Standardized against global averages
 --OR as a Z-score...
 
 
-### Agglomeration Index
+## Concentration/Dispersion Metrics
 
-AgglomIndex
+Location Quotient and similar
 
-### Rank-Size and A-Coefficient
+Cromley, R. G. and Hanink, D. M. (2012), Focal Location Quotients: Specification and Application, Geographical Analysis, 44 (4), pp. 398-410. doi: 10.1111/j.1538-4632.2012.00852.x
+
+The spGini metric is the ratio of the gini among the focal set of spatial neighbors around agiven site (here a 1 hr cost dist threshold) to the global Gini. Thus, GiniSp = Local / Global. 
+
+```{r, 'Global Concentration/Dispersion Metrics', message=FALSE,warning=FALSE}
+
+for (i in 1:length(Poly_List)){
+  #thresh = 1
+  #w <- TrsprtNet_CDmatList[[i]]
+  #w[w > thresh] <- 0
+  #w[w > 0] <- 1
+  #diag(w) <- 1
+  m=TrsprtNet_CDmatList[[i]]
+  df=Poly_List[[i]]@data
+  
+  Poly_List[[i]]$LQ_UrbPop <- LQ(df=df, e="UrbanPop.s2", E="Population.s2")
+  Poly_List[[i]]$FLQ_UrbPop <- FLQ.dist(df=df,e="UrbanPop.s2", E="Population.s2",m=m, r=1)
+  Poly_List[[i]]$spGini_Pop <- GiniSp.dist(df=df, var="Population.s2", m=m, r=1)
+  Poly_List[[i]]$spGini_UrbPop <- GiniSp.dist(df=df, "UrbanPop.s2", m=m, r=1)
+  
+  Poly_List[[i]]$LQ_UrbOccuTime <- LQ(df=df, e="UrbOccuTime", E="OccuTime")
+  Poly_List[[i]]$FLQ_UrbOccuTime <- FLQ.dist(df=df, e="UrbOccuTime", E="OccuTime",m=m, r=1)
+  Poly_List[[i]]$spGini_OccuTime <- GiniSp.dist(df=df, "OccuTime", m=m, r=1)
+  Poly_List[[i]]$spGini_UrbOccuTime <- GiniSp.dist(df=df, "UrbOccuTime", m=m, r=1)
+  
+  Poly_List[[i]]$LQ_UrbOccuInertia <- LQ(df=df, e="UrbOccuInertia", E="OccuInertia")
+  Poly_List[[i]]$FLQ_UrbOccuInertia <- FLQ.dist(df=df, e="UrbOccuInertia", E="OccuInertia",m=m, r=1)
+  Poly_List[[i]]$spGini_OccuInertia <- GiniSp.dist(df=df, "OccuInertia", m=m, r=1)
+  Poly_List[[i]]$spGini_UrbOccuInertia <- GiniSp.dist(df=df, "UrbOccuInertia", m=m, r=1)
+  
+  Poly_List[[i]]$LQ_Pct_UrbdeltaPop12 <- LQ(df=df,e="Pct_UrbdeltaPop12", E="Pct_deltaPop12")
+  Poly_List[[i]]$FLQ_Pct_UrbdeltaPop12 <- FLQ.dist(df=df, e="Pct_UrbdeltaPop12", E="Pct_deltaPop12",m=m, r=1)
+  Poly_List[[i]]$spGini_Pct_deltaPop12 <- GiniSp.dist(df=df, "Pct_deltaPop12", m=m, r=1)
+  Poly_List[[i]]$spGini_Pct_UrbdeltaPop12 <- GiniSp.dist(df=df, "Pct_UrbdeltaPop12", m=m, r=1)
+  
+  Poly_List[[i]]$LQ_PopDens <- LQ(df=df, e="Population.s2", E="Area_ha")
+  Poly_List[[i]]$FLQ_PopDens <- FLQ.dist(df=df, e="Population.s2", E="Area_ha",m=m, r=1)
+  Poly_List[[i]]$spGini_Area_ha <- GiniSp.dist(df=df, "Area_ha", m=m, r=1)
+  
+  Poly_List[[i]]$LQ_Catch_Popdens <- LQ(df=df, e="Population.s2", E="Catchment_ha")
+  Poly_List[[i]]$FLQ_Catch_Popdens <- FLQ.dist(df=df, e="Population.s2", E="Catchment_ha",m=m, r=1)
+  Poly_List[[i]]$spGini_Catchment_ha <- GiniSp.dist(df=df, "Catchment_ha", m=m, r=1)
+  
+  Poly_List[[i]]$LQ_Urb_Abs_rPert <- LQ(df=df, e="Urb_Abs_rPert", E="Abs_rPert")
+  Poly_List[[i]]$FLQ_Urb_Abs_rPert <- FLQ.dist(df=df, e="Urb_Abs_rPert", E="Abs_rPert", m=m, r=1)
+  Poly_List[[i]]$spGini_Abs_rPert <- GiniSp.dist(df=df, "Abs_rPert", m=m, r=1)
+  Poly_List[[i]]$spGini_Urb_Abs_rPert <- GiniSp.dist(df=df, "Urb_Abs_rPert", m=m, r=1)
+  
+  Poly_List[[i]]$LQ_Q.Urb_rPert <- LQ(df=df, e="Q.Urb_rPert", E="Q.rPert")
+  Poly_List[[i]]$FLQ_Q.Urb_rPert <- FLQ.dist(df=df, e="Q.Urb_rPert", E="Q.rPert",m=m, r=1)
+  Poly_List[[i]]$spGini_Q.rPert <- GiniSp.dist(df=df, "Q.rPert", m=m, r=1)
+  Poly_List[[i]]$spGini_Q.Urb_rPert <- GiniSp.dist(df=df, "Q.Urb_rPert", m=m, r=1)
+  
+  Poly_List[[i]]$LQ_PopFwCont <- LQ(df=df, e="FwOvlp.Pop", E="Population.s2")
+  Poly_List[[i]]$LQ_PopBwCont <- LQ(df=df, e="BwOvlp.Pop", E="Population.s2")
+  Poly_List[[i]]$LQ_AreaFwCont <- LQ(df=df,e="FwOvlp.Area", E="Area_ha")
+  Poly_List[[i]]$LQ_AreaBwCont <- LQ(df=df, e="BwOvlp.Area", E="Area_ha")
+  Poly_List[[i]]$spGini_FwOvlp.Pop <- GiniSp.dist(df=df, "FwOvlp.Pop", m=m, r=1)
+  Poly_List[[i]]$spGini_BwOvlp.Pop <- GiniSp.dist(df=df, "BwOvlp.Pop", m=m, r=1)
+  Poly_List[[i]]$spGini_FwOvlp.Area <- GiniSp.dist(df=df, "FwOvlp.Area", m=m, r=1)
+  Poly_List[[i]]$spGini_BwOvlp.Area <- GiniSp.dist(df=df, "BwOvlp.Area", m=m, r=1)
+  
+  Poly_List[[i]]$spGini_PopPressure <- GiniSp.dist(df=df, "PopPressure", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_avg <- GiniSp.dist(df=df, "centr_avg", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_deg <- GiniSp.dist(df=df, "centr_deg", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_btw <- GiniSp.dist(df=df, "centr_btw", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_eig <- GiniSp.dist(df=df, "centr_eig", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_clos <- GiniSp.dist(df=df, "centr_clos", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_hrmo <- GiniSp.dist(df=df, "centr_hrmo", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_hub <- GiniSp.dist(df=df, "centr_hub", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_auth <- GiniSp.dist(df=df, "centr_auth", m=m, r=1)
+  Poly_List[[i]]$spGini_centr_pgrk <- GiniSp.dist(df=df, "centr_pgrk", m=m, r=1)
+  Poly_List[[i]]$spGini_trans_loc <- GiniSp.dist(df=df, "trans_loc", m=m, r=1)
+  Poly_List[[i]]$spGini_SetHierLevel <- GiniSp.dist(df=df, "SetHierLevel", m=m, r=1)
+}
+```
+
+
+
+
+## Rank-Size and A-Coefficient
 
 A_Coef
 RS_slope
@@ -574,86 +619,6 @@ RSA_df = do.call(rbind, RSA_df_list)
 rm(x,xx,tmp)
 
 ```
-
-
-## Local Concentration and Inequality
-
-lctools R PACKAGE
-https://cran.r-project.org/web/packages/lctools/index.html
-lctools::spGini = Spatial Gini coefficient
-lctools::spGini.w = Spatial Gini coefficient with a given weights matrix
-lctools::mc.spGini = Monte Carlo simulation for the significance of the Spatial Gini coefficient
-lctools::FLQ = Focal Location Quotient
-
-
-Inequality = variability/diversity
-
-Specialization = concentration
-
-
-Standardized against global averages
-
-lctools R PACKAGE
-https://cran.r-project.org/web/packages/lctools/index.html
-lctools::spGini = Spatial Gini coefficient
-lctools::spGini.w = Spatial Gini coefficient with a given weights matrix
-lctools::mc.spGini = Monte Carlo simulation for the significance of the Spatial Gini coefficient
-lctools::FLQ = Focal Location Quotient
-
-Spatial Gini 
-
-https://cran.rstudio.com/web/packages/tabula/vignettes/diversity.html
-
-IN...
---Population.s2
---UrbanPop.s2
---UrbanPop_PropMax.s2
---r12_Pert_Rank.s2
---Catch_Popdens.s2
---Catch_ha
---UrbanScale.s2
---PctUrban.s2
---TranspDens.pct
---NPP.avg
---Elev.avg
---Slope.avg
---TPI.avg
---TRI.avg
---Rough.avg
---EZ.avg
-
-
-
-
-
-lctools::gw_variable = Spatial Interaction Models: gw / regional variable
-lctools::l.moransI = Local Moran’s I classic statistic for assessing spatial autocorrelation
-lctools::lcorrel = Local Pearson and GW Pearson Correlation
-lctools::mc.lcorrel = Monte Carlo simulation for the significance of the local correlation coefficients
-lctools::w.matrix = Weights Matrix based on a number of nearest neighbours or a fixed distance
-
-https://cran.r-project.org/web/packages/SpatialML/SpatialML.pdf
-
-
-https://cran.r-project.org/web/packages/ggspatial/ggspatial.pdf
-
-
-```{r}
-#convert to sf class polygons
-AZsf = st_as_sf(AZ[,2:4])
-#calculate 3km average for all sites
-pts_agg <- aggregate(AZsf, AZsf, FUN = mean, na.rm=T, join = function(x, y) st_is_within_distance(x, y, dist = 3000)) 
-
-sd(x, na.rm = FALSE)
-
-var(x, y = NULL, na.rm = FALSE, use)
-
-
-```
-
-
-
-
 
 
 # Recombining and Reorganizing the Data
@@ -707,9 +672,19 @@ ordering <- c(
       "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
       "BwOvlp.Assemb", "Net.Assemb",
   #STEP #2 DEMOGRAPHIC VARIABLES
-      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
-      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "Population.s2","Log_Population.s2", "ApportAssemb", "PopDens.s2",
       "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+      "Prior", "Observed", "MeanOccuProb", 
+  #STEP #2 DEMOGRAPHIC RATES
+      "Pct_deltaPop12", "Pct_deltaPop01", "r12_Pert", "r01_Pert",
+      "r23_Pert", "rPert", "rPert0", "rPert2", 
+      "Pct_UrbdeltaPop12", "Pct_UrbdeltaPop01", "Urb_r12_Pert", "Urb_r01_Pert",
+      "Urb_r23_Pert", "Urb_rPert", "Urb_rPert0", "Urb_rPert2",
+      "Abs_rPert","RS_rPert","LogRS_rPert","LogAbs_rPert","Q.rPert","Q.Abs_rPert",
+      "Q.RS_rPert","Q.LogRS_rPert","Q.LogAbs_rPert","Urb_Abs_rPert",
+      "Urb_RS_rPert","Urb_LogRS_rPert","Urb_LogAbs_rPert","Q.Urb_rPert","Q.Urb_Abs_rPert",
+      "Q.Urb_RS_rPert","Q.Urb_LogRS_rPert","Q.Urb_LogAbs_rPert",
+      "Qp.rPert","Qp.Abs_rPert","Qp.RS_rPert","Qp.LogRS_rPert","Qp.LogAbs_rPert",
   #STEP #1 DEMOGRAPHIC VARIABLES
       "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
       "PctUrban.s1","PctRural.s1",
@@ -717,23 +692,45 @@ ordering <- c(
       "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
       "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
   #PERSISTENCE VARIABLES
-      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
-  #STEP #3 GLOBAL SETTLEMENT HIERARCHY VARIABLES
-      "Pop_PropMax.s2", "Pop_Rank.s2", "UrbanPop_PropMax.s2", "UrbanPop_Rank.s2", 
-      "r12_Pert_Rank.s2", "PopDens_PropMax.s2", "PopDens_Rank.s2", 
-      "UrbanScale_PropMax.s2", "UrbanScale_Rank.s2", 
-  #STEP #3 CATCHMENT AREA AND POP DENSITY VARIABLES
-      "Catch_ha", "CatchB_ha", "Catch_Popdens.s2", 
-      "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
-      "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
-  #STEP #3 TRANSPORT VARIABLES
-      "TranspDens.pct", "TranspDens.rank",##,core-periphery
-  #STEP #3 CATCHMENT ENVIRONMENT/TOPOGRAPHY VARIABLES
+      "Found","FoundInit","Abandon","Persist","DewarType",
+      "OccuTime","OccuInertia","UrbOccuTime","UrbOccuInertia",
+  #STEP #4 TRANSPORT NETWORK VARIABLES
+      "TranspDens.pct", "TranspDens.rank","centr_deg","centr_btw","centr_eig",
+      "centr_clos","centr_hrmo","centr_hub","centr_auth","centr_pgrk",
+      "centr_deg_n","centr_btw_n","centr_eig_n","centr_clos_n","centr_hrmo_n",
+      "centr_hub_n","centr_auth_n","centr_avg","trans_loc","trans_locavg",
+      "density","connectiv","trans_glob","cntrlz_deg","cntrlz_btw","cntrlz_eig",
+      "cntrlz_clo","cntrlz_hub","cntrlz_auth","cntrlz_deg_n","cntrlz_btw_n",
+      "cntrlz_eig_n","cntrlz_clo_n","cntrlz_hub_n","cntrlz_auth_n","cntrlz_avg",
+  #STEP #4 CATCHMENT AREA AND POP DENSITY VARIABLES
+      "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens", 
+      "Catch_Popdens_PropMax","Catch_Popdens_Rank","CatchB_Popdens",
+      "CatchB_Popdens_PropMax", "CatchB_Popdens_Rank", 
+  #STEP #5 CATCHMENT ENVIRONMENT/TOPOGRAPHY VARIABLES
       "NPP.tot","NPP.avg","EZ.avg","EZ.sd","TRI.tot","TRI.avg","IrrigPot.tot",
       "IrrigPot.avg","WetAgPot.tot","WetAgPot.avg","IntnsCost.tot",
       "IntnsCost.avg","IntnsCostNW.tot","IntnsCostNW.avg","AGPot.tot",
       "AGPot.avg","AGPotNW.tot","AGPotNW.avg","PopPressure","PopPressureNW",
       "ErosionPot.tot","ErosionPot.avg", 
+  #STEP #6 SETTLEMENT HIERARCHY DEMOG VARS
+       "SetHierLevel","ScalResid","ScalSlope","ScalInt","Pop_PropMax","Pop_Rank",
+       "UrbanPop_PropMax","UrbanPop_Rank","PopDens_PropMax","PopDens_Rank",
+       "UrbanScale_PropMax","UrbanScale_Rank",
+  #STEP #6 SETTLEMENT HIERARCHY/DEMOG LOCATION QUOTIENTS
+       "LQ_UrbPop","FLQ_UrbPop","LQ_UrbOccuTime","FLQ_UrbOccuTime","LQ_UrbOccuInertia",
+       "FLQ_UrbOccuInertia","LQ_Pct_UrbdeltaPop12","FLQ_Pct_UrbdeltaPop12","LQ_PopDens",
+       "FLQ_PopDens","LQ_Catch_Popdens","FLQ_Catch_Popdens","LQ_Urb_Abs_rPert",
+       "FLQ_Urb_Abs_rPert","LQ_Q.Urb_rPert","FLQ_Q.Urb_rPert","LQ_PopFwCont",
+       "LQ_PopBwCont","LQ_AreaFwCont","LQ_AreaBwCont",
+  #STEP #6 SETTLEMENT HIERARCHY/DEMOG SPATIAL GINIS
+       "spGini_Pop","spGini_UrbPop","spGini_OccuTime","spGini_UrbOccuTime",
+       "spGini_OccuInertia","spGini_UrbOccuInertia","spGini_Pct_deltaPop12",
+       'spGini_Pct_UrbdeltaPop12',"spGini_Area_ha","spGini_Catchment_ha",
+       "spGini_Abs_rPert","spGini_Urb_Abs_rPert","spGini_Q.rPert","spGini_Q.Urb_rPert",
+       "spGini_FwOvlp.Pop","spGini_BwOvlp.Pop","spGini_FwOvlp.Area","spGini_BwOvlp.Area",
+       "spGini_PopPressure","spGini_centr_avg","spGini_centr_deg","spGini_centr_btw",
+       "spGini_centr_eig","spGini_centr_clos","spGini_centr_hrmo","spGini_centr_hub",
+       "spGini_centr_auth","spGini_centr_pgrk","spGini_trans_loc","spGini_SetHierLevel",
   #SURVEY METADATA
       "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
       "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",
