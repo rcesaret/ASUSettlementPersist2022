@@ -176,6 +176,9 @@ Survival analysis, also called event history analysis in social science, or reli
 	https://CRAN.R-project.org/view=Survival
 https://cran.r-project.org/web/packages/survival/index.html
 
+
+
+
 # Regressions
 
 function to cycle through variables using lasso routine + tidy table output for...

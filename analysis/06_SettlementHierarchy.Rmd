@@ -115,19 +115,9 @@ HillshadeLake <- rast(HillshadeLake, crs = 26914)
 Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
 
 #Cost-distance matrices
-ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
-temp = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = TRUE)
-nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
-nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
-CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
-CD.mats = lapply(CD.mats, as.matrix)
-CD.mats = lapply(CD.mats, function(x) `colnames<-`(x, rownames(x)))
-names(CD.mats) <- nam.distmat
-CD.mats <- CD.mats[ord]
-names(CD.mats) <- paste0(ord,"_cdmat")
-
+CD.mats <- readRDS(file=paste0(wd$data_p,"CDmats_list.RData"))
 TrsprtNet_CDmatList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_CDmatList.RData"))
-#TrsprtNet_CDmatList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_CDmatList.RData"))
+
 ```
 
 
@@ -759,10 +749,10 @@ All_Agg_CatchPoly@data <- All_Agg_CatchPoly@data %>% select(!!!syms(ordering))
 ```{r, 'Export Data for Step #7', message=FALSE,warning=FALSE}
 
 #AggSite polygons
-writeOGR(All_Agg_SitePoly, paste0(wd$data_p,"SBOM_Agg_SitePoly6.gpkg"), "SBOM_Agg_SitePoly6", driver = "GPKG", overwrite_layer=TRUE)
+writeOGR(All_Agg_SitePoly, paste0(wd$data_p,"SBOM_AggSitePoly6.gpkg"), "SBOM_AggSitePoly6", driver = "GPKG", overwrite_layer=TRUE)
 
 #Catchment areas
-writeOGR(All_Agg_CatchPoly, paste0(wd$data_p,"SBOM_Agg_CatchPoly6.gpkg"), "SBOM_Agg_CatchPoly6", driver = "GPKG", overwrite_layer=TRUE)
+writeOGR(All_Agg_CatchPoly, paste0(wd$data_p,"SBOM_CatchPoly6.gpkg"), "SBOM_CatchPoly6", driver = "GPKG", overwrite_layer=TRUE)
 
 ```
 

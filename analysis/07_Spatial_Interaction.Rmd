@@ -1,6 +1,6 @@
 ---
 title: "Settlement Persistence Project, SBOM Script #7:"
-subtitle: "Spatial Interaction Models and Regional Settlement Clusters"
+subtitle: "Modeling Spatial Interactions"
 author: "Rudolf Cesaretti"
 date: "Last run on `r Sys.Date()`"
 output:
@@ -106,34 +106,6 @@ Data we are importing:
 #Agg Site and catchment polygon data
 All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggSitePoly6.gpkg"))
 All_CatchPoly <- readOGR(paste0(wd$data_p,"SBOM_CatchPoly6.gpkg"))
-
-#Catchment boundary limit polygon
-CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
-CatchLims.sf = st_as_sf(CatchLims) #for ggplot 
-
-## Hillshade Basemap Raster with lake
-HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
-HillshadeLake <- rast(HillshadeLake, crs = 26914)
-Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
-
-#Cost-distance matrices
-ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
-temp = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = TRUE)
-nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
-nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
-CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
-CD.mats = lapply(CD.mats, as.matrix)
-names(CD.mats) <- nam.distmat
-CD.mats <- CD.mats[ord]
-names(CD.mats) <- paste0(ord,"_cdmat")
-
-```
-
-
-## Reorganize Data from Step #6
-
-```{r, 'Reorganize Data from Step #5', message=FALSE,warning=FALSE}
-
 #reorder spatial points dataframe by period
 All_AggPoly <- All_AggPoly[order(All_AggPoly$PeriodNum),]
 All_CatchPoly <- All_CatchPoly[order(All_CatchPoly$PeriodNum),]
@@ -153,6 +125,18 @@ All_AggPts <- All_AggPts[order(All_AggPts$PeriodNum),]#reorder by period
 # Split points by Phase, saved as list of spatial points dataframes
 Pts_List <- splitByAttributes(spdata = All_AggPts, attr = "Period", suffix="_Pts")
 
+#Catchment boundary limit polygon
+CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
+CatchLims.sf = st_as_sf(CatchLims) #for ggplot 
+
+## Hillshade Basemap Raster with lake
+HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
+HillshadeLake <- rast(HillshadeLake, crs = 26914)
+Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
+
+#Cost-distance matrices
+CD.mats <- readRDS(file=paste0(wd$data_p,"CDmats_list.RData"))
+TrsprtNet_CDmatList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_CDmatList.RData"))
 ```
 
 
@@ -271,9 +255,19 @@ ordering <- c(
       "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
       "BwOvlp.Assemb", "Net.Assemb",
   #STEP #2 DEMOGRAPHIC VARIABLES
-      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
-      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "Population.s2","Log_Population.s2", "ApportAssemb", "PopDens.s2",
       "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+      "Prior", "Observed", "MeanOccuProb", 
+  #STEP #2 DEMOGRAPHIC RATES
+      "Pct_deltaPop12", "Pct_deltaPop01", "r12_Pert", "r01_Pert",
+      "r23_Pert", "rPert", "rPert0", "rPert2", 
+      "Pct_UrbdeltaPop12", "Pct_UrbdeltaPop01", "Urb_r12_Pert", "Urb_r01_Pert",
+      "Urb_r23_Pert", "Urb_rPert", "Urb_rPert0", "Urb_rPert2",
+      "Abs_rPert","RS_rPert","LogRS_rPert","LogAbs_rPert","Q.rPert","Q.Abs_rPert",
+      "Q.RS_rPert","Q.LogRS_rPert","Q.LogAbs_rPert","Urb_Abs_rPert",
+      "Urb_RS_rPert","Urb_LogRS_rPert","Urb_LogAbs_rPert","Q.Urb_rPert","Q.Urb_Abs_rPert",
+      "Q.Urb_RS_rPert","Q.Urb_LogRS_rPert","Q.Urb_LogAbs_rPert",
+      "Qp.rPert","Qp.Abs_rPert","Qp.RS_rPert","Qp.LogRS_rPert","Qp.LogAbs_rPert",
   #STEP #1 DEMOGRAPHIC VARIABLES
       "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
       "PctUrban.s1","PctRural.s1",
@@ -281,23 +275,47 @@ ordering <- c(
       "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
       "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
   #PERSISTENCE VARIABLES
-      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
-  #STEP #3 GLOBAL SETTLEMENT HIERARCHY VARIABLES
-      "Pop_PropMax.s2", "Pop_Rank.s2", "UrbanPop_PropMax.s2", "UrbanPop_Rank.s2", 
-      "r12_Pert_Rank.s2", "PopDens_PropMax.s2", "PopDens_Rank.s2", 
-      "UrbanScale_PropMax.s2", "UrbanScale_Rank.s2", 
-  #STEP #3 CATCHMENT AREA AND POP DENSITY VARIABLES
-      "Catch_ha", "CatchB_ha", "Catch_Popdens.s2", 
-      "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
-      "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
-  #STEP #3 TRANSPORT VARIABLES
-      "TranspDens.pct", "TranspDens.rank",##,core-periphery
-  #STEP #3 CATCHMENT ENVIRONMENT/TOPOGRAPHY VARIABLES
+      "Found","FoundInit","Abandon","Persist","DewarType",
+      "OccuTime","OccuInertia","UrbOccuTime","UrbOccuInertia",
+  #STEP #4 TRANSPORT NETWORK VARIABLES
+      "TranspDens.pct", "TranspDens.rank","centr_deg","centr_btw","centr_eig",
+      "centr_clos","centr_hrmo","centr_hub","centr_auth","centr_pgrk",
+      "centr_deg_n","centr_btw_n","centr_eig_n","centr_clos_n","centr_hrmo_n",
+      "centr_hub_n","centr_auth_n","centr_avg","trans_loc","trans_locavg",
+      "density","connectiv","trans_glob","cntrlz_deg","cntrlz_btw","cntrlz_eig",
+      "cntrlz_clo","cntrlz_hub","cntrlz_auth","cntrlz_deg_n","cntrlz_btw_n",
+      "cntrlz_eig_n","cntrlz_clo_n","cntrlz_hub_n","cntrlz_auth_n","cntrlz_avg",
+  #STEP #4 CATCHMENT AREA AND POP DENSITY VARIABLES
+      "Catchment_ha", "CatchmentBeyond_ha", "Catch_Popdens", 
+      "Catch_Popdens_PropMax","Catch_Popdens_Rank","CatchB_Popdens",
+      "CatchB_Popdens_PropMax", "CatchB_Popdens_Rank", 
+  #STEP #5 CATCHMENT ENVIRONMENT/TOPOGRAPHY VARIABLES
       "NPP.tot","NPP.avg","EZ.avg","EZ.sd","TRI.tot","TRI.avg","IrrigPot.tot",
       "IrrigPot.avg","WetAgPot.tot","WetAgPot.avg","IntnsCost.tot",
       "IntnsCost.avg","IntnsCostNW.tot","IntnsCostNW.avg","AGPot.tot",
       "AGPot.avg","AGPotNW.tot","AGPotNW.avg","PopPressure","PopPressureNW",
       "ErosionPot.tot","ErosionPot.avg", 
+  #STEP #6 SETTLEMENT HIERARCHY DEMOG VARS
+      "SetHierLevel","ScalResid","ScalSlope","ScalInt","Pop_PropMax","Pop_Rank",
+      "UrbanPop_PropMax","UrbanPop_Rank","PopDens_PropMax","PopDens_Rank",
+      "UrbanScale_PropMax","UrbanScale_Rank",
+  #STEP #6 SETTLEMENT HIERARCHY/DEMOG LOCATION QUOTIENTS
+      "LQ_UrbPop","FLQ_UrbPop","LQ_UrbOccuTime","FLQ_UrbOccuTime","LQ_UrbOccuInertia",
+      "FLQ_UrbOccuInertia","LQ_PopFwCont","LQ_PopBwCont","LQ_AreaFwCont","LQ_AreaBwCont",
+      #"LQ_Pct_UrbdeltaPop12","FLQ_Pct_UrbdeltaPop12","LQ_PopDens",
+      #"FLQ_PopDens","LQ_Catch_Popdens","FLQ_Catch_Popdens","LQ_Urb_Abs_rPert",
+      #"FLQ_Urb_Abs_rPert","LQ_Q.Urb_rPert","FLQ_Q.Urb_rPert",
+  #STEP #6 SETTLEMENT HIERARCHY/DEMOG SPATIAL GINIS
+      "spGini_Pop","spGini_UrbPop","spGini_OccuTime","spGini_UrbOccuTime",
+      "spGini_OccuInertia","spGini_UrbOccuInertia","spGini_Pct_deltaPop12",
+      'spGini_Pct_UrbdeltaPop12',"spGini_Area_ha","spGini_Catchment_ha",
+      "spGini_Abs_rPert","spGini_Urb_Abs_rPert","spGini_Q.rPert","spGini_Q.Urb_rPert",
+      "spGini_FwOvlp.Pop","spGini_BwOvlp.Pop","spGini_FwOvlp.Area","spGini_BwOvlp.Area",
+      "spGini_PopPressure",
+  #STEP #6 TRANSPORT NETWORK SPATIAL GINIS
+      "spGini_centr_avg","spGini_centr_deg","spGini_centr_btw",
+      "spGini_centr_eig","spGini_centr_clos","spGini_centr_hrmo","spGini_centr_hub",
+      "spGini_centr_auth","spGini_centr_pgrk","spGini_trans_loc","spGini_SetHierLevel",
   #SURVEY METADATA
       "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
       "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",
@@ -333,21 +351,12 @@ All_Agg_CatchPoly@data <- All_Agg_CatchPoly@data %>% select(!!!syms(ordering))
 ```{r, 'Export Data for Step #8', message=FALSE,warning=FALSE}
 
 #AggSite polygons
-writeOGR(All_Agg_SitePoly, paste0(dir2,"SBOM_Agg_SitePoly7.gpkg"), "SBOM_Agg_SitePoly7", driver = "GPKG", overwrite_layer=TRUE)
+writeOGR(All_Agg_SitePoly, paste0(dir2,"SBOM_AggSitePoly7.gpkg"), "SBOM_AggSitePoly7", driver = "GPKG", overwrite_layer=TRUE)
 
 #Catchment areas
-writeOGR(All_Agg_CatchPoly, paste0(dir2,"SBOM_Agg_CatchPoly7.gpkg"), "SBOM_Agg_CatchPoly7", driver = "GPKG", overwrite_layer=TRUE)
+writeOGR(All_Agg_CatchPoly, paste0(dir2,"SBOM_CatchPoly7.gpkg"), "SBOM_CatchPoly7", driver = "GPKG", overwrite_layer=TRUE)
 
-#Catchment Limits
-writeOGR(CatchLims, paste0(dir2,"CatchLims.gpkg"), "CatchLims", driver = "GPKG", overwrite_layer=TRUE)
 ```
 
 
 # References
-
-
-
-
-
-
-

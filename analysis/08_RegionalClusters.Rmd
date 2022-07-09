@@ -1,6 +1,6 @@
 ---
 title: "Settlement Persistence Project, SBOM Script #7:"
-subtitle: "Spatial Interaction Models and Regional Settlement Clusters"
+subtitle: "Modeling Regional Settlement Clusters"
 author: "Rudolf Cesaretti"
 date: "Last run on `r Sys.Date()`"
 output:
@@ -83,7 +83,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 rm(packages,installed_packages)
 
 #Read in custom R functions located in the wd$funcs directory folder
-FUNCS <- list("splitByAttributes.R", "RS_Acoef.R", "SettHierClass_ggplot.R")
+FUNCS <- list("splitByAttributes.R", "RS_Acoef.R")
 invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
 rm(FUNCS)
 
@@ -106,34 +106,6 @@ Data we are importing:
 #Agg Site and catchment polygon data
 All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggSitePoly7.gpkg"))
 All_CatchPoly <- readOGR(paste0(wd$data_p,"SBOM_CatchPoly7.gpkg"))
-
-#Catchment boundary limit polygon
-CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
-CatchLims.sf = st_as_sf(CatchLims) #for ggplot 
-
-## Hillshade Basemap Raster with lake
-HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
-HillshadeLake <- rast(HillshadeLake, crs = 26914)
-Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
-
-#Cost-distance matrices
-ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
-temp = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = TRUE)
-nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
-nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
-CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
-CD.mats = lapply(CD.mats, as.matrix)
-names(CD.mats) <- nam.distmat
-CD.mats <- CD.mats[ord]
-names(CD.mats) <- paste0(ord,"_cdmat")
-
-```
-
-
-## Reorganize Data from Step #7
-
-```{r, 'Reorganize Data from Step #5', message=FALSE,warning=FALSE}
-
 #reorder spatial points dataframe by period
 All_AggPoly <- All_AggPoly[order(All_AggPoly$PeriodNum),]
 All_CatchPoly <- All_CatchPoly[order(All_CatchPoly$PeriodNum),]
@@ -153,10 +125,24 @@ All_AggPts <- All_AggPts[order(All_AggPts$PeriodNum),]#reorder by period
 # Split points by Phase, saved as list of spatial points dataframes
 Pts_List <- splitByAttributes(spdata = All_AggPts, attr = "Period", suffix="_Pts")
 
+#Catchment boundary limit polygon
+CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
+CatchLims.sf = st_as_sf(CatchLims) #for ggplot 
+
+## Hillshade Basemap Raster with lake
+HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
+HillshadeLake <- rast(HillshadeLake, crs = 26914)
+Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
+
+#Cost-distance matrices
+CD.mats <- readRDS(file=paste0(wd$data_p,"CDmats_list.RData"))
+TrsprtNet_CDmatList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_CDmatList.RData"))
+
 ```
 
 
-# Modelling Regional Settlement Clusters
+
+# Modeling Regional Settlement Clusters
 
 
 SpatialPosition: Spatial Position Models
@@ -349,13 +335,11 @@ All_Agg_CatchPoly@data <- All_Agg_CatchPoly@data %>% select(!!!syms(ordering))
 ```{r, 'Export Data for Step #4', message=FALSE,warning=FALSE}
 
 #AggSite polygons
-writeOGR(All_Agg_SitePoly, paste0(dir2,"SBOM_Agg_SitePoly8.gpkg"), "SBOM_Agg_SitePoly8", driver = "GPKG", overwrite_layer=TRUE)
+writeOGR(All_Agg_SitePoly, paste0(dir2,"SBOM_AggSitePoly8.gpkg"), "SBOM_AggSitePoly8", driver = "GPKG", overwrite_layer=TRUE)
 
 #Catchment areas
-writeOGR(All_Agg_CatchPoly, paste0(dir2,"SBOM_Agg_CatchPoly8.gpkg"), "SBOM_Agg_CatchPoly8", driver = "GPKG", overwrite_layer=TRUE)
+writeOGR(All_Agg_CatchPoly, paste0(dir2,"SBOM_CatchPoly8.gpkg"), "SBOM_CatchPoly8", driver = "GPKG", overwrite_layer=TRUE)
 
-#Catchment Limits
-writeOGR(CatchLims, paste0(dir2,"CatchLims.gpkg"), "CatchLims", driver = "GPKG", overwrite_layer=TRUE)
 ```
 
 

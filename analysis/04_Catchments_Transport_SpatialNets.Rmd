@@ -124,15 +124,7 @@ Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
 ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
 
 #Cost-distance matrices
-temp = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = TRUE)
-nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
-nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
-CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
-CD.mats = lapply(CD.mats, as.matrix)
-CD.mats = lapply(CD.mats, function(x) `colnames<-`(x, rownames(x)))
-names(CD.mats) <- nam.distmat
-CD.mats <- CD.mats[ord]
-names(CD.mats) <- paste0(ord,"_cdmat")
+CD.mats <- readRDS(file=paste0(wd$data_p,"CDmats_list.RData"))
 
 #Least cost path rasters
 temp = list.files(path = paste0(wd$data_p,"lcp_dens_rasts/"), full.names = TRUE, pattern = ".grd")

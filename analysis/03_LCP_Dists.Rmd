@@ -200,6 +200,9 @@ Above time estimates are based on parallel processing on 6 (of 8) processor core
 
 # name objects in the output lists
  names(CD.mats) <- nam.distmat
+ CD.mats = lapply(CD.mats, function(x) `colnames<-`(x, rownames(x)))
+ saveRDS(CD.mats, file=paste0(wd$data_p,"CDmats_list.RData"))
+ saveRDS(CD.mats, file=paste0(wd$data_f,"CDmats_list.RData"))
  names(lcp.dens.r) <- nam.dens
 
  rm(xxx,lcp.dens,edge,DEM,lcp_net,nb.mat,tmp, slope_cs)
