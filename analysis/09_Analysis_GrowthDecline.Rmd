@@ -163,6 +163,8 @@ https://en.wikipedia.org/wiki/Survival_analysis
 
 Plot maps of growth rates + their local spatial autocorrelation/LISA 
 --WITH stats and plots on the size for global levels 
+https://github.com/GuangchuangYu/ggplotify
+https://github.com/hadley/reshape
 
 # Regional Distribution
 
@@ -172,7 +174,7 @@ Plot maps of growth rates + their local spatial autocorrelation/LISA
 
 Survival analysis, also called event history analysis in social science, or reliability analysis in engineering, deals with time until occurrence of an event of interest. However, this failure time may not be observed within the relevant time period, producing so-called censored observations.
 	https://CRAN.R-project.org/view=Survival
-
+https://cran.r-project.org/web/packages/survival/index.html
 
 # Regressions
 
@@ -189,7 +191,8 @@ function to cycle through variables using lasso routine + tidy table output for.
 --geographically weighted regression
 --
 
-
+https://github.com/hadley/reshape
+https://rpkgs.datanovia.com/ggpubr/
 
 LASSO REGRESSION
 https://github.com/Statology/R-Guides/blob/main/lasso_regression.R

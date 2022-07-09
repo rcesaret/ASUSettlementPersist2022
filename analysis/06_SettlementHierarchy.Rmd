@@ -82,7 +82,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 rm(packages,installed_packages)
 
 #Read in custom R functions located in the wd$funcs directory folder
-FUNCS <- list("splitByAttributes.R", "RS_Acoef.R", "PopAreaResids.R", "LQ.R")
+FUNCS <- list("splitByAttributes.R", "RS_Acoef.R", "PopAreaResids.R", "LQ.R", "GiniSp.R")
 invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
 rm(FUNCS)
 
@@ -530,12 +530,13 @@ LQ can be applied at any spatial scale comparing a locality to its wider region 
 FLQ is implemented in the "lctools" R package [@Kalogirou2020], but therein only allows you to use k nearest neighbors. As such, I have written my own functions that define our own neighborhood of settlements from the transport network cost-distances from script #4 (or cost-distanced from script #3) using either a threshold distance or k nearest neighbors.
 
 ```{r, 'LQ and FLQ', message=FALSE,warning=FALSE}
-
+##outlist <- list()
 dthresh = 1 # threshold cost-distance (in hours) for local neighborhood calculations
 
 for (i in 1:length(Poly_List)){
   m=TrsprtNet_CDmatList[[i]]
   df=Poly_List[[i]]@data
+  ##outdf <- df %>% select(AggID,AggSite,Period,PeriodNum,Population.s2,UrbanPop.s2,Q.Urb_rPert)
   
   Poly_List[[i]]$LQ_UrbPop <- LQ(df=df, e="UrbanPop.s2", E="Population.s2")
   Poly_List[[i]]$FLQ_UrbPop <- FLQ.dist(df=df,e="UrbanPop.s2", E="Population.s2",m=m, r=dthresh)
@@ -543,20 +544,22 @@ for (i in 1:length(Poly_List)){
   Poly_List[[i]]$FLQ_UrbOccuTime <- FLQ.dist(df=df, e="UrbOccuTime", E="OccuTime",m=m, r=dthresh)
   Poly_List[[i]]$LQ_UrbOccuInertia <- LQ(df=df, e="UrbOccuInertia", E="OccuInertia")
   Poly_List[[i]]$FLQ_UrbOccuInertia <- FLQ.dist(df=df, e="UrbOccuInertia", E="OccuInertia",m=m, r=dthresh)
-  Poly_List[[i]]$LQ_Pct_UrbdeltaPop12 <- LQ(df=df,e="Pct_UrbdeltaPop12", E="Pct_deltaPop12")
-  Poly_List[[i]]$FLQ_Pct_UrbdeltaPop12 <- FLQ.dist(df=df, e="Pct_UrbdeltaPop12", E="Pct_deltaPop12",m=m, r=dthresh)
-  Poly_List[[i]]$LQ_PopDens <- LQ(df=df, e="Population.s2", E="Area_ha")
-  Poly_List[[i]]$FLQ_PopDens <- FLQ.dist(df=df, e="Population.s2", E="Area_ha",m=m, r=dthresh)
-  Poly_List[[i]]$LQ_Catch_Popdens <- LQ(df=df, e="Population.s2", E="Catchment_ha")
-  Poly_List[[i]]$FLQ_Catch_Popdens <- FLQ.dist(df=df, e="Population.s2", E="Catchment_ha",m=m, r=dthresh)
-  Poly_List[[i]]$LQ_Urb_Abs_rPert <- LQ(df=df, e="Urb_Abs_rPert", E="Abs_rPert")
-  Poly_List[[i]]$FLQ_Urb_Abs_rPert <- FLQ.dist(df=df, e="Urb_Abs_rPert", E="Abs_rPert", m=m, r=dthresh)
-  Poly_List[[i]]$LQ_Q.Urb_rPert <- LQ(df=df, e="Q.Urb_rPert", E="Q.rPert")
-  Poly_List[[i]]$FLQ_Q.Urb_rPert <- FLQ.dist(df=df, e="Q.Urb_rPert", E="Q.rPert",m=m, r=dthresh)
+  #outdf$LQ_Pct_UrbdeltaPop12 <- LQ(df=df,e="Pct_UrbdeltaPop12", E="Pct_deltaPop12")
+  #outdf$FLQ_Pct_UrbdeltaPop12 <- FLQ.dist(df=df, e="Pct_UrbdeltaPop12", E="Pct_deltaPop12",m=m, r=dthresh)
+  #outdf$LQ_PopDens <- LQ(df=df, e="Population.s2", E="Area_ha")
+  #outdf$FLQ_PopDens <- FLQ.dist(df=df, e="Population.s2", E="Area_ha",m=m, r=dthresh)
+  #outdf$LQ_Catch_Popdens <- LQ(df=df, e="Population.s2", E="Catchment_ha")
+  #outdf$FLQ_Catch_Popdens <- FLQ.dist(df=df, e="Population.s2", E="Catchment_ha",m=m, r=dthresh)
+  #outdf$LQ_Urb_Abs_rPert <- LQ(df=df, e="Urb_Abs_rPert", E="Abs_rPert")
+  #outdf$FLQ_Urb_Abs_rPert <- FLQ.dist(df=df, e="Urb_Abs_rPert", E="Abs_rPert", m=m, r=dthresh)
+  #outdf$LQ_Q.Urb_rPert <- LQ(df=df, e="Q.Urb_rPert", E="Q.rPert")
+  #outdf$FLQ_Q.Urb_rPert <- FLQ.dist(df=df, e="Q.Urb_rPert", E="Q.rPert",m=m, r=dthresh)
   Poly_List[[i]]$LQ_PopFwCont <- LQ(df=df, e="FwOvlp.Pop", E="Population.s2")
   Poly_List[[i]]$LQ_PopBwCont <- LQ(df=df, e="BwOvlp.Pop", E="Population.s2")
   Poly_List[[i]]$LQ_AreaFwCont <- LQ(df=df,e="FwOvlp.Area", E="Area_ha")
   Poly_List[[i]]$LQ_AreaBwCont <- LQ(df=df, e="BwOvlp.Area", E="Area_ha")
+  
+  ##outlist[i] <- outdf
 }
 ```
 
@@ -706,10 +709,10 @@ ordering <- c(
       "UrbanScale_PropMax","UrbanScale_Rank",
   #STEP #6 SETTLEMENT HIERARCHY/DEMOG LOCATION QUOTIENTS
       "LQ_UrbPop","FLQ_UrbPop","LQ_UrbOccuTime","FLQ_UrbOccuTime","LQ_UrbOccuInertia",
-      "FLQ_UrbOccuInertia","LQ_Pct_UrbdeltaPop12","FLQ_Pct_UrbdeltaPop12","LQ_PopDens",
-      "FLQ_PopDens","LQ_Catch_Popdens","FLQ_Catch_Popdens","LQ_Urb_Abs_rPert",
-      "FLQ_Urb_Abs_rPert","LQ_Q.Urb_rPert","FLQ_Q.Urb_rPert","LQ_PopFwCont",
-      "LQ_PopBwCont","LQ_AreaFwCont","LQ_AreaBwCont",
+      "FLQ_UrbOccuInertia","LQ_PopFwCont","LQ_PopBwCont","LQ_AreaFwCont","LQ_AreaBwCont",
+      #"LQ_Pct_UrbdeltaPop12","FLQ_Pct_UrbdeltaPop12","LQ_PopDens",
+      #"FLQ_PopDens","LQ_Catch_Popdens","FLQ_Catch_Popdens","LQ_Urb_Abs_rPert",
+      #"FLQ_Urb_Abs_rPert","LQ_Q.Urb_rPert","FLQ_Q.Urb_rPert",
   #STEP #6 SETTLEMENT HIERARCHY/DEMOG SPATIAL GINIS
       "spGini_Pop","spGini_UrbPop","spGini_OccuTime","spGini_UrbOccuTime",
       "spGini_OccuInertia","spGini_UrbOccuInertia","spGini_Pct_deltaPop12",
@@ -753,16 +756,14 @@ All_Agg_CatchPoly@data <- All_Agg_CatchPoly@data %>% select(!!!syms(ordering))
 
 # Export Data for Script #7
 
-```{r, 'Export Data for Step #4', message=FALSE,warning=FALSE}
+```{r, 'Export Data for Step #7', message=FALSE,warning=FALSE}
 
 #AggSite polygons
-writeOGR(All_Agg_SitePoly, paste0(dir2,"SBOM_Agg_SitePoly3.gpkg"), "SBOM_Agg_SitePoly3", driver = "GPKG", overwrite_layer=TRUE)
+writeOGR(All_Agg_SitePoly, paste0(wd$data_p,"SBOM_Agg_SitePoly6.gpkg"), "SBOM_Agg_SitePoly6", driver = "GPKG", overwrite_layer=TRUE)
 
 #Catchment areas
-writeOGR(All_Agg_CatchPoly, paste0(dir2,"SBOM_Agg_CatchPoly3.gpkg"), "SBOM_Agg_CatchPoly3", driver = "GPKG", overwrite_layer=TRUE)
+writeOGR(All_Agg_CatchPoly, paste0(wd$data_p,"SBOM_Agg_CatchPoly6.gpkg"), "SBOM_Agg_CatchPoly6", driver = "GPKG", overwrite_layer=TRUE)
 
-#Catchment Limits
-writeOGR(CatchLims, paste0(dir2,"CatchLims.gpkg"), "CatchLims", driver = "GPKG", overwrite_layer=TRUE)
 ```
 
 

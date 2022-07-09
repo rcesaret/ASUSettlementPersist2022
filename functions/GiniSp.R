@@ -14,34 +14,51 @@ require(ineq)
 ########################    GiniSp.knn    #####################
 ###############################################################
 
+
 GiniSp.knn <- function(df, var, m, k){
-  
+
   Global <- ineq::Gini(as.numeric(unlist(df[,var])))
-  v=NA
-  for (i in 1:nrow(m)){
-    v[i] <- df %>% filter(AggSite %in% rownames(m)[order(m[,i])[1:(k+1)]]) %>% 
-      summarize(spGini = ineq::Gini(!!sym(var))/Global) %>% pull(spGini)
+  
+  if (is.nan(Global)){out <- NA}else{
+    
+    x <- as.data.frame(m)
+    
+    out <- x %>% rownames_to_column(var = "Site1") %>% 
+      tidyr::pivot_longer(!Site1,names_to="Site2",values_to ="CDist") %>% 
+      #filter(CDist >= r)) %>% 
+      group_by(Site1) %>% arrange(CDist, group_by=T) %>% slice(1:(k+1)) %>%
+      left_join(select(df, AggSite, !!sym(var)), by = c("Site2" = "AggSite")) %>% 
+      summarize(spGini = ineq::Gini(!!sym(var))/Global) %>% 
+      arrange(match(Site1, df$AggSite)) %>% pull(spGini)
   }
-  #v <- ifelse(Global == 0, rep(-1,nrow(m)), v)
-  return(v)
+    
+  return(out)
+  
 }
 
 ###############################################################
 ######################    GiniSp.dist    ######################
 ###############################################################
 
-
 GiniSp.dist <- function(df, var, m, r){
 
   Global <- ineq::Gini(as.numeric(unlist(df[,var])))
-  v=NA
-  for (i in 1:nrow(m)){
-    v[i] <- df %>% filter(AggSite %in% subset(df,m[,i]<r)$AggSite) %>% 
-      summarize(spGini = ineq::Gini(!!sym(var))/Global) %>% pull(spGini)
+  
+  if (is.nan(Global)){out <- NA}else{
+    
+    x <- as.data.frame(m)
+    
+    out <- x %>% rownames_to_column(var = "Site1") %>% 
+      tidyr::pivot_longer(!Site1,names_to="Site2",values_to ="CDist") %>% 
+      filter(CDist <= r) %>% group_by(Site1) %>% 
+      #arrange(CDist, group_by=T) %>% slice(1:(k+1)) %>%
+      left_join(select(df, AggSite, !!sym(var)), by = c("Site2" = "AggSite")) %>% 
+      summarize(spGini = ineq::Gini(!!sym(var))/Global) %>% 
+      arrange(match(Site1, df$AggSite)) %>% pull(spGini)
+    
   }
-  #v <- ifelse(Global == 0, rep(-1,nrow(m)), v)
-  return(v)
+  
+  return(out)
+  
 }
-
-
 

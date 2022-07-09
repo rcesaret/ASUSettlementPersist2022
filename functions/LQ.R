@@ -14,10 +14,17 @@ require(tidyverse)
 ###############################################################
 
 LQ <- function(df, e, E){
+  
   Denom <- df %>% summarize(Denom = sum(!!sym(e), na.rm=T)/sum(!!sym(E), na.rm=T)) %>% pull(Denom)
-  LQ <- df %>% mutate(LQ = (!!sym(e)/!!sym(E))/Denom) %>% pull(LQ)
-                        
-  return(LQ)
+  
+  if (Denom == 0){out <- NA}else{
+    
+  out <- df %>% summarize(LQ = (!!sym(e)/!!sym(E))/Denom) %>% pull(LQ)
+  
+  }
+  
+  return(out)
+  
 }
 
 ###############################################################
@@ -25,17 +32,25 @@ LQ <- function(df, e, E){
 ###############################################################
 
 FLQ.knn <- function(df, e, E, m, k){
-  #k = 3
-  #m <- TrsprtNet_CDmatList[[1]]
-  #diag(m) <- 0
+
   Denom <- df %>% summarize(Denom = sum(!!sym(e), na.rm=T)/sum(!!sym(E), na.rm=T)) %>% pull(Denom)
-  v=NA
-  for (i in 1:nrow(m)){
-    v[i] <- df %>% filter(AggSite %in% rownames(m)[order(m[,i])[1:(k+1)]]) %>% 
-      mutate(LQ = (sum(!!sym(e), na.rm=T)/sum(!!sym(E), na.rm=T)/Denom)) %>% pull(LQ)
+  
+  if (Denom == 0){out <- NA}else{
+    
+    x <- as.data.frame(m)
+    
+    out <- x %>% rownames_to_column(var = "Site1") %>% 
+      tidyr::pivot_longer(!Site1,names_to="Site2",values_to ="CDist") %>% 
+      group_by(Site1) %>% arrange(CDist, group_by=T) %>% slice(1:(k+1)) %>%
+      left_join(select(df, AggSite, !!sym(e), !!sym(E)), by = c("Site2" = "AggSite")) %>% 
+      summarize(LQ = (sum(!!sym(e), na.rm=T)/sum(!!sym(E), na.rm=T)/Denom)) %>% 
+      mutate(LQ=ifelse(is.nan(LQ),NA,LQ)) %>% 
+      arrange(match(Site1, df$AggSite)) %>% pull(LQ)
+    
   }
-  #v <- ifelse(Denom == 0, rep(-1,nrow(m)), v)
-  return(v)
+  
+  return(out)
+  
 }
 
 ###############################################################
@@ -43,12 +58,23 @@ FLQ.knn <- function(df, e, E, m, k){
 ###############################################################
 
 FLQ.dist <- function(df, e, E, m, r){
+  
   Denom <- df %>% summarize(Denom = sum(!!sym(e), na.rm=T)/sum(!!sym(E), na.rm=T)) %>% pull(Denom)
-  v=NA
-  for (i in 1:nrow(m)){
-    v[i] <- df %>% filter(AggSite %in% subset(df,m[,i]<r)$AggSite) %>% 
-      mutate(LQ = (sum(!!sym(e), na.rm=T)/sum(!!sym(E), na.rm=T)/Denom)) %>% pull(LQ)
+  
+  if (Denom == 0){out <- NA}else{
+    
+    x <- as.data.frame(m)
+    
+    out <- x %>% rownames_to_column(var = "Site1") %>% 
+      tidyr::pivot_longer(!Site1,names_to="Site2",values_to ="CDist") %>% 
+      filter(CDist <= r) %>% group_by(Site1) %>% 
+      left_join(select(df, AggSite, !!sym(e), !!sym(E)), by = c("Site2" = "AggSite")) %>% 
+      summarize(LQ = (sum(!!sym(e), na.rm=T)/sum(!!sym(E), na.rm=T)/Denom)) %>% 
+      mutate(LQ=ifelse(is.nan(LQ),NA,LQ)) %>% 
+      arrange(match(Site1, df$AggSite)) %>% pull(LQ)
+    
   }
-  #v <- ifelse(Denom == 0, rep(-1,nrow(m)), v)
-  return(v)
+  
+  return(out)
+  
 }
