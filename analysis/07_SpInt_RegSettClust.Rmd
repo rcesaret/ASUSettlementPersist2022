@@ -237,6 +237,55 @@ https://book.archnetworks.net/exploratory#CliquesAndCommunities
 
 
 
+### Rank-Size and A-Coefficient
+
+A_Coef
+
+LocAcoef_A
+LocAcoef_A1
+LocAcoef_A2
+RkSz_OLS_slope
+[@Johnson1982Theory; @Johnson1982Stress; @Johnson1980; @Johnson1977; @Berry1961; @Savage1997; @Pearson1980; @Crema2013; @Zipf1949; @Drennan2004;@Crema2014; @Palmisano2017; @Eeckhout2004; @GonzalezVal2019]
+
+Weibull distribution & Gibrat's law & Survival Analysis 
+More recently, the Weibull distribution has been derived as the limiting distribution for Gibrat processes
+https://en.wikipedia.org/wiki/Gibrat%27s_law
+https://en.wikipedia.org/wiki/Weibull_distribution
+
+The Weibull distribution is used in survival analysis
+In hydrology the Weibull distribution is applied to extreme events such as annual maximum one-day rainfalls and river discharges.
+https://en.wikipedia.org/wiki/Survival_analysis
+
+```{r, 'Rank-Size and A-Coefficient', message=FALSE,warning=FALSE}
+nam <- gsub('_SitePoly', "", sitepoly.names)
+nam <- nam %>% str_replace("._", "") %>% str_replace("1", "")
+
+RSA_df_list <- list()
+RSA_plot_list <- list()
+
+for (i in 1:length(Poly_List)){
+  
+  tmp <- RS_Acoef(z=Poly_List[[i]]$Population.s2, ids=Poly_List[[i]]$AggSite, plot_title = paste0(i,". ",nam[i]),yaxis_title = "Log Population")
+  
+  RSA_plot_list[[i]] <- tmp[[1]]
+  
+  x <- tmp[[2]]
+  xx=as.data.frame(t(as.matrix(x$Value)))
+  colnames(xx) = x$Metric
+  xx$Period <- nam[i]
+  xx$PeriodNum <- i
+  xx$meanlog <- mean(Poly_List[[i]]$Log_Population.s2, na.rm=T)
+  xx$sdlog <- sd(Poly_List[[i]]$Log_Population.s2, na.rm=T)
+  RSA_df_list[[i]] <- xx
+}
+
+names(RSA_plot_list) <- nam
+RSA_df = do.call(rbind, RSA_df_list)
+
+rm(x,xx,tmp)
+
+```
+
 ## Local-Regional-Level Variables
 
 

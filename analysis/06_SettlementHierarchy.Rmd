@@ -32,13 +32,8 @@ opts_chunk$set(tidy.opts=list(width.cutoff=75),tidy=TRUE)
 rm(list = ls())
 ```
 
-I do four things in this R markdown document: 
+In this R markdown document, I delineate, analyze and calculate various settlement hierarchy metrics and then reorganize the data and export for script #7
 
-  3. Calculate settlement hierarchy metrics for AggSites at two spatial scales:
-      + The global level (SBOM-region-wide) 
-      + The local level (at a set radius surrounding each site)
-  4. Reorganize the data and export for Script #7
-  
   
 # Setup 
 
@@ -422,14 +417,14 @@ PropMax = scale = settlement value / max settlement value Pop size with respect 
 
 Pop Rank = Overall rank in settlement hierarchy
 
-Pop_PropMax
-Pop_Rank
-UrbanPop_PropMax
-UrbanPop_Rank
-PopDens_PropMax
-PopDens_Rank
-UrbanScale_PropMax
-UrbanScale_Rank
+  * Pop_PropMax
+  * Pop_Rank
+  * UrbanPop_PropMax
+  * UrbanPop_Rank
+  * PopDens_PropMax
+  * PopDens_Rank
+  * UrbanScale_PropMax
+  * UrbanScale_Rank
 
 
 ```{r, 'Global Settlement Hierarchy Metrics', message=FALSE,warning=FALSE}
@@ -476,6 +471,8 @@ rm(Poly_List2)
 
 ## Population-Area Scaling Residuals (SAMIs)
 
+<Need text>
+
 ```{r, 'Population-Area Scaling Residuals', message=FALSE,warning=FALSE}
 #resid_list <- list()
 #gg_list <- list()
@@ -499,125 +496,116 @@ for (i in 1:length(Poly_List)){
 # Local Settlement Hierarchy Variables
 
 Standardized against global averages
---global average for a metric; value as a a fraction of the global value
---OR as a Z-score...
 
 
 ## Concentration/Dispersion Metrics
 
-Location Quotient and similar
 
-Cromley, R. G. and Hanink, D. M. (2012), Focal Location Quotients: Specification and Application, Geographical Analysis, 44 (4), pp. 398-410. doi: 10.1111/j.1538-4632.2012.00852.x
+### Location Quotient (LQ) and Focal Location Quotient (FLQ)
 
-The spGini metric is the ratio of the gini among the focal set of spatial neighbors around agiven site (here a 1 hr cost dist threshold) to the global Gini. Thus, GiniSp = Local / Global. 
+The ‘location quotient’ (or 'LQ') is used in economic geography as an indicator of local concentration or specialization. It is a double intensive metric given by the equation
 
-```{r, 'Global Concentration/Dispersion Metrics', message=FALSE,warning=FALSE}
+$$
+LQ_{ij} = \frac{E_{ij}/E_{j}}{\sum E_{ij}/\sum E_{j}}
+$$ 
+where $E_{j}$ is total employment in locality $j$, and $E_{ij}$ is employment in industry $i$ in locality $j$. The numerator is thus the fraction of local employment in industry $i$, while he denominator is the the fraction of total _regional_ employment in industry $i$.
+
+We can use LQ for things other than just employment, as it is a commonly used metric in other disciplines -- it merely compares a local relative abundance to a wider/total relative abundance. Here, we can use it to evaluate
+
+  * urban vs total population
+  * urban vs total occupation time
+  * urban vs total occupational inertia
+  * urban vs total growth rates
+  * local vs global population density 
+  * local vs global forward/backward overlap in area and population
+  * urban vs total 
+  * urban vs total 
+  * urban vs total 
+  * urban vs total 
+  
+LQ is included in several R packages [e.g. @Kalogirou2020; @Wieland2019; @Balland2017], but I have written my own function for it due to its simplicity.
+
+LQ can be applied at any spatial scale comparing a locality to its wider region (e.g. settlements within a region, regions within regions, etc.). As such, the 'Focal Location Quotient' (FLQ) has been developed to look at how spatial neighborhoods of localities (defined by some spatial distance criteria around each locality) compare to the wider region [@Cromley2012]. It is thus a kind of local spatial moving window metric. We can apply FLQ using the .
+
+FLQ is implemented in the "lctools" R package [@Kalogirou2020], but therein only allows you to use k nearest neighbors. As such, I have written my own functions that define our own neighborhood of settlements from the transport network cost-distances from script #4 (or cost-distanced from script #3) using either a threshold distance or k nearest neighbors.
+
+```{r, 'LQ and FLQ', message=FALSE,warning=FALSE}
+
+dthresh = 1 # threshold cost-distance (in hours) for local neighborhood calculations
 
 for (i in 1:length(Poly_List)){
-  #thresh = 1
-  #w <- TrsprtNet_CDmatList[[i]]
-  #w[w > thresh] <- 0
-  #w[w > 0] <- 1
-  #diag(w) <- 1
   m=TrsprtNet_CDmatList[[i]]
   df=Poly_List[[i]]@data
   
   Poly_List[[i]]$LQ_UrbPop <- LQ(df=df, e="UrbanPop.s2", E="Population.s2")
-  Poly_List[[i]]$FLQ_UrbPop <- FLQ.dist(df=df,e="UrbanPop.s2", E="Population.s2",m=m, r=1)
-  Poly_List[[i]]$spGini_Pop <- GiniSp.dist(df=df, var="Population.s2", m=m, r=1)
-  Poly_List[[i]]$spGini_UrbPop <- GiniSp.dist(df=df, "UrbanPop.s2", m=m, r=1)
-  
+  Poly_List[[i]]$FLQ_UrbPop <- FLQ.dist(df=df,e="UrbanPop.s2", E="Population.s2",m=m, r=dthresh)
   Poly_List[[i]]$LQ_UrbOccuTime <- LQ(df=df, e="UrbOccuTime", E="OccuTime")
-  Poly_List[[i]]$FLQ_UrbOccuTime <- FLQ.dist(df=df, e="UrbOccuTime", E="OccuTime",m=m, r=1)
-  Poly_List[[i]]$spGini_OccuTime <- GiniSp.dist(df=df, "OccuTime", m=m, r=1)
-  Poly_List[[i]]$spGini_UrbOccuTime <- GiniSp.dist(df=df, "UrbOccuTime", m=m, r=1)
-  
+  Poly_List[[i]]$FLQ_UrbOccuTime <- FLQ.dist(df=df, e="UrbOccuTime", E="OccuTime",m=m, r=dthresh)
   Poly_List[[i]]$LQ_UrbOccuInertia <- LQ(df=df, e="UrbOccuInertia", E="OccuInertia")
-  Poly_List[[i]]$FLQ_UrbOccuInertia <- FLQ.dist(df=df, e="UrbOccuInertia", E="OccuInertia",m=m, r=1)
-  Poly_List[[i]]$spGini_OccuInertia <- GiniSp.dist(df=df, "OccuInertia", m=m, r=1)
-  Poly_List[[i]]$spGini_UrbOccuInertia <- GiniSp.dist(df=df, "UrbOccuInertia", m=m, r=1)
-  
+  Poly_List[[i]]$FLQ_UrbOccuInertia <- FLQ.dist(df=df, e="UrbOccuInertia", E="OccuInertia",m=m, r=dthresh)
   Poly_List[[i]]$LQ_Pct_UrbdeltaPop12 <- LQ(df=df,e="Pct_UrbdeltaPop12", E="Pct_deltaPop12")
-  Poly_List[[i]]$FLQ_Pct_UrbdeltaPop12 <- FLQ.dist(df=df, e="Pct_UrbdeltaPop12", E="Pct_deltaPop12",m=m, r=1)
-  Poly_List[[i]]$spGini_Pct_deltaPop12 <- GiniSp.dist(df=df, "Pct_deltaPop12", m=m, r=1)
-  Poly_List[[i]]$spGini_Pct_UrbdeltaPop12 <- GiniSp.dist(df=df, "Pct_UrbdeltaPop12", m=m, r=1)
-  
+  Poly_List[[i]]$FLQ_Pct_UrbdeltaPop12 <- FLQ.dist(df=df, e="Pct_UrbdeltaPop12", E="Pct_deltaPop12",m=m, r=dthresh)
   Poly_List[[i]]$LQ_PopDens <- LQ(df=df, e="Population.s2", E="Area_ha")
-  Poly_List[[i]]$FLQ_PopDens <- FLQ.dist(df=df, e="Population.s2", E="Area_ha",m=m, r=1)
-  Poly_List[[i]]$spGini_Area_ha <- GiniSp.dist(df=df, "Area_ha", m=m, r=1)
-  
+  Poly_List[[i]]$FLQ_PopDens <- FLQ.dist(df=df, e="Population.s2", E="Area_ha",m=m, r=dthresh)
   Poly_List[[i]]$LQ_Catch_Popdens <- LQ(df=df, e="Population.s2", E="Catchment_ha")
-  Poly_List[[i]]$FLQ_Catch_Popdens <- FLQ.dist(df=df, e="Population.s2", E="Catchment_ha",m=m, r=1)
-  Poly_List[[i]]$spGini_Catchment_ha <- GiniSp.dist(df=df, "Catchment_ha", m=m, r=1)
-  
+  Poly_List[[i]]$FLQ_Catch_Popdens <- FLQ.dist(df=df, e="Population.s2", E="Catchment_ha",m=m, r=dthresh)
   Poly_List[[i]]$LQ_Urb_Abs_rPert <- LQ(df=df, e="Urb_Abs_rPert", E="Abs_rPert")
-  Poly_List[[i]]$FLQ_Urb_Abs_rPert <- FLQ.dist(df=df, e="Urb_Abs_rPert", E="Abs_rPert", m=m, r=1)
-  Poly_List[[i]]$spGini_Abs_rPert <- GiniSp.dist(df=df, "Abs_rPert", m=m, r=1)
-  Poly_List[[i]]$spGini_Urb_Abs_rPert <- GiniSp.dist(df=df, "Urb_Abs_rPert", m=m, r=1)
-  
+  Poly_List[[i]]$FLQ_Urb_Abs_rPert <- FLQ.dist(df=df, e="Urb_Abs_rPert", E="Abs_rPert", m=m, r=dthresh)
   Poly_List[[i]]$LQ_Q.Urb_rPert <- LQ(df=df, e="Q.Urb_rPert", E="Q.rPert")
-  Poly_List[[i]]$FLQ_Q.Urb_rPert <- FLQ.dist(df=df, e="Q.Urb_rPert", E="Q.rPert",m=m, r=1)
-  Poly_List[[i]]$spGini_Q.rPert <- GiniSp.dist(df=df, "Q.rPert", m=m, r=1)
-  Poly_List[[i]]$spGini_Q.Urb_rPert <- GiniSp.dist(df=df, "Q.Urb_rPert", m=m, r=1)
-  
+  Poly_List[[i]]$FLQ_Q.Urb_rPert <- FLQ.dist(df=df, e="Q.Urb_rPert", E="Q.rPert",m=m, r=dthresh)
   Poly_List[[i]]$LQ_PopFwCont <- LQ(df=df, e="FwOvlp.Pop", E="Population.s2")
   Poly_List[[i]]$LQ_PopBwCont <- LQ(df=df, e="BwOvlp.Pop", E="Population.s2")
   Poly_List[[i]]$LQ_AreaFwCont <- LQ(df=df,e="FwOvlp.Area", E="Area_ha")
   Poly_List[[i]]$LQ_AreaBwCont <- LQ(df=df, e="BwOvlp.Area", E="Area_ha")
-  Poly_List[[i]]$spGini_FwOvlp.Pop <- GiniSp.dist(df=df, "FwOvlp.Pop", m=m, r=1)
-  Poly_List[[i]]$spGini_BwOvlp.Pop <- GiniSp.dist(df=df, "BwOvlp.Pop", m=m, r=1)
-  Poly_List[[i]]$spGini_FwOvlp.Area <- GiniSp.dist(df=df, "FwOvlp.Area", m=m, r=1)
-  Poly_List[[i]]$spGini_BwOvlp.Area <- GiniSp.dist(df=df, "BwOvlp.Area", m=m, r=1)
-  
-  Poly_List[[i]]$spGini_PopPressure <- GiniSp.dist(df=df, "PopPressure", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_avg <- GiniSp.dist(df=df, "centr_avg", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_deg <- GiniSp.dist(df=df, "centr_deg", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_btw <- GiniSp.dist(df=df, "centr_btw", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_eig <- GiniSp.dist(df=df, "centr_eig", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_clos <- GiniSp.dist(df=df, "centr_clos", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_hrmo <- GiniSp.dist(df=df, "centr_hrmo", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_hub <- GiniSp.dist(df=df, "centr_hub", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_auth <- GiniSp.dist(df=df, "centr_auth", m=m, r=1)
-  Poly_List[[i]]$spGini_centr_pgrk <- GiniSp.dist(df=df, "centr_pgrk", m=m, r=1)
-  Poly_List[[i]]$spGini_trans_loc <- GiniSp.dist(df=df, "trans_loc", m=m, r=1)
-  Poly_List[[i]]$spGini_SetHierLevel <- GiniSp.dist(df=df, "SetHierLevel", m=m, r=1)
 }
 ```
 
+### Spatial Gini Index
 
+The spGini metric is the ratio of the gini among the focal set of spatial neighbors around agiven site (here a 1 hr cost dist threshold) to the global Gini. Thus, GiniSp = Local / Global. 
 
+The spatial Gini Index is implemented in the "lctools" R package [@Kalogirou2020], but therein only allows you to use k nearest neighbors. As such, I have written my own functions that define our own neighborhood of settlements from the transport network cost-distances from script #4 (or cost-distanced from script #3) using either a threshold distance or k nearest neighbors.
 
-## Rank-Size and A-Coefficient
+```{r, 'Spatial Gini', message=FALSE,warning=FALSE}
 
-A_Coef
-RS_slope
-
-```{r}
-nam <- gsub('_SitePoly', "", sitepoly.names)
-nam <- nam %>% str_replace("._", "") %>% str_replace("1", "")
-
-RSA_df_list <- list()
-RSA_plot_list <- list()
+dthresh = 1 # threshold cost-distance (in hours) for local neighborhood calculations
 
 for (i in 1:length(Poly_List)){
+
+  m=TrsprtNet_CDmatList[[i]]
+  df=Poly_List[[i]]@data
   
-  tmp <- RS_Acoef(z=Poly_List[[i]]$Population.s2, ids=Poly_List[[i]]$AggSite, plot_title = paste0(i,". ",nam[i]),yaxis_title = "Log Population")
-  
-  RSA_plot_list[[i]] <- tmp[[1]]
-  
-  x <- tmp[[2]]
-  xx=as.data.frame(t(as.matrix(x$Value)))
-  colnames(xx) = x$Metric
-  xx$Period <- nam[i]
-  xx$PeriodNum <- i
-  RSA_df_list[[i]] <- xx
+  Poly_List[[i]]$spGini_Pop <- GiniSp.dist(df=df, var="Population.s2", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_UrbPop <- GiniSp.dist(df=df, "UrbanPop.s2", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_OccuTime <- GiniSp.dist(df=df, "OccuTime", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_UrbOccuTime <- GiniSp.dist(df=df, "UrbOccuTime", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_OccuInertia <- GiniSp.dist(df=df, "OccuInertia", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_UrbOccuInertia <- GiniSp.dist(df=df, "UrbOccuInertia", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_Pct_deltaPop12 <- GiniSp.dist(df=df, "Pct_deltaPop12", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_Pct_UrbdeltaPop12 <- GiniSp.dist(df=df, "Pct_UrbdeltaPop12", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_Area_ha <- GiniSp.dist(df=df, "Area_ha", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_Catchment_ha <- GiniSp.dist(df=df, "Catchment_ha", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_Abs_rPert <- GiniSp.dist(df=df, "Abs_rPert", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_Urb_Abs_rPert <- GiniSp.dist(df=df, "Urb_Abs_rPert", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_Q.rPert <- GiniSp.dist(df=df, "Q.rPert", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_Q.Urb_rPert <- GiniSp.dist(df=df, "Q.Urb_rPert", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_FwOvlp.Pop <- GiniSp.dist(df=df, "FwOvlp.Pop", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_BwOvlp.Pop <- GiniSp.dist(df=df, "BwOvlp.Pop", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_FwOvlp.Area <- GiniSp.dist(df=df, "FwOvlp.Area", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_BwOvlp.Area <- GiniSp.dist(df=df, "BwOvlp.Area", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_PopPressure <- GiniSp.dist(df=df, "PopPressure", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_avg <- GiniSp.dist(df=df, "centr_avg", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_deg <- GiniSp.dist(df=df, "centr_deg", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_btw <- GiniSp.dist(df=df, "centr_btw", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_eig <- GiniSp.dist(df=df, "centr_eig", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_clos <- GiniSp.dist(df=df, "centr_clos", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_hrmo <- GiniSp.dist(df=df, "centr_hrmo", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_hub <- GiniSp.dist(df=df, "centr_hub", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_auth <- GiniSp.dist(df=df, "centr_auth", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_centr_pgrk <- GiniSp.dist(df=df, "centr_pgrk", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_trans_loc <- GiniSp.dist(df=df, "trans_loc", m=m, r=dthresh)
+  Poly_List[[i]]$spGini_SetHierLevel <- GiniSp.dist(df=df, "SetHierLevel", m=m, r=dthresh)
 }
-
-names(RSA_plot_list) <- nam
-RSA_df = do.call(rbind, RSA_df_list)
-
-rm(x,xx,tmp)
-
 ```
 
 
@@ -713,24 +701,26 @@ ordering <- c(
       "AGPot.avg","AGPotNW.tot","AGPotNW.avg","PopPressure","PopPressureNW",
       "ErosionPot.tot","ErosionPot.avg", 
   #STEP #6 SETTLEMENT HIERARCHY DEMOG VARS
-       "SetHierLevel","ScalResid","ScalSlope","ScalInt","Pop_PropMax","Pop_Rank",
-       "UrbanPop_PropMax","UrbanPop_Rank","PopDens_PropMax","PopDens_Rank",
-       "UrbanScale_PropMax","UrbanScale_Rank",
+      "SetHierLevel","ScalResid","ScalSlope","ScalInt","Pop_PropMax","Pop_Rank",
+      "UrbanPop_PropMax","UrbanPop_Rank","PopDens_PropMax","PopDens_Rank",
+      "UrbanScale_PropMax","UrbanScale_Rank",
   #STEP #6 SETTLEMENT HIERARCHY/DEMOG LOCATION QUOTIENTS
-       "LQ_UrbPop","FLQ_UrbPop","LQ_UrbOccuTime","FLQ_UrbOccuTime","LQ_UrbOccuInertia",
-       "FLQ_UrbOccuInertia","LQ_Pct_UrbdeltaPop12","FLQ_Pct_UrbdeltaPop12","LQ_PopDens",
-       "FLQ_PopDens","LQ_Catch_Popdens","FLQ_Catch_Popdens","LQ_Urb_Abs_rPert",
-       "FLQ_Urb_Abs_rPert","LQ_Q.Urb_rPert","FLQ_Q.Urb_rPert","LQ_PopFwCont",
-       "LQ_PopBwCont","LQ_AreaFwCont","LQ_AreaBwCont",
+      "LQ_UrbPop","FLQ_UrbPop","LQ_UrbOccuTime","FLQ_UrbOccuTime","LQ_UrbOccuInertia",
+      "FLQ_UrbOccuInertia","LQ_Pct_UrbdeltaPop12","FLQ_Pct_UrbdeltaPop12","LQ_PopDens",
+      "FLQ_PopDens","LQ_Catch_Popdens","FLQ_Catch_Popdens","LQ_Urb_Abs_rPert",
+      "FLQ_Urb_Abs_rPert","LQ_Q.Urb_rPert","FLQ_Q.Urb_rPert","LQ_PopFwCont",
+      "LQ_PopBwCont","LQ_AreaFwCont","LQ_AreaBwCont",
   #STEP #6 SETTLEMENT HIERARCHY/DEMOG SPATIAL GINIS
-       "spGini_Pop","spGini_UrbPop","spGini_OccuTime","spGini_UrbOccuTime",
-       "spGini_OccuInertia","spGini_UrbOccuInertia","spGini_Pct_deltaPop12",
-       'spGini_Pct_UrbdeltaPop12',"spGini_Area_ha","spGini_Catchment_ha",
-       "spGini_Abs_rPert","spGini_Urb_Abs_rPert","spGini_Q.rPert","spGini_Q.Urb_rPert",
-       "spGini_FwOvlp.Pop","spGini_BwOvlp.Pop","spGini_FwOvlp.Area","spGini_BwOvlp.Area",
-       "spGini_PopPressure","spGini_centr_avg","spGini_centr_deg","spGini_centr_btw",
-       "spGini_centr_eig","spGini_centr_clos","spGini_centr_hrmo","spGini_centr_hub",
-       "spGini_centr_auth","spGini_centr_pgrk","spGini_trans_loc","spGini_SetHierLevel",
+      "spGini_Pop","spGini_UrbPop","spGini_OccuTime","spGini_UrbOccuTime",
+      "spGini_OccuInertia","spGini_UrbOccuInertia","spGini_Pct_deltaPop12",
+      'spGini_Pct_UrbdeltaPop12',"spGini_Area_ha","spGini_Catchment_ha",
+      "spGini_Abs_rPert","spGini_Urb_Abs_rPert","spGini_Q.rPert","spGini_Q.Urb_rPert",
+      "spGini_FwOvlp.Pop","spGini_BwOvlp.Pop","spGini_FwOvlp.Area","spGini_BwOvlp.Area",
+      "spGini_PopPressure",
+  #STEP #6 TRANSPORT NETWORK SPATIAL GINIS
+      "spGini_centr_avg","spGini_centr_deg","spGini_centr_btw",
+      "spGini_centr_eig","spGini_centr_clos","spGini_centr_hrmo","spGini_centr_hub",
+      "spGini_centr_auth","spGini_centr_pgrk","spGini_trans_loc","spGini_SetHierLevel",
   #SURVEY METADATA
       "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
       "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",

@@ -384,7 +384,7 @@ for(i in 1:length(Catch_List)){
   
   tmp.p@data$CatchB_Popdens <- tmp.p@data$Population.s2/tmp.p@data$CatchmentBeyond_ha
   
-  tmp.p@data$Catch_Popdens_PropMax <- tmp.p@data$Catch_Popdens/(max(tmp.p@data$Catch_Popdens.s2))
+  tmp.p@data$Catch_Popdens_PropMax <- tmp.p@data$Catch_Popdens/(max(tmp.p@data$Catch_Popdens))
   
   tmp.p@data$Catch_Popdens_Rank <- rank(-tmp.p@data$Catch_Popdens, na.last = "keep", ties.method = "average")
   

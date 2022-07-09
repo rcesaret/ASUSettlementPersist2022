@@ -69,7 +69,9 @@ wd$funcs <- paste0(wd$dir,"functions/")
 
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 # Package names
-packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "stars", "dismo", "purrr", "spatialEco", "whitebox", "classInt")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph", "ggnewscale", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", 
+              "gdistance", "lwgeom", "tidyverse", "tidyr", "stars", "dismo", 
+              "purrr", "spatialEco", "whitebox", "classInt","ggnewscale")#, "data.table", "zoo", "era", "JOPS", "mgcv","igraph",  "ggrepel","ggridges", "movecost",  "datplot", "scales",
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -115,6 +117,7 @@ Catch_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix=
 
 #Catchment boundary limit polygon
 CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
+CatchLims.sf = st_as_sf(CatchLims) #for ggplot 
 
 ## Hillshade Basemap Raster with lake
 HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
@@ -144,72 +147,95 @@ The environmental characteristics of site catchment areas may be a causally impo
 # we will stack and save these together at the end of this chunk
 dir.create(paste0(wd$data_p,"temp_rasts"))
 
+#sf_use_s2(FALSE)#Spherical geometry (s2) switched off
+
 ## Import 90 meter DEM
 DEM <- raster(paste0(wd$data_r, "SBOM_DEM_90m.tif"))
-DEM <- rast(DEM, crs = 26914)
+DEM <- rast(DEM)
+DEM <- project(DEM, "epsg:26914")
 
 ## Import SBOM Lake rasters calculated in GRASS GIS
 LakesBinaryInv <- rast(paste0(wd$data_r, "LakesBinaryInv.tif"))
+LakesBinaryInv <- project(LakesBinaryInv, DEM)
 LakesBinaryInvNA <- LakesBinaryInv
 LakesBinaryInvNA[LakesBinaryInvNA == 0] <- NA
+LakesBinaryNA <- LakesBinaryInv + 1
+LakesBinaryNA[LakesBinaryNA == 2] <- NA
+LakesBinaryNA.s <- st_as_stars(LakesBinaryNA)
+lake.s = st_as_sf(LakesBinaryNA.s,merge = TRUE)
 SaltLakeBinaryInv <- rast(paste0(wd$data_r, "SaltLakeBinaryInv.tif"))
+SaltLakeBinaryInv <- project(SaltLakeBinaryInv, DEM)
 SaltLakeBinaryInvNA <- SaltLakeBinaryInv
 SaltLakeBinaryInvNA[SaltLakeBinaryInvNA == 0] <- NA
 FreshLakeDepth <- rast(paste0(wd$data_r, "FreshLakeDepth.tif"))
+FreshLakeDepth <- project(FreshLakeDepth, DEM)
 ```
 
 
 ### Potential Productivity
 
-As the basis and constraint of all ecosystem services, **Net Primary Productivity (NPP)** here serves as a basal proxy for **potential subsistence/agricultural productivity _without any landesque capital intensification._** NPP is the amount of plant biomass per unit area _minus_ respiratory costs (Gross Primary Productivity = GPP = total biomass per unit area). 
+As the basis and constraint of all ecosystem services, **Net Primary Productivity (NPP)** here serves as a basal proxy for **potential subsistence/agricultural productivity _without any landesque capital intensification._** NPP is the amount of plant biomass per unit area _minus_ respiratory costs (Gross Primary Productivity = GPP = total biomass per unit area).
 
 Here, NPP is calculated for the SBOM using Nick Gauthier's script "Climatic Potential for Agricultural Productivity" (npp_plots.Rmd) [located in Matt Peeples' Settlement Persistence GitHub repository](https://github.com/mpeeples2008/SettlementPersistence) via proxy calculation from precipitation and temperature. These raster inputs for Nick's script (cropped to the SBOM study area) are included in the Script #3 directory folder.
+
+**TEXT FROM NICK GAUTHIER:**
+_The Miami model of Helmut Lieth characterizes climatic potential net primary production (NPP) as a function of two limiting factors: mean annual temperature and total annual precipitation. It uses the following empirical functions to relate each variable to potential NPP, the lowest of which (i.e. the limiting factor) is taken as the final NPP estimate:_
+
+$$NPP_{precip} = 3000(1 - e^{-0.000664 P})$$
+$$NPP_{temp} = \frac{3000}{1 + e^{1.315-0.119T}}$$
+_We'll apply this model to 30-year temperature and precipitation averages from the CHELSA dataset, a set of statistically downscaled climate data that corrects for topoclimatic influences like orographic precipitation and temperature inversions.In order to run this code, you will need to download the large CHELSA dataset files "CHELSA_bio10_01.tif" and "CHELSA_bio10_12.tif" from the CHELSA server: ![https://chelsa-climate.org/downloads/](https://chelsa-climate.org/downloads/)_
+
+_The resulting map gives us climatic potential NPP in grams of dry matter per square meter per year, with a theoretical maximum value of 3,000 $g/m^2$. This can be easily converted to expected crop yields using empirical coefficients for different crop types._
 
 The metrics calculated here are:
 
   * **NPP.tot** = the sum of NPP in a catchment area. This is extensive metric is intended to capture the total scale/magnitude of resources available in a catchment area, similar to (a proxy for) carrying capacity _without any landesque intensification._
   * **NPP.avg** = Total NPP divided by the catchment area in hectares. This is intended to be an intensive proxy metric of a catchment's subsistence productivity _without any landesque intensification._
 
-
-The Miami model of Helmut Lieth characterizes climatic potential net primary production (NPP) as a function of two limiting factors: mean annual temperature and total annual precipitation. It uses the following empirical functions to relate each variable to potential NPP, the lowest of which (i.e. the limiting factor) is taken as the final NPP estimate:
-
-$$NPP_{precip} = 3000(1 - e^{-0.000664 P})$$
-
-$$NPP_{temp} = \frac{3000}{1 + e^{1.315-0.119T}}$$
-We'll apply this model to 30-year temperature and precipitation averages from the CHELSA dataset, a set of statistically downscaled climate data that corrects for topoclimatic influences like orographic precipitation and temperature inversions.In order to run this code, you will need to download the large CHELSA dataset files "CHELSA_bio10_01.tif" and "CHELSA_bio10_12.tif" from the CHELSA server: ![https://chelsa-climate.org/downloads/](https://chelsa-climate.org/downloads/)
-
-The resulting map gives us climatic potential NPP in grams of dry matter per square meter per year, with a theoretical maximum value of 3,000 $g/m^2$. This can be easily converted to expected crop yields using empirical coefficients for different crop types.
-
 ```{r, label='NPP', message=FALSE,warning=FALSE}
 ######### NPP ######### 
 
-## Calculate net primary productivity (NPP) using Nick Gauthier's script
-npp <- read_stars(c(paste0(wd$data_r,'CHELSA_bio10_01_SBOM.tif'), paste0(wd$data_r,'CHELSA_bio10_12_SBOM.tif'))) %>% 
-  setNames(c('temperature', 'precipitation')) %>%
-  mutate(temperature = temperature / 10, # temperature is in degrees C * 10
-         ### the miami model
-         npp_prec = 3000 * (1 - exp(-0.000664 * precipitation)),
-         npp_temp = 3000 / (1 + exp(1.315 - 0.119 * temperature)),
-         npp = pmin(npp_prec, npp_temp)) %>%
-  dplyr::select(npp)
+## Calculate net primary productivity (NPP)
+temperature <- read_stars(paste0(wd$data_r,'CHELSA_bio10_01_SBOM.tif'))
+precipitation <- read_stars(paste0(wd$data_r,'CHELSA_bio10_12_SBOM.tif'))
+npp2 <- c(temperature, precipitation)
+names(npp2) <- c("temperature", "precipitation")
+npp <- npp2 %>% mutate(temperature = temperature / 10, # temperature is in degrees C * 10
+                      ### the miami model
+                      npp_prec = 3000 * (1 - exp(-0.000664 * precipitation)),
+                      npp_temp = 3000 / (1 + exp(1.315 - 0.119 * temperature)),
+                      npp = pmin(npp_prec, npp_temp)) %>% select(npp)
+
+rm(temperature,precipitation,npp_prec,npp_temp)
+
+lake.s <- st_transform(lake.s, crs = 26914)
+CatchLims.sf <- st_transform(CatchLims.sf, crs = 26914)
+NPP <- st_transform(npp, crs = 26914)
 
 # convert from stars to raster
 NPP <- as(npp, "Raster")
-NPP <- rast(NPP, crs = 26914)
+NPP <- rast(NPP)
+NPP <- project(NPP, "epsg:26914")
 
 #Downscale to DEM resolution using DEM
 NPP <- terra::resample(NPP, DEM, method="bilinear")
 
-NPP <- NPP * SaltLakeBinaryInvNA
-
-NPP.rs <- RescaleSpatRast(NPP) # rescale 0-1
-NPP.rs <- NPP.rs+0.5# rescale 0.5-1.5
-
-ggplot() +  geom_stars(data = npp)+
+stz = st_as_stars(NPP)
+plt = ggplot() +geom_stars(data = stz)+
   scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
-  ggtitle('Potential net primary production', 'Maximum terrestrial biomass given modern temperature and precipitation') +
+  geom_sf(data = lake.s, fill="turquoise1", color="turquoise1", alpha = 0.2) +
+  geom_sf(data = CatchLims.sf, color="white", size=1, alpha = 0) +
+  ggtitle('Potential Unintensified Subsistence Productivity', 'Proxied by Maximum Potential Net Primary Production (NPP)') +
   theme_bw() +
+  coord_sf(datum = sf::st_crs(26914))+
   labs(x = 'Easting', y = 'Northing')
+
+ggsave("NPPRast.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 6, height = 5,   units = "in",  dpi = 1000)
+
+#NPP <- NPP * SaltLakeBinaryInvNA
+NPP.rs <- RescaleSpatRast(NPP) # rescale 0-1
+#NPP.rs <- NPP.rs+0.5# rescale 0.5-1.5
+plt
 ```
 
 
@@ -244,13 +270,18 @@ m <- c(0,    2240, 0, # Inundation Zone / Lakebed Alluvium
 
 EZm <- matrix(m, ncol=3, byrow=TRUE) #make into a matrix
 EZ <- terra::classify(DEM, EZm, include.lowest=TRUE) # reclassify groups of values
-
 stz = st_as_stars(EZ)
-ggplot() +geom_stars(data = stz)+
-  scale_fill_gradientn(colors=terrain.colors(6), values=c(0,0.2,0.4,0.6,0.8,1.2)) +
+plt=ggplot() +geom_stars(data = stz)+
+  scale_fill_gradientn(colors=terrain.colors(6), values=c(0,0.2,0.4,0.6,0.8,1.2), na.value = NA) +
+  geom_sf(data = lake.s, fill="turquoise1", color="turquoise1", alpha = 0.4) +
+  geom_sf(data = CatchLims.sf, color="black", size=1, alpha = 0) +
   ggtitle('Elevation-Conditioned Ecological Zones in the SBOM', 'Determinants of Subsistence/Agricultural Practices') +
+  coord_sf(datum = sf::st_crs(26914))+
   theme_bw() +
   labs(x = 'Easting', y = 'Northing')
+
+ggsave("EnvZonesRast.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 6, height = 5,   units = "in",  dpi = 1000)
+plt
 ```
 
 
@@ -269,15 +300,22 @@ The metrics calculated here are:
 ######### TRI ######### 
 
 TRI <- terra::terrain(DEM, v="TRI")# calc Terrain Ruggedness Index
-TRI <- TRI * SaltLakeBinaryInvNA
+#TRI <- TRI * SaltLakeBinaryInvNA
 TRI.01 <- RescaleSpatRast(TRI) # rescale 0-1
 
 stz = st_as_stars(TRI)
-ggplot() +geom_stars(data = stz)+
+plt=ggplot() +geom_stars(data = stz)+
   scale_fill_viridis_c(option = "inferno", na.value = NA, name = "TRI")+
-  ggtitle('Topographic Need for Terracing in the SBOM', 'Proxied by the Terrain Ruggedness Index (TRI)') +
+  geom_sf(data = lake.s, fill="turquoise1", color="turquoise1", alpha = 0.3) +
+  geom_sf(data = CatchLims.sf, color="white", size=1, alpha = 0) +
+  ggtitle('Topographic Need for Terracing in the SBOM', 
+          'Proxied by the Terrain Ruggedness Index (TRI)') +
+  coord_sf(datum = sf::st_crs(26914))+
   theme_bw() +
   labs(x = 'Easting', y = 'Northing')
+  
+ggsave("TRIRast.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 6, height = 5,   units = "in",  dpi = 1000)
+plt
 ```
 
 
@@ -298,37 +336,50 @@ The suitability of an area to wetland agriculture is contexually dependent by re
 ######### TWI ######### 
 
 wbt_breach_depressions(dem = paste0(wd$data_r,"SBOM_DEM_90m.tif"), output = paste0(wd$data_p,"temp_rasts/DEM_breach.tif"))
+DEM_breach <- rast(paste0(wd$data_p, "temp_rasts/DEM_breach.tif"))
+DEM_breach <- project(DEM_breach,DEM)
+writeRaster(DEM_breach,paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), overwrite=TRUE)
 
 #DEM2 <- as(DEM, "Raster")
 slope <- terra::terrain(DEM, v="slope", unit="degrees")#Slope
+slope <- project(slope,DEM)
 writeRaster(slope,paste0(wd$data_p,"temp_rasts/Slope.tif"), overwrite=TRUE)
 
 wbt_d8_flow_accumulation(paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), output=paste0(wd$data_p,"temp_rasts/Accum.tif"), out_type = "specific contributing area")
 Accum <- rast(paste0(wd$data_p, "temp_rasts/Accum.tif"))
+Accum <- project(Accum,DEM)
 Accum[is.nan(Accum)] <- NA
+writeRaster(Accum,paste0(wd$data_p,"temp_rasts/Accum.tif"), overwrite=TRUE)
 
 wbt_wetness_index(sca=paste0(wd$data_p,"temp_rasts/Accum.tif"), slope=paste0(wd$data_p,"temp_rasts/Slope.tif"), output=paste0(wd$data_p,"temp_rasts/TWI.tif"), verbose_mode = FALSE)
 TWI <- rast(paste0(wd$data_p, "temp_rasts/TWI.tif"))
-TWI <- TWI * SaltLakeBinaryInvNA
+TWI <- project(TWI,DEM)
+writeRaster(TWI,paste0(wd$data_p,"temp_rasts/TWI.tif"), overwrite=TRUE)
 
+#TWI <- TWI * SaltLakeBinaryInvNA
 TWI.01 <- RescaleSpatRast(TWI) # rescale 0-1
 TWI.12 <- TWI.01+1
 
-
 ######### WetAG ######### 
-
 WetAgPot <- rast(paste0(wd$data_r, "FreshLakeBinary.tif"))#binary 0,1 raster of lake
-
+WetAgPot <- project(WetAgPot, DEM)
 WetAgPot2 <- WetAgPot*2
-
 WetAgInv <- rast(paste0(wd$data_r, "FreshLakeBinaryInv.tif")) #binary wetAg area=0, other is 1
+WetAgInv <- project(WetAgInv, DEM)
 
 stz = st_as_stars(TWI)
-ggplot() +geom_stars(data = stz)+
+plt=ggplot() +geom_stars(data = stz)+
   scale_fill_viridis_c(option = "mako", na.value = NA, name = "TWI")+
-  ggtitle('Irrigation Agriculture Potential in the SBOM', 'Proxied by the Topographic Wetness Index (TWI)') +
+  geom_sf(data = lake.s, fill="turquoise1", color="turquoise1", alpha = 0.1, size=0) +
+  geom_sf(data = CatchLims.sf, color="grey", size=0.5, alpha = 0) +
+  ggtitle('Irrigation Agriculture Potential in the SBOM', 
+          'Proxied by the Topographic Wetness Index (TWI)') +
+  coord_sf(datum = sf::st_crs(26914))+
   theme_bw() +
   labs(x = 'Easting', y = 'Northing')
+  
+ggsave("TWIRast.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 6, height = 5,   units = "in",  dpi = 1000)
+plt
 ```
   
   
@@ -360,11 +411,12 @@ The metrics calculated here are:
 
 wbt_stream_power_index(sca=paste0(wd$data_p,"temp_rasts/Accum.tif"),slope=paste0(wd$data_p,"temp_rasts/Slope.tif"),output=paste0(wd$data_p,"temp_rasts/SPI.tif"),exponent = 1)
 SPI <- rast(paste0(wd$data_p, "temp_rasts/SPI.tif"))
-SPI <- SPI * SaltLakeBinaryInvNA
+SPI <- project(SPI,DEM)
+writeRaster(SPI,paste0(wd$data_p,"temp_rasts/SPI.tif"), overwrite=TRUE)
+#SPI <- SPI * SaltLakeBinaryInvNA
 SPI.01 <- RescaleSpatRast(SPI)
 SPI.rs <- RescaleSpatRast(SPI.01)+0.5
 SPI.rs <- SPI.rs * WetAgInv
-
 
 ######### FreshLakeDepth ######### 
 
@@ -381,11 +433,17 @@ SPI.01.wetMod <- LakesBinaryInvNA*SPI.rs
 IntnsCostNW = TRI.01.wetMod+SPI.01.wetMod
 
 stz = st_as_stars(IntnsCost)
-ggplot() +geom_stars(data = stz)+
+plt=ggplot() +geom_stars(data = stz)+
   scale_fill_viridis_c(option = "magma", na.value = NA, name = "IntnsCost")+
+  geom_sf(data = lake.s, fill="turquoise1", color="turquoise1", alpha = 0.1) +
+  geom_sf(data = CatchLims.sf, color="white", size=0.5, alpha = 0) +
   ggtitle('Agricultural Intensification Cost Index in the SBOM', 'as a function of TRI, SPI and Freshwater Lake Depth') +
+  coord_sf(datum = sf::st_crs(26914))+
   theme_bw() +
   labs(x = 'Easting', y = 'Northing')
+  
+ggsave("IntnsCostRast.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 6, height = 5,   units = "in",  dpi = 1000)
+plt
 ```
 
 
@@ -410,12 +468,17 @@ AGPot = max(WetAgPot2, TWI.12,NPP.rs)
 AGPotNW = max(TWI.12.wetMod, NPP.rs.wetMod)
 
 stz = st_as_stars(AGPot)
-ggplot() +geom_stars(data = stz)+
+plt=ggplot() +geom_stars(data = stz)+
   scale_fill_viridis_c(na.value = NA, name = "AGPot")+
-  ggtitle('Agricultural Potential Index in the SBOM', 'as a function of NPP, TWI and Freshwater Lake') +
+  geom_sf(data = lake.s, fill="turquoise1", color="turquoise1", alpha = 0.1) +
+  geom_sf(data = CatchLims.sf, color="white", size=0.5, alpha = 0) +
+  ggtitle('Agricultural Potential Index in the SBOM', 'As a function of NPP, TWI and Freshwater Lake') +
+  coord_sf(datum = sf::st_crs(26914))+
   theme_bw() +
   labs(x = 'Easting', y = 'Northing')
-
+  
+ggsave("AGPotRast.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 6, height = 5,   units = "in",  dpi = 1000)
+plt
 ```
 
 ### Population Pressure
@@ -472,9 +535,13 @@ Given that Runoff Erosion Potential= STI[1,2] and Diffusion Erosion Potential= P
 
 wbt_fd8_flow_accumulation(paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), output=paste0(wd$data_p,"temp_rasts/Accum_fd8.tif"), out_type = "specific contributing area")
 Accum_fd8 <- rast(paste0(wd$data_p, "temp_rasts/Accum_fd8.tif"))
+Accum_fd8 <- project(Accum_fd8,DEM)
+writeRaster(Accum_fd8,paste0(wd$data_p,"temp_rasts/Accum_fd8.tif"), overwrite=TRUE)
 
 wbt_sediment_transport_index(sca=paste0(wd$data_p,"temp_rasts/Accum_fd8.tif"),slope=paste0(wd$data_p,"temp_rasts/Slope.tif"),output=paste0(wd$data_p,"temp_rasts/STI.tif"))
 STI <- rast(paste0(wd$data_p, "temp_rasts/STI.tif"))
+STI <- project(STI,DEM)
+writeRaster(STI,paste0(wd$data_p,"temp_rasts/STI.tif"), overwrite=TRUE)
 STI = LakesBinaryInvNA*STI
 STI.12 <- RescaleSpatRast(STI)
 STI.12 <- STI.12+1
@@ -483,6 +550,8 @@ STI.12 <- STI.12+1
 
 wbt_profile_curvature(dem = paste0(wd$data_p,"temp_rasts/DEM_breach.tif"), output = paste0(wd$data_p,"temp_rasts/Curv.tif"))
 Curv <- rast(paste0(wd$data_p, "temp_rasts/Curv.tif"))
+Curv <- project(Curv,DEM)
+writeRaster(Curv,paste0(wd$data_p,"temp_rasts/STI.tif"), overwrite=TRUE)
 Curv = LakesBinaryInvNA*Curv
 Curv[Curv < -0.001] <- -0.001
 Curv.rs <- RescaleSpatRast(Curv)*1.5
@@ -497,15 +566,20 @@ Accum2<- RescaleSpatRast(Accum2)
 ######### ErosionPot ######### 
 
 ErosionPot <- max(STI.12,Curv.rs)
-
 stz = st_as_stars(ErosionPot)
-ggplot() +geom_stars(data = stz)+
+plt=ggplot() +geom_stars(data = stz)+
   scale_fill_viridis_c(option = "turbo",na.value = NA, name = "ErosionPot")+
+  geom_sf(data = lake.s, fill="turquoise1", color="turquoise1", alpha = 0.3) +
+  geom_sf(data = CatchLims.sf, color="white", size=1, alpha = 0) +
   ggtitle('Topographic Erosion Potential Index in the SBOM', 'as a function of STI, Curvature and Drainage Density') +
+  coord_sf(datum = sf::st_crs(26914))+
   theme_bw() +
   labs(x = 'Easting', y = 'Northing')
+  
+ggsave("ErosionPotRast.png", plot = plt, device = "png", path = wd$figs, scale = 1, width = 6, height = 5,   units = "in",  dpi = 1000)
+plt
 
-rm(EZm, m, npp, stz)
+rm(EZm, m, npp, stz,plt)
 ```
 
 

@@ -1,0 +1,353 @@
+---
+title: "Settlement Persistence Project, SBOM Script #7:"
+subtitle: "Spatial Interaction Models and Regional Settlement Clusters"
+author: "Rudolf Cesaretti"
+date: "Last run on `r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+    number_sections: true
+bibliography: References.bib
+csl: apa.csl
+link-citations: yes
+---
+
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 300px;
+}
+```
+
+```{r, setup, include=FALSE,echo=FALSE, message=FALSE,warning=FALSE}
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=75),tidy=TRUE)
+#
+rm(list = ls())
+```
+
+I do four things in this R markdown document: 
+
+  3. Calculate settlement hierarchy metrics for AggSites at two spatial scales:
+      + The global level (SBOM-region-wide) 
+      + The local level (at a set radius surrounding each site)
+  4. Reorganize the data and export for Script #7
+  
+  
+# Setup 
+
+All of the data and scripts are downloadable from the [new ASU SettlementPersist2022 github repository](https://https://github.com/rcesaret/ASUSettlementPersist2022), which can be downloaded locally as a .zip folder or cloned to your own account.
+
+Either way, once you have done so, you will need to modify the working directory (setwd("C:/...)") path and "dir" variables in the code chunk below to match the repository location on your computer.
+
+```{r, label='Set Local Directory Location', message=FALSE,warning=FALSE}
+
+wd <- list()
+
+#SET YOUR LOCAL DIRECTORY LOCATION HERE:
+wd$dir <- "C:/Users/rcesaret/Dropbox (ASU)/ASUSettlementPersist2022/"
+#wd$dir <- "C:/Users/TJ McMote/Dropbox (ASU)/ASUSettlementPersist2022"
+
+wd$analysis <- paste0(wd$dir,"analysis/")
+wd$data_r <- paste0(wd$dir,"data-raw/")
+wd$data_p <- paste0(wd$dir,"data-processed/")
+wd$data_f <- paste0(wd$dir,"data-final-outputs/")
+wd$figs <- paste0(wd$dir,"figures/")
+wd$funcs <- paste0(wd$dir,"functions/")
+
+```
+
+
+## Load R Packages and Custom Functions
+
+```{r, label='Load Libraries', message=FALSE,warning=FALSE}
+# Package names
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "classInt", "pacman", "RColorBrewer", "cowplot", "stars", "ggnewscale")#, "data.table", "zoo", "mgcv","igraph", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# load packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+rm(packages,installed_packages)
+
+#Read in custom R functions located in the wd$funcs directory folder
+FUNCS <- list("splitByAttributes.R", "RS_Acoef.R", "SettHierClass_ggplot.R")
+invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
+rm(FUNCS)
+
+```
+
+
+
+## Import Data
+
+Data we are importing:
+
+  1. the AggSite polygon data
+  2. A simple polygon calculated in QGIS that specifies a hard outter border for the catchment areas of sites (constructed for sensitivity to survey borders and sites not included in the SBOM sample)
+  3. Cost-distance matrices from script #3
+  4. Least cost path rasters from script #3
+  5. A raster hillshade basemap for the SBOM which includes the lakes
+
+```{r, label='Import Data', message=FALSE,warning=FALSE}
+
+#Agg Site and catchment polygon data
+All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggSitePoly6.gpkg"))
+All_CatchPoly <- readOGR(paste0(wd$data_p,"SBOM_CatchPoly6.gpkg"))
+
+#Catchment boundary limit polygon
+CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
+CatchLims.sf = st_as_sf(CatchLims) #for ggplot 
+
+## Hillshade Basemap Raster with lake
+HillshadeLake <- raster(paste0(wd$data_r, "HillshadeLake.tif"))
+HillshadeLake <- rast(HillshadeLake, crs = 26914)
+Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
+
+#Cost-distance matrices
+ord <- c("EF", "EF_MF", "MF", "MF_LF", "LF", "LF_TF", "TF", "TF_CL", "CL", "CL_ET", "ET", "ET_LTAzI", "LTAzI", "LTAzI_EA", "EA", "EA_LA", "LA")
+temp = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = TRUE)
+nam.distmat = list.files(path = paste0(wd$data_p,"CDMatrices/"), full.names = F)
+nam.distmat = gsub('_cdmat.csv', "", nam.distmat)
+CD.mats = lapply(temp, read.csv, header = TRUE, row.names=1)
+CD.mats = lapply(CD.mats, as.matrix)
+names(CD.mats) <- nam.distmat
+CD.mats <- CD.mats[ord]
+names(CD.mats) <- paste0(ord,"_cdmat")
+
+```
+
+
+## Reorganize Data from Step #6
+
+```{r, 'Reorganize Data from Step #5', message=FALSE,warning=FALSE}
+
+#reorder spatial points dataframe by period
+All_AggPoly <- All_AggPoly[order(All_AggPoly$PeriodNum),]
+All_CatchPoly <- All_CatchPoly[order(All_CatchPoly$PeriodNum),]
+
+# Split polygons by Phase, saved as list of SPDF
+Poly_List <- splitByAttributes(spdata = All_AggPoly, attr = "Period", suffix="_SitePoly") 
+Catch_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix="_CatchPoly") 
+
+# convert spatial polygons dataframe to spatial points dataframe
+coor = All_AggPoly@data[,c("East","North")] #create separate dataframe of coordinates
+rownames(coor) <- as.numeric(rownames(coor)) #make sure rownames match
+All_AggPts <- SpatialPointsDataFrame(coor, All_AggPoly@data, match.ID = TRUE) #convert to points
+proj4string(All_AggPts) <- CRS("+proj=utm +zone=14 +datum=NAD83 +units=m +no_defs") #set CRS
+All_AggPts = as(st_make_valid(st_as_sf(All_AggPts)), "Spatial") #make sure geometry is valid
+All_AggPts <- All_AggPts[order(All_AggPts$PeriodNum),]#reorder by period
+
+# Split points by Phase, saved as list of spatial points dataframes
+Pts_List <- splitByAttributes(spdata = All_AggPts, attr = "Period", suffix="_Pts")
+
+```
+
+
+# Modelling Interactions
+
+Model different theoretical dimensions of interaction
+--using well-established covariates and proxies
+--using high-performing models 
+
+
+
+Radiation Model 
+--to model the distance decay function for different spatial interactions
+
+Spatial Interaction Models
+--Retail Model
+--Doubly Constrained
+
+
+
+LQs or similar of
+
+--Primary Sector Trade
+----AG staple
+----AG type trade
+----Naural resources trade
+--Urban productivity specialization
+----Popdens, Agglom Index, Scaling Residuals
+----Transp Network centrality
+----Pop Rural/Urbanization vars
+----
+
+
+
+
+## Radiation Model
+
+In 2012 Filippo Simini and colleagues ([Simini et al. 2012](https://dspace.mit.edu/handle/1721.1/77896)) presented a new model, designed specifically to model human geographic mobility called the radiation model. This model was created explicitly as an alternative to various gravity models and, in certain cases, was demonstrated to generate improved empirical predictions of human population movement between origins and destinations. This model shares some basic features with gravity models but importantly, the approach includes no parameters at all. Instead, this model uses simply measures of population at a set of sites and the distances between them. That is all that is required so this model is relatively simple and could likely be applied in many archaeological cases. Let's take a look at how it is formally defined: 
+
+$$T_{ij} = T_i \frac{m_in_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})}$$
+
+where
+
+* $T_i$ is the total number of "commuters" or migrating individuals from node $i$.
+* $m_i$ and $n_j$ are the population estimates of nodes $i$ and $j$ respectively.
+* $s_{ij}$ is the total population in a circle centered at node $i$ and touching node $j$ excluding the populations of both $i$ and $j$.
+
+We have defined a function for calculating radiation among a set of sites using just two inputs:
+
+* **`pop`** is a vector of population values.
+* **`d_mat`** is a distance matrix among all nodes.
+
+
+```{r}
+
+```
+
+
+## Rihll-Wilson Retail Model
+
+```{r}
+
+```
+
+
+
+
+# Recombining and Reorganizing the Data
+
+```{r, 'Recombining the Data Part 2', message=FALSE, warning=FALSE}
+# Convert lists of period-wise sites/catchments to single SPDF objects
+All_Agg_SitePoly <-  do.call(rbind, Poly_List)
+All_Agg_CatchPoly <- do.call(rbind, Catch_List)
+
+# variables from site data that needs transfer over to catchment areas
+colz1 = setdiff(colnames(All_Agg_SitePoly@data),colnames(All_Agg_CatchPoly@data))
+# variables from catchment areas that needs transfer over to site data
+colz2 = setdiff(colnames(All_Agg_CatchPoly@data),colnames(All_Agg_SitePoly@data))
+
+#reorder the data to match
+All_Agg_SitePoly <- All_Agg_SitePoly[order(All_Agg_SitePoly$AggSite),]
+All_Agg_CatchPoly <- All_Agg_CatchPoly[order(All_Agg_CatchPoly$AggSite),]
+
+#check to see that the two datasets are in the right order
+#identical(All_Agg_SitePoly@data$AggSite, All_Agg_CatchPoly@data$AggSite)
+
+# Site data to catchment areas
+Site_to_Catch <- All_Agg_SitePoly@data %>% select(!!!syms(colz1))
+All_Agg_CatchPoly@data <- cbind(All_Agg_CatchPoly@data,Site_to_Catch)
+
+# catchment area data to sites
+Catch_to_Site <- All_Agg_CatchPoly@data %>% select(!!!syms(colz2))
+All_Agg_SitePoly@data <- cbind(All_Agg_SitePoly@data,Catch_to_Site)
+
+#Reorganize the data
+
+ordering <- c(
+  #ID VARIABLES
+      "AggSite","AggID","Site","East","North","SurvReg","Number","CerPhase","Period", 
+      "PeriodType","PeriodLength","PeriodNum","PeriodBegin","PeriodEnd", 
+      "OccSeqLoc","OccSeqLoc.Sites","SubOccSeqLoc","SubOccSeqLoc.Sites",
+      "ComponentNum", "ComponentSites",
+  #CHRONOLOGICAL VARIABLES
+      "PeriodInterval", "PeriodBegin", "PeriodBegin.era", "PeriodMidpoint", 
+      "PeriodMidpoint.era", "PeriodEnd", "PeriodEnd.era", "PeriodLength",
+  #OCCUPATION VARIABLES (COUNTS)
+      "Occ.EF","Occ.EF_MF","Occ.MF","Occ.MF_LF","Occ.LF","Occ.LF_TF",
+      "Occ.TF","Occ.TF_CL","Occ.CL","Occ.CL_ET","Occ.ET","Occ.ET_LTAzI", 
+      "Occ.LTAzI","Occ.LTAzI_EA","Occ.EA","Occ.EA_LA","Occ.LA","Occ.TOT",
+  #SUBOCCUPATION VARIABLES (COUNTS)
+      "SubOcc.EF","SubOcc.EF_MF","SubOcc.MF","SubOcc.MF_LF","SubOcc.LF",
+      "SubOcc.LF_TF","SubOcc.TF","SubOcc.TF_CL","SubOcc.CL","SubOcc.CL_ET",
+      "SubOcc.ET","SubOcc.ET_LTAzI","SubOcc.LTAzI","SubOcc.LTAzI_EA",
+      "SubOcc.EA","SubOcc.EA_LA","SubOcc.LA","SubOcc.TOT",
+  #SITE AREA AND OCCUPATIONAL DENSITY VARS
+      "Area_ha","Perim_m2","SherdDens","Tot.Assemb","FwOvlp.Assemb", 
+      "BwOvlp.Assemb", "Net.Assemb",
+  #STEP #2 DEMOGRAPHIC VARIABLES
+      "Prior.s2", "Observed.s2", "MeanOccuProb.s2", "Population.s2",
+      "Log_Population.s2", "ApportAssemb.s2", "r12_Pert.s2","PopDens.s2",
+      "UrbanScale.s2", "UrbanPop.s2","RuralPop.s2", "PctUrban.s2","PctRural.s2",
+  #STEP #1 DEMOGRAPHIC VARIABLES
+      "Population.s1","PopDens.s1","UrbanScale.s1","UrbanPop.s1","RuralPop.s1", 
+      "PctUrban.s1","PctRural.s1",
+  #CONTINUITY VARIABLES
+      "AreaBwCont","AreaFwCont","PopBwCont","PopFwCont","FwOvlp.Sites",
+      "FwOvlp.Area","FwOvlp.Pop","BwOvlp.Sites","BwOvlp.Area","BwOvlp.Pop",
+  #PERSISTENCE VARIABLES
+      "Found","FoundInit","Abandon","Persist","DewarType","OccuIntertia",
+  #STEP #3 GLOBAL SETTLEMENT HIERARCHY VARIABLES
+      "Pop_PropMax.s2", "Pop_Rank.s2", "UrbanPop_PropMax.s2", "UrbanPop_Rank.s2", 
+      "r12_Pert_Rank.s2", "PopDens_PropMax.s2", "PopDens_Rank.s2", 
+      "UrbanScale_PropMax.s2", "UrbanScale_Rank.s2", 
+  #STEP #3 CATCHMENT AREA AND POP DENSITY VARIABLES
+      "Catch_ha", "CatchB_ha", "Catch_Popdens.s2", 
+      "Catch_Popdens_PropMax.s2","Catch_Popdens_Rank.s2","CatchB_Popdens.s2",
+      "CatchB_Popdens_PropMax.s2", "CatchB_Popdens_Rank.s2", 
+  #STEP #3 TRANSPORT VARIABLES
+      "TranspDens.pct", "TranspDens.rank",##,core-periphery
+  #STEP #3 CATCHMENT ENVIRONMENT/TOPOGRAPHY VARIABLES
+      "NPP.tot","NPP.avg","EZ.avg","EZ.sd","TRI.tot","TRI.avg","IrrigPot.tot",
+      "IrrigPot.avg","WetAgPot.tot","WetAgPot.avg","IntnsCost.tot",
+      "IntnsCost.avg","IntnsCostNW.tot","IntnsCostNW.avg","AGPot.tot",
+      "AGPot.avg","AGPotNW.tot","AGPotNW.avg","PopPressure","PopPressureNW",
+      "ErosionPot.tot","ErosionPot.avg", 
+  #SURVEY METADATA
+      "M_Sites","M_SiteCode","M_SiteName","M_FieldSite.Region",
+      "M_FieldSite.Period","M_SurveyYearNumber","M_Supervisor","M_Map",
+  #OLD tDAR BOM SURVEY VARIABLES
+      "O_Elev","O_ElevMed","O_ElevMin","O_ElevMax","O_EZcode",
+      "O_EnvironmentalZone","O_Soil","O_SoilMed","O_SoilMin","O_SoilMax",
+      "O_Erosion","O_ErosionMed","O_ErosionMin","O_ErosionMax","O_ModernUse",
+      "O_ModernSettlement","O_Rainfall","O_Area","O_MoundDomestic",
+      "O_MoundCeremonial","O_MoundQuestionable","O_MoundTotal",
+      "O_MoundRecorded","O_DMoundArea","O_Architecture","O_TerraceConfidence",
+      "O_TerraceExtent","O_Sherd","O_SherdMed","O_SherdMin","O_SherdMax",
+      "O_Rubble","O_RubbleMed","O_RubbleMin","O_RubbleMax","O_Population",
+      "O_PopMin","O_PopMax","O_PopMethod","O_stcode","O_SiteType",
+      "O_SubPeriod1","O_SubPeriod2","O_OccEF","O_OccMF","O_OccLF","O_OccTF",
+      "O_OccCL","O_OccEC","O_OccMC","O_OccLC","O_OccET","O_OccLT","O_OccAZ",
+      "O_OccEA","O_OccLA","O_OccTot","O_OccSeqLoc","O_SubOc1","O_SubOc2",
+      "O_PdDupSite","O_Group","O_Comments") 
+
+#Make sure everything is kosher
+#setdiff(colnames(All_Agg_CatchPoly@data),ordering)
+#setdiff(colnames(All_Agg_SitePoly@data),ordering)
+#setdiff(ordering,colnames(All_Agg_CatchPoly@data))
+#setdiff(ordering,colnames(All_Agg_SitePoly@data))
+
+# Reorder the data for both sites and catchment areas
+All_Agg_SitePoly@data <- All_Agg_SitePoly@data %>% select(!!!syms(ordering))
+All_Agg_CatchPoly@data <- All_Agg_CatchPoly@data %>% select(!!!syms(ordering))
+```
+
+
+# Export Data for Script #8
+
+```{r, 'Export Data for Step #8', message=FALSE,warning=FALSE}
+
+#AggSite polygons
+writeOGR(All_Agg_SitePoly, paste0(dir2,"SBOM_Agg_SitePoly7.gpkg"), "SBOM_Agg_SitePoly7", driver = "GPKG", overwrite_layer=TRUE)
+
+#Catchment areas
+writeOGR(All_Agg_CatchPoly, paste0(dir2,"SBOM_Agg_CatchPoly7.gpkg"), "SBOM_Agg_CatchPoly7", driver = "GPKG", overwrite_layer=TRUE)
+
+#Catchment Limits
+writeOGR(CatchLims, paste0(dir2,"CatchLims.gpkg"), "CatchLims", driver = "GPKG", overwrite_layer=TRUE)
+```
+
+
+# References
+
+
+
+
+
+
+

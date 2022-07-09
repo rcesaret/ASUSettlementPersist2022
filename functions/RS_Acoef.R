@@ -25,7 +25,11 @@ library(pracma)
 library(modelsummary)
 library(cowplot)
 
-
+  #z=lnx
+  #ids=lnx_id
+  #z = c(5000, 3000, 2000, 1500, 1000, 800, 500, 500, 500, 200)
+  #ids = c(LETTERS[1:length(X)])
+  #setup data
 ###############################################################
 ##########################  RS_Acoef  #########################
 ###############################################################
@@ -34,14 +38,15 @@ RS_Acoef <- function(z,
                      ids,
                      return.data = F,
                      plot.results = T,
-                     plots = "Both", #RS, Acoef
+                     plots = "Both",#c("RS","Acoef","Both"),
                      plot_title = "Rank-Size A-Coefficient",
                      xaxis_title = "Log Rank",
-                     yaxis_title = "Log Size"){
-  
-  #z = c(5000, 3000, 2000, 1500, 1000, 800, 500, 500, 500, 200)
-  #ids = c(LETTERS[1:length(X)])
-  #setup data
+                     yaxis_title = "Log Size",
+                     Acoef_rescale = "Zipf", # "OLS"
+                     trunc = F,
+                     trunc_at = NULL){
+                     
+  if (trunc == T){z <- z[z >= trunc_at]}
   df <- data.frame(ID = ids, Z = z)
   dfc <- df[complete.cases(df), ]
   dfc$LogZ <- log(dfc$Z)
@@ -53,24 +58,37 @@ RS_Acoef <- function(z,
   
   fitsum <- summary(fit)
   
-  dfc$LogZ.pred <- fit$fitted.values
-  
-  #standardize the log-log plot so that log(S1)-log(Sn)=sqrt(2)
-  #and log(n)-log(1)=sqrt(2)
-  dfc$LogZ.pred.resc <- rescale(dfc$LogZ.pred, to = c(0, sqrt(2)))
-  dfc$LogRank.resc <- rescale(dfc$LogRank, to = c(0, sqrt(2)))
-  
-  #rescale LogZ
-  f=approxfun(range(dfc$LogZ.pred), c(0, sqrt(2)),rule=1)
-  x=f(dfc$LogZ)
-  q=x[-which(is.na(x))]
-  q2=dfc$LogZ[-which(is.na(x))]
-  x[which(is.na(x))] <- spline(q2,q,xout=dfc$LogZ[which(is.na(x))])$y
-  dfc$LogZ.resc <- x
-  
+  dfc$LogZ_ols.pred <- fit$fitted.values #values predicted by OLS line
+  dfc$LogZ_zipf.pred <- (-1*dfc$LogRank) + fit$offset[1] #values predicted by Zipfs Law
+
+  # rescale the log-log data
+  # Drennan and Peterson's (2004) original method rescales against the Zipf's law line
+  # log(Pop smallest settlement)-log(Pop largest settlement)=sqrt(2)
+  #and log(Pop smallest settlement)-log(Rank largest settlement)=sqrt(2)
+  if (Acoef_rescale == "Zipf"){
+    dfc$LogZ_zipf.pred.resc <- rescale(dfc$LogZ_zipf.pred, to = c(0, sqrt(2)))
+    dfc$LogRank.resc <- rescale(dfc$LogRank, to = c(0, sqrt(2)))
+    
+    fit2 <- lm(LogZ_zipf.pred.resc ~ LogZ_zipf.pred, data = dfc)
+    dfc$LogZ.resc <- as.numeric(fit2$coefficients[2])*dfc$LogZ + as.numeric(fit2$coefficients[1])
+    dfc$LogZ_ols.pred.resc <- as.numeric(fit2$coefficients[2])*dfc$LogZ_ols.pred + as.numeric(fit2$coefficients[1])
+  }
+  #alternatively, we could rescale against the OLS line
+  if (Acoef_rescale == "OLS"){
+    dfc$LogZ_ols.pred.resc <- rescale(dfc$LogZ_ols.pred, to = c(0, sqrt(2)))
+    dfc$LogRank.resc <- rescale(dfc$LogRank, to = c(0, sqrt(2)))
+    
+    fit2 <- lm(LogZ_ols.pred.resc ~ LogZ_ols.pred, data = dfc)
+    dfc$LogZ.resc <- as.numeric(fit2$coefficients[2])*dfc$LogZ + as.numeric(fit2$coefficients[1])
+    dfc$LogZ_zipf.pred.resc <- as.numeric(fit2$coefficients[2])*dfc$LogZ_zipf.pred + as.numeric(fit2$coefficients[1])
+  }
+
   #Compute the area above the Zipfs law diagonal and below the observed
   #rank-size curve (A1), and then the area below the diagonal and above the
   #empirical data (A2)
+  
+  #first, if there are duplicate values, we need to jitter them 
+  #by a very small amount so that they are unique
   un = match(unique(dfc$LogZ.resc), dfc$LogZ.resc)
   vv = 1:length(dfc$LogZ.resc)
   vv = setdiff(vv,un)
@@ -78,29 +96,35 @@ RS_Acoef <- function(z,
     dfc$LogZ.resc[vv] <- seq(-0.0001,length(vv)*-0.0001, by=-0.0001)+dfc$LogZ.resc[vv]
   }
   
-  zipf <- approxfun(dfc$LogRank.resc, dfc$LogZ.pred.resc)
+  #numerically fit functions for the dividing line (Zipf or OLS) and the observed data
+  if (Acoef_rescale == "OLS"){line <- approxfun(dfc$LogRank.resc, dfc$LogZ_ols.pred.resc)}
+  if (Acoef_rescale == "Zipf"){line <- approxfun(dfc$LogRank.resc, dfc$LogZ_zipf.pred.resc)}
   obs <- approxfun(dfc$LogRank.resc, dfc$LogZ.resc)
   
   # defining x range and dividing it to sections (for example n=500)
   i <- seq(0, sqrt(2), length.out=500)
   
   # calculating the distance between the density curves
-  h1 <- obs(i)-zipf(i)
-  h2 <- zipf(i)-obs(i)
+  h1 <- obs(i)-line(i)
+  h2 <- line(i)-obs(i)
   h1 <- ifelse(h1 < 0, 0, h1)
   h2 <- ifelse(h2 < 0, 0, h2)
   
-  #and using the formula for the area of a trapezoid we add up the areas
-  A1 <- trapz(i, h1)  # for the regions where zipf>obs
-  A2 <- trapz(i, h2)  # for the regions where obs>zipf
+  #and using the trapezoidal rule here to approximate the integrals
+  # about the RS line
+  A1 <- trapz(i, h1)  # for the regions where line>obs
+  A2 <- trapz(i, h2)  # for the regions where obs>line
   
   #Finally, compute A as the difference A1 - A2
   A <- A1 - A2 
   
   
-  m <- c("Slope", "Slope_se", "Slope_t", "Slope_p", "Intercept", "R2", "n", "Ymin", "Ymax", "A1", "A2", "A")
-  v <- c(fitsum$coefficients[1], fitsum$coefficients[2], fitsum$coefficients[3], fitsum$coefficients[4], fit$offset[1], 
-         fitsum$adj.r.squared, length(dfc$LogZ.resc), range(dfc$LogZ)[1], range(dfc$LogZ)[2], A1, A2, A)
+  m <- c("Slope", "Slope_se", "Slope_t", "Slope_p", "Intercept", "R2", "n", 
+         "Ymin", "Ymax", "A1", "A2", "A", "Rescale Line")
+  v <- c(fitsum$coefficients[1], fitsum$coefficients[2], fitsum$coefficients[3], 
+         fitsum$coefficients[4], fit$offset[1], fitsum$adj.r.squared, 
+         length(z), range(dfc$LogZ)[1], range(dfc$LogZ)[2], 
+         A1, A2, A, Acoef_rescale)
   model.df <- data.frame(Metric = m, Value = v)
   data.df <- dfc
   out_list <- list()
@@ -111,19 +135,35 @@ RS_Acoef <- function(z,
     if (plots == "RS" | plots == "Both"){
       
       x <- c(dfc$LogRank,dfc$LogRank,dfc$LogRank)
-      y1 <- -1*dfc$LogRank + fit$offset[1]
-      y2 <- fitsum$coefficients[1]*dfc$LogRank + fit$offset[1]
+      y1 <- dfc$LogZ_zipf.pred
+      y2 <- dfc$LogZ_ols.pred
       y3 <- dfc$LogZ
-      l1 <- rep("Zipf's Law\n(slope = -1)", length(dfc$LogRank))
-      lll <- paste0("OLS Estimate\n(slope = ",round(fitsum$coefficients[1],2),")")
-      l2 <- rep(lll, length(dfc$LogRank))
-      l3 <- rep("Empirical\nRank-Size", length(dfc$LogRank))
+      l1 <- rep("Zipf's Law", length(dfc$LogRank))
+      l2 <- rep("OLS Estimate", length(dfc$LogRank))
+      l3 <- rep("Observed", length(dfc$LogRank))
       lines <- data.frame(x = x, y = c(y1, y2, y3), lab = c(l1, l2, l3))
       
+      cols <- c("Observed" = "black", 
+                "OLS Estimate" = "firebrick", 
+                "Zipf's Law" = "forestgreen")
+                      
+      OLSlab = paste0("atop(bold(italic(LogPop) == ",
+                      round(fit$offset[1],2),
+                      round(fitsum$coefficients[1],2),
+                      "*italic(LogRank)),OLS ~ Regression ~ bold(italic(R^2) == ", 
+                      round(fitsum$adj.r.squared,2),
+                      " ~~ italic(n) == ",
+                      length(z),
+                      " ))")
+      
+      labypos = max(dfc$LogZ)*0.33
+      labxpos = max(dfc$LogRank)*0.33
+
       RS_plt <- ggplot() + geom_line(data=lines, aes(x,y,color=factor(lab)), size=1.2) + 
-        scale_colour_manual(values = c("black", "firebrick1", "dodgerblue"))+
+        scale_colour_manual(values = cols)+
         guides(color = guide_legend(nrow = 3, byrow = TRUE))+
         geom_point(data=dfc, aes(x=LogRank, y=LogZ), shape=19, size=1.5, color="black") + 
+        annotate("label", x = labxpos, y = labypos, label = OLSlab, parse = TRUE, color ="firebrick", size=4)+
         labs(x = xaxis_title, y = yaxis_title) +
         theme_bw()+
         theme(
@@ -140,21 +180,41 @@ RS_Acoef <- function(z,
     
     if (plots == "Acoef" | plots == "Both"){
       
-      dat = data.frame(x=c(i,i), y=c(obs(i),zipf(i)), y2=c(pmax(obs(i),zipf(i)),pmin(obs(i),zipf(i))),
+      dat = data.frame(x=c(i,i), y=c(obs(i),line(i)), y2=c(pmax(obs(i),line(i)),pmin(obs(i),line(i))),
                        line = c(rep("obs",length(i)),rep("zipf",length(i))), h=c(h1,h1))
       
-      dat2 = data.frame(x=i, obs=obs(i), zipf=zipf(i), h1=h1, h2=h2)
+      dat2 = data.frame(x=i, obs=obs(i), line=line(i), h1=h1, h2=h2)
       
       dat2 <- dat2 %>% rowwise() %>% 
-        mutate(ymin = min(obs,zipf), ymax= max(obs,zipf),
+        mutate(ymin = min(obs,line), ymax= max(obs,line),
                group = ifelse(h1 >= h2, "A1", "A2")) %>% ungroup()
       
       dat2$id = ave(dat2$h2,dat2$group, FUN=seq_along)
       dat2$id2 = cumsum(c(1, abs(diff(dat2$id)) > 1))
       
+      ######################
       xs = c(0, sqrt(2))
       beta = c(sqrt(2), -1)
       ys = cbind(1, xs) %*% beta
+      
+      
+      x <- c(dfc$LogRank.resc,dfc$LogRank.resc,dfc$LogRank.resc)
+      y1 <- dfc$LogZ_zipf.pred.resc
+      y2 <- dfc$LogZ_ols.pred.resc
+      y3 <- dfc$LogZ.resc
+      l1 <- rep("Zipf's Law", length(dfc$LogRank.resc))
+      l2 <- rep("OLS Estimate", length(dfc$LogRank))
+      l3 <- rep("Observed", length(dfc$LogRank))
+      lines2 <- data.frame(x = x, y = c(y1, y2, y3), lab = c(l1, l2, l3))
+      
+      if (Acoef_rescale == "Zipf"){cols2 <- c("Observed" = "black",
+                                             "Zipf's Law" = "black",
+                                             "OLS Estimate" = "firebrick")}
+      if (Acoef_rescale == "OLS"){cols2 <- c("Observed" = "black", 
+                                            "OLS Estimate" = "black", 
+                                            "Zipf's Law" = "forestgreen")}
+      
+      ###########################
       
       a1t= paste0("A1=",round(A1,3))
       a2t= paste0("A2=",round(A2,3))
@@ -164,21 +224,21 @@ RS_Acoef <- function(z,
       yaxt <- paste0("Rescaled ", yaxis_title, " [0,sqrt(2)]")
       
       Acoef_plt <- ggplot() + 
-        geom_ribbon(data = dat2 %>% filter(obs >= zipf),
-                    aes(x=x, ymin = zipf, ymax = obs, fill="dodgerblue"), 
+        geom_ribbon(data = dat2 %>% filter(obs >= line),
+                    aes(x=x, ymin = line, ymax = obs, fill="dodgerblue"), 
                     alpha=0.7) +
-        geom_ribbon(data = dat2 %>% filter(obs <= zipf),
-                    aes(x=x, ymin = obs, ymax = zipf, fill = "coral1"), 
+        geom_ribbon(data = dat2 %>% filter(obs <= line),
+                    aes(x=x, ymin = obs, ymax = line, fill = "coral1"), 
                     alpha=0.7) +
         scale_fill_identity(name = at,
-                            breaks = c("dodgerblue", "coral1"),
+                            breaks = c("dodgerblue", "coral1"),#firebricl
                             labels = c(a1t, a2t),
                             guide = "legend")+
-        geom_line(data=dfc, aes(x=LogRank.resc,y=LogZ.resc), size=1.2, color="black") + 
-        geom_point(data=dfc, aes(x=LogRank.resc,y=LogZ.resc), shape=19, size=1.7, color="black") +
-        geom_segment(aes(x = xs[1], xend = xs[2], y = ys[1], yend = ys[2]), size=1, color="black", lty = "twodash")+
+        geom_line(data=lines2, aes(x,y,color=factor(lab)), size=1) +  
+        scale_colour_manual(values = cols2)+
+        geom_point(data=dfc, aes(x=LogRank.resc,y=LogZ.resc), shape=19, size=1.7, color="black")+
         guides(fill = guide_legend(nrow = 2, byrow = TRUE))+
-        labs(x = xaxt, y = yaxt) +
+        labs(x = xaxt, y = yaxt, colour = "") +
         theme_bw()+
         theme(
           axis.text.x = element_text(color="black", size=12, face="bold"), 
@@ -211,7 +271,7 @@ RS_Acoef <- function(z,
         theme(plot.subtitle = element_text(hjust = 0.5, face="bold", size=14),
               legend.position = "bottom")
       Acoef_plt <- Acoef_plt + labs(subtitle = "A-Coefficient Plot") + 
-        guides(fill = guide_legend(nrow = 1))+
+        guides(fill = guide_legend(nrow = 1),color="none")+
         theme(plot.subtitle = element_text(hjust = 0.5, face="bold", size=14),
               legend.position = "bottom")
       plot_row <- plot_grid(RS_plt, Acoef_plt, align = "h", nrow = 1)

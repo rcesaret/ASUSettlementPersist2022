@@ -837,15 +837,15 @@ doi = {10.1038/nature05302}
   year={1980}
 }
 
-@article{johnson1982organizational,
-  title={Organizational structure and scalar stress},
+@article{Johnson1982Stress,
+  title={Organizational Structure and Scalar Stress},
   author={},
-  journal={Theory and explanation in archaeology},
+  journal={Theory and Explanation in Archaeology},
   pages={389--421},
   year={1982}
 }
 
-@incollection{Johnson1982,
+@incollection{Johnson1982Theory,
   address = {New York},
   author = {Johnson, Gregory A.},
   booktitle = {Theory and Explanation in Archaeology: The Southampton Conference},
@@ -1115,7 +1115,7 @@ doi = {10.1038/nature05302}
   title = {Online Companion to Archaeological Network Science},
   publisher = {Cambridge University Press},
   author = {Peeples, Matthew A. and Brughmans, Tom},
-  year = {2022}
+  year = {2022},
   url = {https://github.com/mpeeples2008/ArchNetSci}
 }
 
@@ -1239,3 +1239,38 @@ doi = {10.1038/nature05302}
   journal={arXiv preprint arXiv:2102.03106},
   year={2021}
 }
+
+@article{Eeckhout2004,
+Author = {Eeckhout, Jan},
+Title = {Gibrat's Law for (All) Cities},
+Journal = {American Economic Review},
+Volume = {94},
+Number = {5},
+Year = {2004},
+Month = {December},
+Pages = {1429-1451},
+DOI = {10.1257/0002828043052303}
+}
+
+@article{DeCola1985,
+author = {De Cola, L.},
+title ={Lognormal Estimates of Macroregional City-Size Distributions, 1950–1970},
+journal = {Environment and Planning A: Economy and Space},
+volume = {17},
+number = {12},
+pages = {1637--1652},
+year = {1985},
+doi = {10.1068/a171637}
+}
+
+@article{Parr1973,
+author = {John B. Parr and Keisuke Suzuki},
+title ={Settlement Populations and the Lognormal Distribution},
+journal = {Urban Studies},
+volume = {10},
+number = {3},
+pages = {335--352},
+year = {1973},
+doi = {10.1080/00420987320080471}
+}
+
