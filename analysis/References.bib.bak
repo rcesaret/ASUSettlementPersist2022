@@ -1274,3 +1274,41 @@ year = {1973},
 doi = {10.1080/00420987320080471}
 }
 
+@article{Cromley2012,
+  title={Focal Location Quotients: Specification and Applications},
+  author={Cromley, Robert G. and Hanink, Dean M.},
+  journal={Geographical Analysis},
+  volume={44},
+  number={4},
+  pages={398--410},
+  year={2012}
+}
+
+@Manual{Kalogirou2020,
+  title = {lctools: Local Correlation, Spatial Inequalities, Geographically Weighted Regression and Other Tools},
+  author = {Stamatis Kalogirou},
+  year = {2020},
+  note = {R package version 0.2-8},
+  url = {https://CRAN.R-project.org/package=lctools}
+}
+
+@Article{Wieland2019,
+  title = {{REAT}: A {R}egional {E}conomic {A}nalysis {T}oolbox for {R}},
+  author = {Thomas Wieland},
+  year = {2019},
+  journal = {Region},
+  volume = {6},
+  number = {3},
+  pages = {R1--R57}
+}
+
+@Article{Balland2017,
+  title = {Economic Geography in R: Introduction to the EconGeo Package},
+  author = {Balland, Pierre Alexandre},
+  year = {2017},
+  journal = {Papers in Evolutionary Economic Geography},
+  volume = {17},
+  number = {9},
+  pages = {1--75},
+  url = {https://github.com/PABalland/EconGeo}
+}

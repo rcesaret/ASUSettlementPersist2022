@@ -69,7 +69,7 @@ wd$funcs <- paste0(wd$dir,"functions/")
 
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 # Package names
-packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "classInt", "pacman", "RColorBrewer", "cowplot", "stars", "ggnewscale")#, "data.table", "zoo", "mgcv","igraph", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "pacman", "RColorBrewer", "cowplot", "stars", "ggnewscale")#, "data.table", "zoo", "mgcv","igraph", "ggrepel","ggridges", "movecost",  "datplot", "scales",
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -106,11 +106,11 @@ Data we are importing:
 #Agg Site and catchment polygon data
 All_AggPoly <- readOGR(paste0(wd$data_p,"SBOM_AggSitePoly6.gpkg"))
 All_CatchPoly <- readOGR(paste0(wd$data_p,"SBOM_CatchPoly6.gpkg"))
-#reorder spatial points dataframe by period
+#reorder spatial polygons dataframes by period
 All_AggPoly <- All_AggPoly[order(All_AggPoly$PeriodNum),]
 All_CatchPoly <- All_CatchPoly[order(All_CatchPoly$PeriodNum),]
 
-# Split polygons by Phase, saved as list of SPDF
+# Split polygons by Phase, saved as list of SPDFs
 Poly_List <- splitByAttributes(spdata = All_AggPoly, attr = "Period", suffix="_SitePoly") 
 Catch_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix="_CatchPoly") 
 
@@ -172,25 +172,70 @@ LQs or similar of
 
 
 
-## Radiation Model
 
-In 2012 Filippo Simini and colleagues ([Simini et al. 2012](https://dspace.mit.edu/handle/1721.1/77896)) presented a new model, designed specifically to model human geographic mobility called the radiation model. This model was created explicitly as an alternative to various gravity models and, in certain cases, was demonstrated to generate improved empirical predictions of human population movement between origins and destinations. This model shares some basic features with gravity models but importantly, the approach includes no parameters at all. Instead, this model uses simply measures of population at a set of sites and the distances between them. That is all that is required so this model is relatively simple and could likely be applied in many archaeological cases. Let's take a look at how it is formally defined: 
 
-$$T_{ij} = T_i \frac{m_in_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})}$$
 
-where
 
-* $T_i$ is the total number of "commuters" or migrating individuals from node $i$.
-* $m_i$ and $n_j$ are the population estimates of nodes $i$ and $j$ respectively.
-* $s_{ij}$ is the total population in a circle centered at node $i$ and touching node $j$ excluding the populations of both $i$ and $j$.
+
+
+
+## Radiation Models
+
+### Background
+
+This model was created explicitly as an alternative to various gravity models and, in certain cases, was demonstrated to generate improved empirical predictions of human population movement between origins and destinations. This model shares some basic features with gravity models but importantly, the approach includes no parameters at all. Instead, this model uses simply measures of population at a set of sites and the distances between them. 
+
+Model of socioeconomic spatial interaction 
+
+  * commuting to work
+  * migrating (changing residence and employment)
+  * All travel (incl. shopping trips, business and recreation)
+  * communication (cell phone calls)
+  * trade
+
+This model is inspired by a diffusion model where each individual living in an unit i has a certain probability of being “absorbed” by another unit j according to the spatial distribution of socioeconomic opportunities. The original radiation model is free of parameters and, therefore, it does not require calibration. The conditional interaction (radiation/absorbtion) probability is
+$$
+\mathrm{P}(1 \mid m_i, m_j, s_{ij}) = \frac{m_in_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})}
+$$
+where $m_i$ is the origin population, $n_j$ is the destination population, and $s_{ij}$ is the total population of all other competing destinations within a circle centered at origin $i$ whose radius is the distance between origin $i$ and destination $j$. 
+
+This generalized probability of interaction is then parameterized by the scalar $T_i$, representing the magnitude of all outgoing 'interactions' in some dimension (e.g. commuters, travelers, migrants, etc.), to obtain the estimated total directional flow from origin $i$ to destination $j$, $T_{ij}$, given by
+$$
+T_{ij} = T_i \frac{m_in_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})}
+$$
+Of course, the magnitude of $T_i$ is empirically variable by dimension and locale, but is necessarily proportional to the population $m_i$ of origin $i$. Their analysis suggested that most dimensions were proportional to population (phone data and freight transportation were not due to sampling bias), and, critically, that they were independent of both the spatial density of employment and the spatial cost-benefit distribution of employment. Simini et al. [-@Simini2012] therefore suggest that the variability of $T_i$ is scale invariant, such that
+$$
+T_{ij} =\gamma m_i\frac{m_in_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})} \propto \frac{m_i^2 n_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})}
+$$
+where $\gamma$, the local fraction of outgoing interactions, as the only unknown parameter. Given their assertion that this is stochastic, dimensional, scale-invariant, and independent of intervening employment opportunity, population can be used as a proxy. As such, the model becomes parameter-free since the spatial interaction flux probability is not dependent on $\gamma$.
+
+Since its publication, further tests and analyses have led to revisions/adaptations of the model. 
+Masucci et al. [-@Masucci2013] analyze different data suggesting that $T_i = \gamma m_i$ is in fact scale dependent, changing the model to
+$$
+T_{ij} = \frac{T_i}{1-\frac{m_i}{M}} \frac{m_in_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})}
+$$
+where $M$ is the origin's fraction of total regional population. Indeed, such a gravitational size effect is to be expected theoretically given ubiquitous conditions of spatial heterogeneity, increasing returns to scale in urban agglomeration effects, and heavily right-skew city size distributions [@Masucci2013].
+
+Other analysts have demonstrated that the radiation model greatly underperforms exponential gravity models at smaller spatial scales [@Lenormand2012; @Liang2013]. While the radiation model achieves the best predictions at long distances, these flows are much lower volume and a small fraction of the total [@Lenormand2016]. To account for this, the original authors [@Yang2014] propose an extended radiation model with the flux probability given by
+$$
+\mathrm{P}(1 \mid m_i, m_j, s_{ij}) = \frac{[(m_i+n_j+s_{ij})^\alpha - (m_i+s_{ij})^\alpha]~(m_i^\alpha+1)}{[(m_i + s_{ij})^\alpha+1]~~[(m_i + n_j + s_{ij})^\alpha+1]}
+$$
+where the new parameter, $\alpha$, models the impact of rival employment opportunities between origin and destination. To calibrate the $\alpha$ parameter in the absence of data, Yang et al. [-@Yang2014] follow gravity model methods to propose $\alpha$ as proportional to the average commuting distance, $l$, assumed to be the radius of the average area of the spatial units of analysis (census tracts). This makes $l= \sqrt{A} $, which enabled them to estimate from empirical data the average value of alpha as $\alpha=0.0085~l^{1.33} $. For the modern data, MSA-scale values of $\alpha$ ranged between 0 and 2. 
+
 
 We have defined a function for calculating radiation among a set of sites using just two inputs:
 
 * **`pop`** is a vector of population values.
 * **`d_mat`** is a distance matrix among all nodes.
 
+of the number of job opportunities between the source and the destination on the job selection
 
-```{r}
+
+-\frac{m_i}{M}
+
+### Dimensional Proxies for "Total Commuters" T_i
+
+```{r, 'Proxies for Radiation Model T_i', message=FALSE, warning=FALSE}
 
 ```
 
@@ -206,7 +251,7 @@ We have defined a function for calculating radiation among a set of sites using 
 
 # Recombining and Reorganizing the Data
 
-```{r, 'Recombining the Data Part 2', message=FALSE, warning=FALSE}
+```{r, 'Recombining the Data', message=FALSE, warning=FALSE}
 # Convert lists of period-wise sites/catchments to single SPDF objects
 All_Agg_SitePoly <-  do.call(rbind, Poly_List)
 All_Agg_CatchPoly <- do.call(rbind, Catch_List)
