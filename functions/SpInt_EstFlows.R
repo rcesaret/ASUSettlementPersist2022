@@ -94,7 +94,18 @@ hist(Wj, breaks = 15)
 
 
 
-
+grav_mod <- function(attract, B, d) {
+  res <- matrix(0, length(attract), length(attract))
+  
+  for (i in seq_len(length(attract))) {
+    for (j in seq_len(length(attract))) {
+      res[i, j] <-
+        attract[i] * attract[j] * exp(-B * d[i,j])
+    }
+  }
+  diag(res) <- 0
+  return(res)
+}
 
 
 

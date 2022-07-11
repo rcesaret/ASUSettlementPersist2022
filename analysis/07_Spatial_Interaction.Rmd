@@ -69,7 +69,11 @@ wd$funcs <- paste0(wd$dir,"functions/")
 
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 # Package names
-packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", "gdistance", "lwgeom", "tidyverse", "tidyr", "pacman", "RColorBrewer", "cowplot", "stars", "ggnewscale")#, "data.table", "zoo", "mgcv","igraph", "ggrepel","ggridges", "movecost",  "datplot", "scales",
+packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", 
+              "gdistance", "lwgeom", "tidyverse", "tidyr", "pacman", 
+              "data.table", "RColorBrewer", "cowplot", "stars", "ggnewscale", 
+              "scales", "igraph", "tidygraph", "centiserve", "CINNA", 
+              "sfnetworks")#, "zoo", "mgcv", "ggrepel", "ggridges", "movecost"
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -83,7 +87,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 rm(packages,installed_packages)
 
 #Read in custom R functions located in the wd$funcs directory folder
-FUNCS <- list("splitByAttributes.R", "RS_Acoef.R", "SettHierClass_ggplot.R")
+FUNCS <- list("splitByAttributes.R", "Radiation_EstFlows.R", "net_stats2.R",  "SpInt_EstFlows.R")
 invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
 rm(FUNCS)
 
@@ -137,6 +141,8 @@ Hillshade.s <- st_as_stars(HillshadeLake) #for ggplot basemap
 #Cost-distance matrices
 CD.mats <- readRDS(file=paste0(wd$data_p,"CDmats_list.RData"))
 TrsprtNet_CDmatList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_CDmatList.RData"))
+
+TrsprtNet_lines_sfList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_lines_sfList.RData"))
 ```
 
 
@@ -173,7 +179,7 @@ LQs or similar of
 
 
 
-
+https://robinlovelace.github.io/simodels/index.html
 
 
 
@@ -227,6 +233,24 @@ We have defined a function for calculating radiation among a set of sites using 
 
 * **`pop`** is a vector of population values.
 * **`d_mat`** is a distance matrix among all nodes.
+
+```{r}
+test = Radiation_EstFlows(df = Poly_List[[17]]@data,
+                       var = "Population.s2",
+                       d_mat = CD.mats[[17]], 
+                       xcoords = Poly_List[[17]]@data$East,
+                       ycoords = Poly_List[[17]]@data$North,
+                       crs_coords = 26914,
+                       extended = T, #T
+                       alpha = 1.2,
+                       scale = "variant", #c("invariant", "variant", "none")
+                       commuters = "var", #c("var", "input", "none")
+                       Ti_input = NULL,
+                       outputs = c("adjmat", "sflines", "sfpts_netstats", "sfnetwork"))
+```
+
+
+
 
 of the number of job opportunities between the source and the destination on the job selection
 

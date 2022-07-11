@@ -176,7 +176,7 @@ Survival analysis, also called event history analysis in social science, or reli
 	https://CRAN.R-project.org/view=Survival
 https://cran.r-project.org/web/packages/survival/index.html
 
-
+Miller Jr, R. G. Survival Analysis, vol. 66 (Wiley, Chichester, 2011).
 
 
 # Regressions
