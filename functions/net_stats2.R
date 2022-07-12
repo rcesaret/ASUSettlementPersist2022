@@ -91,10 +91,10 @@ net_stats2 <- function(ig,ID,prefix="",direc=T, weights=T){
     if (direc==F){out$diversity <- igraph::diversity(ig)}
   out$constraint <- igraph::constraint(ig)
   if (direc==T){
-    out$avgdist_in <- centiserve::averagedis(Tij_ig, mode = "in")
-    out$avgdist_out <- centiserve::averagedis(Tij_ig, mode = "out")
+    out$avgdist_in <- centiserve::averagedis(ig, mode = "in")
+    out$avgdist_out <- centiserve::averagedis(ig, mode = "out")
   }
-  out$avgdist_tot <- centiserve::averagedis(Tij_ig, mode = "all")
+  out$avgdist_tot <- centiserve::averagedis(ig, mode = "all")
   
   
   if (weights==F){

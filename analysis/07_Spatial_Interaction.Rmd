@@ -73,7 +73,7 @@ packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix",
               "gdistance", "lwgeom", "tidyverse", "tidyr", "pacman", 
               "data.table", "RColorBrewer", "cowplot", "stars", "ggnewscale", 
               "scales", "igraph", "tidygraph", "centiserve", "CINNA", 
-              "sfnetworks")#, "zoo", "mgcv", "ggrepel", "ggridges", "movecost"
+              "sfnetworks", "gravity", "moin", "spflow", "simodels", "viridis")#, "zoo", "mgcv", "ggrepel", "ggridges", "movecost"
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -87,7 +87,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 rm(packages,installed_packages)
 
 #Read in custom R functions located in the wd$funcs directory folder
-FUNCS <- list("splitByAttributes.R", "Radiation_EstFlows.R", "net_stats2.R",  "SpInt_EstFlows.R")
+FUNCS <- list("splitByAttributes.R", "Radiation_EstFlows.R", "net_stats2.R")#,  "SpInt_EstFlows.R"
 invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
 rm(FUNCS)
 
@@ -176,13 +176,7 @@ LQs or similar of
 ----
 
 
-
-
-
-https://robinlovelace.github.io/simodels/index.html
-
-
-
+https://cran.r-project.org/web/packages/ggiraphExtra/vignettes/ggPredict.html
 
 
 ## Radiation Models
@@ -235,22 +229,994 @@ We have defined a function for calculating radiation among a set of sites using 
 * **`d_mat`** is a distance matrix among all nodes.
 
 ```{r}
-test = Radiation_EstFlows(df = Poly_List[[17]]@data,
+test = Radiation_EstFlows(df = Poly_List[[5]]@data,
                        var = "Population.s2",
-                       d_mat = CD.mats[[17]], 
-                       xcoords = Poly_List[[17]]@data$East,
-                       ycoords = Poly_List[[17]]@data$North,
+                       d_mat = TrsprtNet_CDmatList[[5]], 
+                       xcoords = Poly_List[[5]]@data$East,
+                       ycoords = Poly_List[[5]]@data$North,
                        crs_coords = 26914,
-                       extended = T, #T
+                       extended = F, #T
                        alpha = 1.2,
-                       scale = "variant", #c("invariant", "variant", "none")
+                       scale = "invariant", #c("invariant", "variant", "none")
                        commuters = "var", #c("var", "input", "none")
                        Ti_input = NULL,
-                       outputs = c("adjmat", "sflines", "sfpts_netstats", "sfnetwork"))
+                       outputs = c("adjmat", "igraph", "sflines", "sfpts_netstats"))#, "sfnetwork"
+
+ggplot(test$sflines, aes(Tij)) +
+  geom_histogram(color = "#000000", fill = "thistle1", bins = 20) +
+  labs(x = "Interaction Flows (T_ij)", y = "Frequency",
+       title = "Radiation Model Interaction Flows: Late Formative SBOM (400-200 BC)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks(n = 10, "log", function(x) exp(x)),
+                     labels = label_number(accuracy =0.001))+
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=9, angle=20))
+
+hist(log(test$sfpts_netstats$Rad_centr_indeg))
+
+fit_power_law(test$sfpts_netstats$Rad_centr_indeg)
+
+ggplot(data = test$sfpts_netstats,aes(x = Population.s2, y = Rad_centr_totdeg)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Settlement Population", y = "Weighted Degree Centrality (in and out)",
+       title = "Total Degree Centrality on Population: LF SBOM (400-200 BC)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+##########################################
+
+test$sflines$mn <- test$sflines$m+test$sflines$n
+ggplot(data = test$sflines, aes(x = r_ij, y = Tij, color=mn, alpha=mn)) +
+  geom_point(size=2) + 
+  geom_smooth(method = "gam", formula = y~s(x,k=7), color="darkblue", fill="turquoise1")+
+  scale_color_viridis(option = "turbo", begin = 0.60,name=expression('m'[i]+'n'[j]))+
+  scale_alpha_continuous(range = c(0.30, 0.9), guide="none")+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Log Transport Network Cost Distance (hrs)", y = "Log Interaction Flow (T_ij)"
+       #title = "Interaction Flows on Cost Distance: LF SBOM (400-200 BC)",
+       #subtitle = "Scale Invariant Original Model with Commuters as Population"
+       ) +
+  theme_grey()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12),
+        panel.grid.major = element_line(colour = "black"),
+        panel.grid.minor = element_line(colour = "grey45"),
+        panel.border = element_rect(color = "black", fill = NA),
+        panel.background = element_rect(fill = "grey65"),
+        legend.justification=c(0.5,0.5), legend.position=c(0.15,0.25), 
+        legend.margin = margin(1, 4, 1, 4),
+        legend.spacing.y = unit(0.1,"line"),legend.spacing.x = unit(0.55,"line"), 
+        legend.text=element_text(size=11),legend.title=element_text(size=16),
+        legend.key = element_rect(colour = "transparent", fill = "white"), 
+        legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'))
+
+
+#############################################
+
+
+
+test$sflines$Log_Tij <- log(test$sflines$Tij)
+sflines2 <- test$sflines[test$sflines$Log_Tij > 2,]
+ggp_map <- ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise3", "black", "gray60"), 
+               values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  geom_sf(data = CatchLims.sf, color="black", size=1, alpha = 0) +
+  ggnewscale::new_scale_fill()+
+  geom_sf(data = sflines2, mapping=aes(color=Log_Tij, alpha=Log_Tij), size=1) +
+  scale_color_viridis(option = "turbo", begin = 0.5, na.value = NA, name = expression('logT'[ij])) +
+  scale_alpha_continuous(range = c(0.25, 1), guide="none") +
+  #geom_sf(data = Catch.sf, color="black", size=0.3, alpha = 0) +
+  
+  geom_sf(data=test$sfpts_netstats, mapping=aes(size=Population.s2), shape=21, fill = "darkblue", color="black", stroke = 1, alpha=1)+
+  scale_size(range=c(1,6), name="Population")+
+  #guides(alpha="none", fill = guide_legend(order = 1, override.aes = list(size = 3,nrow=3)),
+  #       size = guide_legend(order = 2, override.aes = list(nrow=4)))+
+  #labs(title = "Radiation Model Interaction Flows: Late Formative SBOM (400-200 BC)",
+  #     subtitle = "Scale Invariant Original Model with Commuters as Population")+
+  coord_sf(datum = sf::st_crs(26914)) +
+  xlim(484500,529378)+ylim(2106800,2150500)+
+  theme_void() + 
+  #labs(x = "Easting", y = "Northing")+
+  theme(#legend.position="left", 
+        legend.justification=c(0.5,0.5), legend.position=c(0.165,0.32), 
+        legend.margin = margin(1, 4, 1, 4),
+        legend.spacing.y = unit(0.1,"line"),legend.spacing.x = unit(0.55,"line"), 
+        legend.text=element_text(size=11),legend.title=element_text(size=16),
+        legend.key = element_rect(colour = "transparent", fill = "white"), 
+        legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid')
+        #plot.title = element_text(hjust = 0.5, face="bold", size=16),
+        #plot.subtitle = element_text(hjust = 0.5, face="bold", size=16)
+        )
+
+ggpmap<-ggsave("LF_RadiationMap.png", plot = ggp_map, device = "png", path = wd$figs, scale = 1, width = 5.5, height = 5.5,   units = "in",  dpi = 1000)
+
+sfpts_netstats <- cbind(test$sfpts_netstats,Poly_List[[5]]@data)
+x=st_drop_geometry(sfpts_netstats[,c(1,110:115,124,127:128,111:112)])
+
+xx=as.matrix(1-dist(x[,-1],upper=T,method="manhattan"),ncol=ncol(x),nrow=nrow(x))
+
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("from"="AggSite"))
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("to"="AggSite"))
+sflines2=sflines2 %>% mutate(rPert_sim = scales::rescale(abs(rPert.x - rPert.y),to=c(1,0)),
+                        rPert0_sim = scales::rescale(abs(rPert0.x - rPert0.y),to=c(1,0)),
+                        rPert2_sim = scales::rescale(abs(rPert2.x - rPert2.y),to=c(1,0)),
+                        Abs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        LogAbs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        Pop_sim = scales::rescale(abs(m - n), to=c(1,0))) %>% 
+  rowwise() %>% 
+  mutate(Avg_Pert_sim = mean(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Min_Pert_sim = min(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Max_Pert_sim = max(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Med_Pert_sim = median(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         sd_Pert_sim = sd(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T)) %>% ungroup()
+#3:5,9:12;;;13:22;;;24:34
+x=st_drop_geometry(sflines2[,c(3:5,11,13:22)])
+
+pairs.panels(x,
+            gap = 0,
+            pch=21)
+
+plot(sfpts_netstats["OccuTime"])
+```
+p + stat_function(fun = LF) + xlim(250,266) +
+    scale_y_continuous(trans = log_trans(), 
+                         breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x)))
+
+
+
+```{r}
+test = Radiation_EstFlows(df = Poly_List[[9]]@data,
+                       var = "Population.s2",
+                       d_mat = TrsprtNet_CDmatList[[9]], 
+                       xcoords = Poly_List[[9]]@data$East,
+                       ycoords = Poly_List[[9]]@data$North,
+                       crs_coords = 26914,
+                       extended = F, #T
+                       alpha = 1.2,
+                       scale = "invariant", #c("invariant", "variant", "none")
+                       commuters = "var", #c("var", "input", "none")
+                       Ti_input = NULL,
+                       outputs = c("adjmat", "igraph", "sflines", "sfpts_netstats"))#, "sfnetwork"
+
+ggplot(test$sflines, aes(Tij)) +
+  geom_histogram(color = "#000000", fill = "thistle1", bins = 20) +
+  labs(x = "Interaction Flows (T_ij)", y = "Frequency",
+       title = "Radiation Model Interaction Flows: Classic SBOM (AD 100-550)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks(n = 10, "log", function(x) exp(x)),
+                     labels = label_number(accuracy =0.001))+
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=9, angle=20))
+
+hist(log(test$sfpts_netstats$Rad_centr_indeg))
+
+fit_power_law(test$sfpts_netstats$Rad_centr_indeg)
+
+ggplot(data = test$sfpts_netstats,aes(x = Population.s2, y = Rad_centr_totdeg)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Settlement Population", y = "Weighted Degree Centrality (in and out)",
+       title = "Total Degree Centrality on Population: CL SBOM (AD 100-550)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+
+test$sflines$mn <- test$sflines$m+test$sflines$n
+ggplt <- ggplot(data = test$sflines, aes(x = r_ij, y = Tij, color=mn, alpha=mn)) +
+  geom_point(size=2) + 
+  geom_smooth(method = "gam", formula = y~s(x,k=7), color="darkblue", fill="turquoise1")+
+  scale_color_viridis(option = "turbo", begin = 0.60,name=expression('m'[i]+'n'[j]))+
+  scale_alpha_continuous(range = c(0.30, 0.9), guide="none")+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  
+  labs(x = "Log Transport Network Cost Distance (hrs)", y = "Log Interaction Flow (T_ij)"
+       #title = "Interaction Flows on Cost Distance: LF SBOM (400-200 BC)",
+       #subtitle = "Scale Invariant Original Model with Commuters as Population"
+       ) +
+  theme_grey()+
+  theme(#plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.margin = margin(1.75, 0.5, 1.25, 0, "in"),
+        #plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=14, face="bold"),
+        axis.title.y = element_text(color="black", size=14, face="bold"),
+        axis.text.y = element_text(color="black", size=14),
+        axis.text.x = element_text(color="black", size=14),
+        panel.grid.major = element_line(colour = "black"),
+        panel.grid.minor = element_line(colour = "grey45"),
+        panel.border = element_rect(color = "black", fill = NA),
+        panel.background = element_rect(fill = "grey65"),
+        legend.justification=c(0.5,0.5), legend.position=c(0.15,0.25), 
+        legend.margin = margin(1, 4, 1, 4),
+        legend.spacing.y = unit(0.1,"line"),legend.spacing.x = unit(0.55,"line"), 
+        legend.text=element_text(size=13),legend.title=element_text(size=16),
+        legend.key = element_rect(colour = "transparent", fill = "white"), 
+        legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'))
+
+ggpmap<-ggsave("CL_RadDistDecayPlot.png", plot = ggplt, device = "png", path = wd$figs, scale = 1, width = 5.5, height = 5,   units = "in",  dpi = 1000)
+
+test$sflines$Log_Tij <- log(test$sflines$Tij)
+sflines2 <- test$sflines[test$sflines$Log_Tij > 2,]
+ggp_map <- ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise3", "black", "gray60"), 
+               values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  geom_sf(data = CatchLims.sf, color="black", size=1, alpha = 0) +
+  ggnewscale::new_scale_fill()+
+  geom_sf(data = sflines2, mapping=aes(color=Log_Tij, alpha=Log_Tij), size=1) +
+  scale_color_viridis(option = "turbo", begin = 0.6, na.value = NA, name = expression('logT'[ij])) +
+  scale_alpha_continuous(range = c(0.25, 1), guide="none") +
+  #geom_sf(data = Catch.sf, color="black", size=0.3, alpha = 0) +
+  
+  geom_sf(data=test$sfpts_netstats, mapping=aes(size=Population.s2), shape=21, fill = "darkblue", color="black", stroke = 1, alpha=1)+
+  scale_size(range=c(1,6), name="Population")+
+  guides(color = guide_colorbar(order = 1), size = guide_legend(order = 2))+
+  #labs(title = "Radiation Model Interaction Flows: Classic Period SBOM (AD 100-550)",
+  #     subtitle = "Scale Invariant Original Model with Commuters as Population")+
+  coord_sf(datum = sf::st_crs(26914)) +
+  xlim(484500,529378)+ylim(2106800,2150500)+
+  theme_void() + 
+  #labs(x = "Easting", y = "Northing")+
+  theme(#legend.position="left", 
+        legend.justification=c(0.5,0.5), legend.position=c(0.165,0.34), 
+        legend.margin = margin(1, 4, 1, 4),
+        plot.margin = margin(0, 0, 0, 0, "in"),#plot.margin = margin(0.2, 0, 0.3, 0.25, "in"),
+        legend.spacing.y = unit(0.1,"line"),legend.spacing.x = unit(0.55,"line"), 
+        legend.text=element_text(size=11),legend.title=element_text(size=16),
+        legend.key = element_rect(colour = "transparent", fill = "white"), 
+        legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid')
+        #plot.title = element_text(hjust = 0.5, face="bold", size=16),
+        #plot.subtitle = element_text(hjust = 0.5, face="bold", size=16)
+        )
+
+ggpmap<-ggsave("CL_RadiationMap.png", plot = ggp_map, device = "png", path = wd$figs, scale = 1, width = 5.5, height = 5.5,   units = "in",  dpi = 1000)
+
+plot_row <- plot_grid(ggp_map, ggplt, align = "v", nrow = 1, rel_heights = c(1, 1/2),labels = c('A', 'B'), label_size=40, label_x = c(0.1,0.05), label_y = 0.9)
+plot_row
+title <- ggdraw() + draw_label("Radiation Model Interaction Flows: Classic Period SBOM (c. AD 100-550)",fontface = 'bold',hjust = 0.5, vjust=0.4, size=20 )
+
+out <- plot_grid(title, plot_row,ncol = 1, rel_heights = c(0.04,1)) + 
+          theme(plot.background = element_rect(fill = "white", colour = NA))
+
+ggsave("CL_RadNetMapDistDecay.png", plot = out, device = "png", path = wd$figs, scale = 1, width = 12.5, height = 8.35,   units = "in",  dpi = 1250)
+
+
+
+sfpts_netstats <- cbind(test$sfpts_netstats,Poly_List[[9]]@data)
+x=st_drop_geometry(sfpts_netstats[,c(1,110:115,124,127:128,111:112)])
+
+xx=as.matrix(1-dist(x[,-1],upper=T,method="manhattan"),ncol=ncol(x),nrow=nrow(x))
+
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("from"="AggSite"))
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("to"="AggSite"))
+sflines2=sflines2 %>% mutate(rPert_sim = scales::rescale(abs(rPert.x - rPert.y),to=c(1,0)),
+                        rPert0_sim = scales::rescale(abs(rPert0.x - rPert0.y),to=c(1,0)),
+                        rPert2_sim = scales::rescale(abs(rPert2.x - rPert2.y),to=c(1,0)),
+                        Abs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        LogAbs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        Pop_sim = scales::rescale(abs(m - n), to=c(1,0))) %>% 
+  rowwise() %>% 
+  mutate(Avg_Pert_sim = mean(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Min_Pert_sim = min(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Max_Pert_sim = max(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Med_Pert_sim = median(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         sd_Pert_sim = sd(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T)) %>% ungroup()
+#3:5,9:12;;;13:22;;;24:34
+x=st_drop_geometry(sflines2[,c(3:5,11,13:22)])
+
+pairs.panels(x,
+            gap = 0,
+            pch=21)
+
+plot(sfpts_netstats["OccuTime"])
 ```
 
 
 
+
+```{r}
+test = Radiation_EstFlows(df = Poly_List[[13]]@data,
+                       var = "Population.s2",
+                       d_mat = TrsprtNet_CDmatList[[13]], 
+                       xcoords = Poly_List[[13]]@data$East,
+                       ycoords = Poly_List[[13]]@data$North,
+                       crs_coords = 26914,
+                       extended = F, #T
+                       alpha = 1.2,
+                       scale = "invariant", #c("invariant", "variant", "none")
+                       commuters = "var", #c("var", "input", "none")
+                       Ti_input = NULL,
+                       outputs = c("adjmat", "igraph", "sflines", "sfpts_netstats"))#, "sfnetwork"
+
+ggplot(test$sflines, aes(Tij)) +
+  geom_histogram(color = "#000000", fill = "thistle1", bins = 20) +
+  labs(x = "Interaction Flows (T_ij)", y = "Frequency",
+       title = "Radiation Model Interaction Flows: LT-AzI SBOM (AD 950-1200)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks(n = 10, "log", function(x) exp(x)),
+                     labels = label_number(accuracy =0.001))+
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=9, angle=20))
+
+hist(log(test$sfpts_netstats$Rad_centr_indeg))
+
+fit_power_law(test$sfpts_netstats$Rad_centr_indeg)
+
+ggplot(data = test$sfpts_netstats,aes(x = Population.s2, y = Rad_centr_totdeg)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Settlement Population", y = "Weighted Degree Centrality (in and out)",
+       title = "Total Degree Centrality on Population: LT-AzI SBOM (AD 950-1200)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+
+ggplot(data = test$sflines,aes(x = r_ij, y = Tij)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Transport Net Cost Distance (hrs)", y = "Interaction Flow (T_ij)",
+       title = "Interaction Flows on Cost Distance: LT-AzI SBOM (AD 950-1200)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+test$sflines$Log_Tij <- log(test$sflines$Tij)
+sflines2 <- test$sflines[test$sflines$Log_Tij > 2,]
+ggp_map <- ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise3", "black", "gray60"), 
+               values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  geom_sf(data = CatchLims.sf, color="black", size=1, alpha = 0) +
+  ggnewscale::new_scale_fill()+
+  geom_sf(data = sflines2, mapping=aes(color=Log_Tij, alpha=Log_Tij), size=1) +
+  scale_color_viridis(option = "turbo", begin = 0.6, na.value = NA, name = expression('logT'[ij])) +
+  scale_alpha_continuous(range = c(0.25, 1), guide="none") +
+  #geom_sf(data = Catch.sf, color="black", size=0.3, alpha = 0) +
+  
+  geom_sf(data=test$sfpts_netstats, mapping=aes(size=Population.s2), shape=21, fill = "darkblue", color="black", stroke = 1, alpha=1)+
+  scale_size(range=c(1,6), name="Population")+
+  #guides(alpha="none", fill = guide_legend(order = 1, override.aes = list(size = 3,nrow=3)),
+  #       size = guide_legend(order = 2, override.aes = list(nrow=4)))+
+  #labs(title = "Radiation Model Interaction Flows: Late Formative SBOM (400-200 BC)",
+  #     subtitle = "Scale Invariant Original Model with Commuters as Population")+
+  coord_sf(datum = sf::st_crs(26914)) +
+  xlim(484500,529378)+ylim(2106800,2150500)+
+  theme_void() + 
+  #labs(x = "Easting", y = "Northing")+
+  theme(#legend.position="left", 
+        legend.justification=c(0.5,0.5), legend.position=c(0.165,0.32), 
+        legend.margin = margin(1, 4, 1, 4),
+        legend.spacing.y = unit(0.1,"line"),legend.spacing.x = unit(0.55,"line"), 
+        legend.text=element_text(size=11),legend.title=element_text(size=16),
+        legend.key = element_rect(colour = "transparent", fill = "white"), 
+        legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid')
+        #plot.title = element_text(hjust = 0.5, face="bold", size=16),
+        #plot.subtitle = element_text(hjust = 0.5, face="bold", size=16)
+        )
+
+ggpmap<-ggsave("LTAzI_RadiationMap.png", plot = ggp_map, device = "png", path = wd$figs, scale = 1, width = 5.5, height = 5.5,   units = "in",  dpi = 1000)
+
+sfpts_netstats <- cbind(test$sfpts_netstats,Poly_List[[13]]@data)
+x=st_drop_geometry(sfpts_netstats[,c(1,110:115,124,127:128,111:112)])
+
+xx=as.matrix(1-dist(x[,-1],upper=T,method="manhattan"),ncol=ncol(x),nrow=nrow(x))
+
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("from"="AggSite"))
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("to"="AggSite"))
+sflines2=sflines2 %>% mutate(rPert_sim = scales::rescale(abs(rPert.x - rPert.y),to=c(1,0)),
+                        rPert0_sim = scales::rescale(abs(rPert0.x - rPert0.y),to=c(1,0)),
+                        rPert2_sim = scales::rescale(abs(rPert2.x - rPert2.y),to=c(1,0)),
+                        Abs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        LogAbs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        Pop_sim = scales::rescale(abs(m - n), to=c(1,0))) %>% 
+  rowwise() %>% 
+  mutate(Avg_Pert_sim = mean(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Min_Pert_sim = min(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Max_Pert_sim = max(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Med_Pert_sim = median(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         sd_Pert_sim = sd(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T)) %>% ungroup()
+#3:5,9:12;;;13:22;;;24:34
+x=st_drop_geometry(sflines2[,c(3:5,11,13:22)])
+
+pairs.panels(x,
+            gap = 0,
+            pch=21)
+
+plot(sfpts_netstats["OccuTime"])
+```
+
+```{r}
+test = Radiation_EstFlows(df = Poly_List[[11]]@data,
+                       var = "Population.s2",
+                       d_mat = TrsprtNet_CDmatList[[11]], 
+                       xcoords = Poly_List[[11]]@data$East,
+                       ycoords = Poly_List[[11]]@data$North,
+                       crs_coords = 26914,
+                       extended = F, #T
+                       alpha = 1.2,
+                       scale = "invariant", #c("invariant", "variant", "none")
+                       commuters = "var", #c("var", "input", "none")
+                       Ti_input = NULL,
+                       outputs = c("adjmat", "igraph", "sflines", "sfpts_netstats"))#, "sfnetwork"
+
+ggplot(test$sflines, aes(Tij)) +
+  geom_histogram(color = "#000000", fill = "thistle1", bins = 20) +
+  labs(x = "Interaction Flows (T_ij)", y = "Frequency",
+       title = "Radiation Model Interaction Flows: ET SBOM (AD 650-850)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks(n = 10, "log", function(x) exp(x)),
+                     labels = label_number(accuracy =0.001))+
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=9, angle=20))
+
+hist(log(test$sfpts_netstats$Rad_centr_indeg))
+
+fit_power_law(test$sfpts_netstats$Rad_centr_indeg)
+
+ggplot(data = test$sfpts_netstats,aes(x = Population.s2, y = Rad_centr_totdeg)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Settlement Population", y = "Weighted Degree Centrality (in and out)",
+       title = "Total Degree Centrality on Population: ET SBOM (AD 650-850)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+
+ggplot(data = test$sflines,aes(x = r_ij, y = Tij)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Transport Net Cost Distance (hrs)", y = "Interaction Flow (T_ij)",
+       title = "Interaction Flows on Cost Distance: ET SBOM (AD 650-850)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+test$sflines$Log_Tij <- log(test$sflines$Tij)
+sflines2 <- test$sflines[test$sflines$Log_Tij > 2,]
+ggp_map <- ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise3", "black", "gray60"), 
+               values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  geom_sf(data = CatchLims.sf, color="black", size=1, alpha = 0) +
+  ggnewscale::new_scale_fill()+
+  geom_sf(data = sflines2, mapping=aes(color=Log_Tij, alpha=Log_Tij), size=1) +
+  scale_color_viridis(option = "turbo", begin = 0.6, na.value = NA, name = expression('logT'[ij])) +
+  scale_alpha_continuous(range = c(0.25, 1), guide="none") +
+  #geom_sf(data = Catch.sf, color="black", size=0.3, alpha = 0) +
+  
+  geom_sf(data=test$sfpts_netstats, mapping=aes(size=Population.s2), shape=21, fill = "darkblue", color="black", stroke = 1, alpha=1)+
+  scale_size(range=c(1,6), name="Population")+
+  #guides(alpha="none", fill = guide_legend(order = 1, override.aes = list(size = 3,nrow=3)),
+  #       size = guide_legend(order = 2, override.aes = list(nrow=4)))+
+  #labs(title = "Radiation Model Interaction Flows: Late Formative SBOM (400-200 BC)",
+  #     subtitle = "Scale Invariant Original Model with Commuters as Population")+
+  coord_sf(datum = sf::st_crs(26914)) +
+  xlim(484500,529378)+ylim(2106800,2150500)+
+  theme_void() + 
+  #labs(x = "Easting", y = "Northing")+
+  theme(#legend.position="left", 
+        legend.justification=c(0.5,0.5), legend.position=c(0.165,0.32), 
+        legend.margin = margin(1, 4, 1, 4),
+        legend.spacing.y = unit(0.1,"line"),legend.spacing.x = unit(0.55,"line"), 
+        legend.text=element_text(size=11),legend.title=element_text(size=16),
+        legend.key = element_rect(colour = "transparent", fill = "white"), 
+        legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid')
+        #plot.title = element_text(hjust = 0.5, face="bold", size=16),
+        #plot.subtitle = element_text(hjust = 0.5, face="bold", size=16)
+        )
+
+ggpmap<-ggsave("ET_RadiationMap.png", plot = ggp_map, device = "png", path = wd$figs, scale = 1, width = 5.5, height = 5.5,   units = "in",  dpi = 1000)
+
+sfpts_netstats <- cbind(test$sfpts_netstats,Poly_List[[11]]@data)
+x=st_drop_geometry(sfpts_netstats[,c(1,110:115,124,127:128,111:112)])
+
+xx=as.matrix(1-dist(x[,-1],upper=T,method="manhattan"),ncol=ncol(x),nrow=nrow(x))
+
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("from"="AggSite"))
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("to"="AggSite"))
+sflines2=sflines2 %>% mutate(rPert_sim = scales::rescale(abs(rPert.x - rPert.y),to=c(1,0)),
+                        rPert0_sim = scales::rescale(abs(rPert0.x - rPert0.y),to=c(1,0)),
+                        rPert2_sim = scales::rescale(abs(rPert2.x - rPert2.y),to=c(1,0)),
+                        Abs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        LogAbs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        Pop_sim = scales::rescale(abs(m - n), to=c(1,0))) %>% 
+  rowwise() %>% 
+  mutate(Avg_Pert_sim = mean(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Min_Pert_sim = min(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Max_Pert_sim = max(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Med_Pert_sim = median(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         sd_Pert_sim = sd(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T)) %>% ungroup()
+#3:5,9:12;;;13:22;;;24:34
+x=st_drop_geometry(sflines2[,c(3:5,11,13:22)])
+
+pairs.panels(x,
+            gap = 0,
+            pch=21)
+
+plot(sfpts_netstats["OccuTime"])
+```
+
+
+```{r}
+test = Radiation_EstFlows(df = Poly_List[[16]]@data,
+                       var = "Population.s2",
+                       d_mat = TrsprtNet_CDmatList[[16]], 
+                       xcoords = Poly_List[[16]]@data$East,
+                       ycoords = Poly_List[[16]]@data$North,
+                       crs_coords = 26914,
+                       extended = T, #T
+                       alpha = 0.5,
+                       scale = "invariant", #c("invariant", "variant", "none")
+                       commuters = "var", #c("var", "input", "none")
+                       Ti_input = NULL,
+                       outputs = c("adjmat", "igraph", "sflines", "sfpts_netstats"))#, "sfnetwork"
+
+ggplot(test$sflines, aes(Tij)) +
+  geom_histogram(color = "#000000", fill = "thistle1", bins = 20) +
+  labs(x = "Interaction Flows (T_ij)", y = "Frequency",
+       title = "Radiation Model Interaction Flows: EA_LA SBOM (AD 1350-1475)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks(n = 10, "log", function(x) exp(x)),
+                     labels = label_number(accuracy =0.001))+
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=9, angle=20))
+
+hist(log(test$sfpts_netstats$Rad_centr_indeg))
+
+fit_power_law(test$sfpts_netstats$Rad_centr_indeg)
+
+ggplot(data = test$sfpts_netstats,aes(x = Population.s2, y = Rad_centr_totdeg)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Settlement Population", y = "Weighted Degree Centrality (in and out)",
+       title = "Total Degree Centrality on Population: EA_LA SBOM (AD 1350-1475)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+
+ggplot(data = test$sflines,aes(x = r_ij, y = Tij)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Transport Net Cost Distance (hrs)", y = "Interaction Flow (T_ij)",
+       title = "Interaction Flows on Cost Distance: EA_LA SBOM (AD 1350-1475)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+
+test$sflines$Log_Tij <- log(test$sflines$Tij)
+sflines2 <- test$sflines[test$sflines$Log_Tij > 2,]
+ggp_map <- ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise3", "black", "gray60"), 
+               values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  geom_sf(data = CatchLims.sf, color="black", size=1, alpha = 0) +
+  ggnewscale::new_scale_fill()+
+  geom_sf(data = sflines2, mapping=aes(color=Log_Tij, alpha=Log_Tij), size=1) +
+  scale_color_viridis(option = "turbo", begin = 0.6, na.value = NA, name = expression('logT'[ij])) +
+  scale_alpha_continuous(range = c(0.25, 1), guide="none") +
+  #geom_sf(data = Catch.sf, color="black", size=0.3, alpha = 0) +
+  
+  geom_sf(data=test$sfpts_netstats, mapping=aes(size=Population.s2), shape=21, fill = "darkblue", color="black", stroke = 1, alpha=1)+
+  scale_size(range=c(1,6), name="Population")+
+  #guides(alpha="none", fill = guide_legend(order = 1, override.aes = list(size = 3,nrow=3)),
+  #       size = guide_legend(order = 2, override.aes = list(nrow=4)))+
+  #labs(title = "Radiation Model Interaction Flows: Late Formative SBOM (400-200 BC)",
+  #     subtitle = "Scale Invariant Original Model with Commuters as Population")+
+  coord_sf(datum = sf::st_crs(26914)) +
+  xlim(484500,529378)+ylim(2106800,2150500)+
+  theme_void() + 
+  #labs(x = "Easting", y = "Northing")+
+  theme(#legend.position="left", 
+        legend.justification=c(0.5,0.5), legend.position=c(0.165,0.32), 
+        legend.margin = margin(1, 4, 1, 4),
+        legend.spacing.y = unit(0.1,"line"),legend.spacing.x = unit(0.55,"line"), 
+        legend.text=element_text(size=11),legend.title=element_text(size=16),
+        legend.key = element_rect(colour = "transparent", fill = "white"), 
+        legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid')
+        #plot.title = element_text(hjust = 0.5, face="bold", size=16),
+        #plot.subtitle = element_text(hjust = 0.5, face="bold", size=16)
+        )
+
+ggpmap<-ggsave("EA_LA_RadiationMap.png", plot = ggp_map, device = "png", path = wd$figs, scale = 1, width = 5.5, height = 5.5,   units = "in",  dpi = 1000)
+
+sfpts_netstats <- cbind(test$sfpts_netstats,Poly_List[[16]]@data)
+x=st_drop_geometry(sfpts_netstats[,c(1,110:115,124,127:128,111:112)])
+
+xx=as.matrix(1-dist(x[,-1],upper=T,method="manhattan"),ncol=ncol(x),nrow=nrow(x))
+
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("from"="AggSite"))
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("to"="AggSite"))
+sflines2=sflines2 %>% mutate(rPert_sim = scales::rescale(abs(rPert.x - rPert.y),to=c(1,0)),
+                        rPert0_sim = scales::rescale(abs(rPert0.x - rPert0.y),to=c(1,0)),
+                        rPert2_sim = scales::rescale(abs(rPert2.x - rPert2.y),to=c(1,0)),
+                        Abs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        LogAbs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        Pop_sim = scales::rescale(abs(m - n), to=c(1,0))) %>% 
+  rowwise() %>% 
+  mutate(Avg_Pert_sim = mean(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Min_Pert_sim = min(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Max_Pert_sim = max(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Med_Pert_sim = median(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         sd_Pert_sim = sd(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T)) %>% ungroup()
+#3:5,9:12;;;13:22;;;24:34
+x=st_drop_geometry(sflines2[,c(3:5,11,13:22)])
+
+pairs.panels(x,
+            gap = 0,
+            pch=21)
+
+plot(sfpts_netstats["OccuTime"])
+```
+
+
+
+
+
+
+
+
+
+```{r}
+test = Radiation_EstFlows(df = Poly_List[[12]]@data,
+                       var = "Population.s2",
+                       d_mat = TrsprtNet_CDmatList[[12]], 
+                       xcoords = Poly_List[[12]]@data$East,
+                       ycoords = Poly_List[[12]]@data$North,
+                       crs_coords = 26914,
+                       extended = F, #T
+                       alpha = 0.5,
+                       scale = "invariant", #c("invariant", "variant", "none")
+                       commuters = "var", #c("var", "input", "none")
+                       Ti_input = NULL,
+                       outputs = c("adjmat", "igraph", "sflines", "sfpts_netstats"))#, "sfnetwork"
+
+ggplot(test$sflines, aes(Tij)) +
+  geom_histogram(color = "#000000", fill = "thistle1", bins = 20) +
+  labs(x = "Interaction Flows (T_ij)", y = "Frequency",
+       title = "Radiation Model Interaction Flows: ET LTAzI SBOM (AD 850-950)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks(n = 10, "log", function(x) exp(x)),
+                     labels = label_number(accuracy =0.001))+
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=9, angle=20))
+
+hist(log(test$sfpts_netstats$Rad_centr_indeg))
+
+fit_power_law(test$sfpts_netstats$Rad_centr_indeg)
+
+ggplot(data = test$sfpts_netstats,aes(x = Population.s2, y = Rad_centr_totdeg)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~x,method.args = list(family = gaussian()))+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Settlement Population", y = "Weighted Degree Centrality (in and out)",
+       title = "Total Degree Centrality on Population: ET LTAzI SBOM (AD 850-950)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+###########################
+ggplot(data = test$sflines,aes(x = r_ij, y = Tij)) +
+  geom_point(size=2) +
+  geom_smooth(method = "glm", formula = y~ exp(x) + exp(m) + exp(n),method.args = list(family = poisson()), 
+              color="blue", fill="deepskyblue", size=1.3)+
+  geom_smooth(method = "gam", formula = y ~ s(x), color="red2", fill="salmon", 
+              size=1, linetype = "twodash", alpha=0.4)+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  labs(x = "Log Transport Network Cost Distance (hrs)", y = "Log Interaction Flow (T_ij)",
+       title = "Interaction Flows on Cost Distance: ET LTAzI SBOM (AD 850-950)",
+       subtitle = "Scale Invariant Original Model with Commuters as Population") +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+######################################
+
+test$sflines$Log_Tij <- log(test$sflines$Tij)
+sflines2 <- test$sflines[test$sflines$Log_Tij > 2,]
+ggp_map <- ggplot() +  geom_stars(data = Hillshade.s)+
+  scale_fill_gradientn(colours = c("turquoise3", "black", "gray60"), 
+               values = scales::rescale(c(-9999, -161, 254)), guide="none")+
+  geom_sf(data = CatchLims.sf, color="black", size=1, alpha = 0) +
+  ggnewscale::new_scale_fill()+
+  geom_sf(data = sflines2, mapping=aes(color=Log_Tij, alpha=Log_Tij), size=1) +
+  scale_color_viridis(option = "turbo", begin = 0.6, na.value = NA, name = expression('logT'[ij])) +
+  scale_alpha_continuous(range = c(0.25, 1), guide="none") +
+  #geom_sf(data = Catch.sf, color="black", size=0.3, alpha = 0) +
+  
+  geom_sf(data=test$sfpts_netstats, mapping=aes(size=Population.s2), shape=21, fill = "darkblue", color="black", stroke = 1, alpha=1)+
+  scale_size(range=c(1,6), name="Population")+
+  #guides(alpha="none", fill = guide_legend(order = 1, override.aes = list(size = 3,nrow=3)),
+  #       size = guide_legend(order = 2, override.aes = list(nrow=4)))+
+  #labs(title = "Radiation Model Interaction Flows: Late Formative SBOM (400-200 BC)",
+  #     subtitle = "Scale Invariant Original Model with Commuters as Population")+
+  coord_sf(datum = sf::st_crs(26914)) +
+  xlim(484500,529378)+ylim(2106800,2150500)+
+  theme_void() + 
+  #labs(x = "Easting", y = "Northing")+
+  theme(#legend.position="left", 
+        legend.justification=c(0.5,0.5), legend.position=c(0.165,0.32), 
+        legend.margin = margin(1, 4, 1, 4),
+        legend.spacing.y = unit(0.1,"line"),legend.spacing.x = unit(0.55,"line"), 
+        legend.text=element_text(size=11),legend.title=element_text(size=16),
+        legend.key = element_rect(colour = "transparent", fill = "white"), 
+        legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid')
+        #plot.title = element_text(hjust = 0.5, face="bold", size=16),
+        #plot.subtitle = element_text(hjust = 0.5, face="bold", size=16)
+        )
+
+ggpmap<-ggsave("ET_LTAzI_RadiationMap.png", plot = ggp_map, device = "png", path = wd$figs, scale = 1, width = 5.5, height = 5.5,   units = "in",  dpi = 1000)
+
+sfpts_netstats <- cbind(test$sfpts_netstats,Poly_List[[12]]@data)
+x=st_drop_geometry(sfpts_netstats[,c(1,110:115,124,127:128,111:112)])
+
+xx=as.matrix(1-dist(x[,-1],upper=T,method="manhattan"),ncol=ncol(x),nrow=nrow(x))
+
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("from"="AggSite"))
+sflines2=left_join(sflines2, x[,c("AggSite","rPert","Abs_rPert","LogAbs_rPert","rPert0","rPert2")], by=c("to"="AggSite"))
+sflines2=sflines2 %>% mutate(rPert_sim = scales::rescale(abs(rPert.x - rPert.y),to=c(1,0)),
+                        rPert0_sim = scales::rescale(abs(rPert0.x - rPert0.y),to=c(1,0)),
+                        rPert2_sim = scales::rescale(abs(rPert2.x - rPert2.y),to=c(1,0)),
+                        Abs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        LogAbs_rPert_sim = scales::rescale(abs(Abs_rPert.x - Abs_rPert.y), to=c(1,0)),
+                        Pop_sim = scales::rescale(abs(m - n), to=c(1,0))) %>% 
+  rowwise() %>% 
+  mutate(Avg_Pert_sim = mean(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Min_Pert_sim = min(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Max_Pert_sim = max(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         Med_Pert_sim = median(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T),
+         sd_Pert_sim = sd(c(rPert_sim, rPert0_sim, rPert2_sim, Abs_rPert_sim, LogAbs_rPert_sim), na.rm=T)) %>% ungroup()
+#3:5,9:12;;;13:22;;;24:34
+x=st_drop_geometry(sflines2[,c(3:5,11,13:22)])
+
+pairs.panels(x,
+            gap = 0,
+            pch=21)
+
+plot(sfpts_netstats["OccuTime"])
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+test = Radiation_EstFlows(df = Poly_List[[5]]@data,
+                       var = "Population.s2",
+                       d_mat = CD.mats[[5]], 
+                       xcoords = Poly_List[[5]]@data$East,
+                       ycoords = Poly_List[[5]]@data$North,
+                       crs_coords = 26914,
+                       extended = F, #T
+                       alpha = 1.2,
+                       scale = "none", #c("invariant", "variant", "none")
+                       commuters = "none", #c("var", "input", "none")
+                       Ti_input = NULL,
+                       outputs = c("adjmat", "sflines", "sfpts_netstats"))#, "sfnetwork"
+
+ggplot(test$sflines, aes(Tij)) +
+  geom_histogram(color = "#000000", fill = "lightgreen", bins = 20) +
+  labs(x = "Interaction Flows (T_ij)", y = "Frequency",
+       title = "Radiation Model Interaction Flows: Late Formative SBOM (400-200 BC)",
+       subtitle = "Scale Invariant Original Model Conditional Probabilities") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks(n = 10, "log", function(x) exp(x)),
+                     labels = label_number(accuracy =0.001))+
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=9, angle=20))
+
+
+```
+
+
+```{r}
+test = Radiation_EstFlows(df = Poly_List[[5]]@data,
+                       var = "Population.s2",
+                       d_mat = CD.mats[[5]], 
+                       xcoords = Poly_List[[5]]@data$East,
+                       ycoords = Poly_List[[5]]@data$North,
+                       crs_coords = 26914,
+                       extended = T, #T
+                       alpha = 0.2,
+                       scale = "variant", #c("invariant", "variant", "none")
+                       commuters = "var", #c("var", "input", "none")
+                       Ti_input = NULL,
+                       outputs = c("adjmat", "sflines", "sfpts_netstats"))#, "sfnetwork"
+
+
+ggplot(test$sflines, aes(Tij)) +
+  geom_histogram(color = "#000000", fill = "khaki1", bins = 20) +
+  labs(x = "Interaction Flows (T_ij)", y = "Frequency",
+       title = "Radiation Model Interaction Flows: Late Formative SBOM (400-200 BC)",
+       subtitle = "Scale Variant Extended Model with Commuters as Population & alpha=0.2") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks(n = 10, "log", function(x) exp(x)),
+                     labels = label_number(accuracy =0.001))+
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=9, angle=20))
+
+
+```
+p + stat_function(fun = LF) + xlim(250,266) +
+    scale_y_continuous(trans = log_trans(), 
+                         breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x)))
 
 of the number of job opportunities between the source and the destination on the job selection
 

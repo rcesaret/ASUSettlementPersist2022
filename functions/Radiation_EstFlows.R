@@ -50,6 +50,7 @@ registerDoParallel(cl)
 #outputs = c("adjmat", "sflines", "sfpts_netstats")#, "sfnetwork"
 
 
+
 Radiation_EstFlows <- function(df,
                       var,
                       d_mat, 
@@ -119,6 +120,8 @@ Radiation_EstFlows <- function(df,
   pts1 <- mapply(function(x,y) st_point(c(x,y)),s_df$x1,s_df$y1,SIMPLIFY = FALSE)
   pts2 <- mapply(function(x,y) st_point(c(x,y)),s_df$x2,s_df$y2,SIMPLIFY = FALSE)
   lines <- mapply(function(p1,p2) st_as_sf(st_sfc(st_linestring(c(p1,p2))), crs = crs_coords) ,pts1,pts2,SIMPLIFY = FALSE)
+  
+  
   #linesdf <- do.call(rbind, lines)
   linesdf <- data.table::rbindlist(lines)
   colnames(linesdf) <- "geometry"
