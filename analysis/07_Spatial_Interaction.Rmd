@@ -70,10 +70,12 @@ wd$funcs <- paste0(wd$dir,"functions/")
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 # Package names
 packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", 
-              "gdistance", "lwgeom", "tidyverse", "tidyr", "pacman", 
+              "geodist", "gdistance", "lwgeom", "tidyverse", "tidyr", "pacman", 
               "data.table", "RColorBrewer", "cowplot", "stars", "ggnewscale", 
               "scales", "igraph", "tidygraph", "centiserve", "CINNA", 
-              "sfnetworks", "gravity", "moin", "spflow", "simodels", "viridis")#, "zoo", "mgcv", "ggrepel", "ggridges", "movecost"
+              "sfnetworks", "gravity", "moin", "spflow", "simodels", "viridis",
+              "mgcv", "broom", "ggplotify", "ggiraphExtra", "modelsummary", "od",
+              "minpack.lm")#, "zoo", "ggrepel", "ggridges", "movecost"
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -87,7 +89,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 rm(packages,installed_packages)
 
 #Read in custom R functions located in the wd$funcs directory folder
-FUNCS <- list("splitByAttributes.R", "Radiation_EstFlows.R", "net_stats2.R")#,  "SpInt_EstFlows.R"
+FUNCS <- list("splitByAttributes.R", "Radiation_EstFlows.R", "net_stats2.R", "si_to_od_dmat.R")#,  "SpInt_EstFlows.R"
 invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
 rm(FUNCS)
 
@@ -122,7 +124,7 @@ Catch_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix=
 coor = All_AggPoly@data[,c("East","North")] #create separate dataframe of coordinates
 rownames(coor) <- as.numeric(rownames(coor)) #make sure rownames match
 All_AggPts <- SpatialPointsDataFrame(coor, All_AggPoly@data, match.ID = TRUE) #convert to points
-proj4string(All_AggPts) <- CRS("+proj=utm +zone=14 +datum=NAD83 +units=m +no_defs") #set CRS
+crs(All_AggPts) <- crs(All_CatchPoly) #set CRS
 All_AggPts = as(st_make_valid(st_as_sf(All_AggPts)), "Spatial") #make sure geometry is valid
 All_AggPts <- All_AggPts[order(All_AggPts$PeriodNum),]#reorder by period
 
@@ -223,24 +225,117 @@ $$
 where the new parameter, $\alpha$, models the impact of rival employment opportunities between origin and destination. To calibrate the $\alpha$ parameter in the absence of data, Yang et al. [-@Yang2014] follow gravity model methods to propose $\alpha$ as proportional to the average commuting distance, $l$, assumed to be the radius of the average area of the spatial units of analysis (census tracts). This makes $l= \sqrt{A} $, which enabled them to estimate from empirical data the average value of alpha as $\alpha=0.0085~l^{1.33} $. For the modern data, MSA-scale values of $\alpha$ ranged between 0 and 2. 
 
 
+ lower alpha exponents = faster rate of distance decay in flow strength for short distances
+ higher alpha exponents = slow rate of dist decay at short distances with steep falloff for long distances
+ Not much difference between the scale variant + invariant models
+ some but not huge difference between original and extended models BECAUSE the dominant factor controlling interaction strength is the size of the source!! Small settlements have few people to send!!
+
 We have defined a function for calculating radiation among a set of sites using just two inputs:
 
 * **`pop`** is a vector of population values.
 * **`d_mat`** is a distance matrix among all nodes.
 
-```{r}
-test = Radiation_EstFlows(df = Poly_List[[5]]@data,
-                       var = "Population.s2",
-                       d_mat = TrsprtNet_CDmatList[[5]], 
-                       xcoords = Poly_List[[5]]@data$East,
-                       ycoords = Poly_List[[5]]@data$North,
-                       crs_coords = 26914,
-                       extended = F, #T
-                       alpha = 1.2,
-                       scale = "invariant", #c("invariant", "variant", "none")
-                       commuters = "var", #c("var", "input", "none")
-                       Ti_input = NULL,
-                       outputs = c("adjmat", "igraph", "sflines", "sfpts_netstats"))#, "sfnetwork"
+```{r, "compare radiation model results w/ different params", eval=FALSE, echo=F, message=FALSE, warning=FALSE}
+
+test = Radiation_EstFlows(df = Poly_List[[1]]@data,var = "Population.s2",
+                       d_mat = TrsprtNet_CDmatList[[1]],xcoords = Poly_List[[1]]@data$East,
+                       ycoords = Poly_List[[1]]@data$North,crs_coords = 26914,
+                       scale = "none",commuters = "none",outputs = "adjmat")
+test[["adjmat"]] - t(test[["adjmat"]])
+test[["adjmat"]] / t(test[["adjmat"]])
+                       
+
+df = Poly_List[[5]]@data
+var = "Population.s2"
+d_mat = TrsprtNet_CDmatList[[5]]
+xc=Poly_List[[5]]@data$East
+yc=Poly_List[[5]]@data$North
+crsc=26914
+
+rad_orig_prob = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=F,scale="none", 
+                          commuters="none",outputs ="sflines")
+rad_orig_invar = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=F,scale="invariant", 
+                          commuters="var",outputs ="sflines")
+rad_orig_var = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=F,scale="variant", 
+                          commuters="var",outputs ="sflines")
+rad_ext_invar_a0.5 = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=T,scale="invariant", alpha=0.5,
+                          commuters="var",outputs ="sflines")
+rad_ext_invar_a2 = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=T,scale="invariant", alpha=2,
+                          commuters="var",outputs ="sflines")
+rad_ext_var_a0.5 = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=T,scale="variant", alpha=0.5,
+                          commuters="var",outputs ="sflines")
+rad_ext_var_a2 = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=T,scale="variant", alpha=2,
+                          commuters="var",outputs ="sflines")
+
+modeldf = st_drop_geometry(rad_orig_invar[[1]][,1:9])
+modeldf$orig_invar_P <- as.numeric(unlist(st_drop_geometry(rad_orig_invar[[1]][,10])))
+modeldf$orig_invar_Tij <- as.numeric(unlist(st_drop_geometry(rad_orig_invar[[1]][,11])))
+modeldf$orig_var_P <- as.numeric(unlist(st_drop_geometry(rad_orig_var[[1]][,10])))
+modeldf$orig_var_Tij <- as.numeric(unlist(st_drop_geometry(rad_orig_var[[1]][,11])))
+modeldf$ext_invar_a0.5_P <- as.numeric(unlist(st_drop_geometry(rad_ext_invar_a0.5[[1]][,10])))
+modeldf$ext_invar_a0.5_Tij <- as.numeric(unlist(st_drop_geometry(rad_ext_invar_a0.5[[1]][,11])))
+modeldf$ext_invar_a2_P <- as.numeric(unlist(st_drop_geometry(rad_ext_invar_a2[[1]][,10])))
+modeldf$ext_invar_a2_Tij <- as.numeric(unlist(st_drop_geometry(rad_ext_invar_a2[[1]][,11])))
+modeldf$ext_var_a0.5_P <- as.numeric(unlist(st_drop_geometry(rad_ext_var_a0.5[[1]][,10])))
+modeldf$ext_var_a0.5_Tij <- as.numeric(unlist(st_drop_geometry(rad_ext_var_a0.5[[1]][,11])))
+modeldf$ext_var_a2_P <- as.numeric(unlist(st_drop_geometry(rad_ext_var_a2[[1]][,10])))
+modeldf$ext_var_a2_Tij <- as.numeric(unlist(st_drop_geometry(rad_ext_var_a2[[1]][,11])))
+modeldf$orig_invar_Tij_pct <- modeldf$orig_invar_Tij/modeldf$m
+modeldf$orig_var_Tij_pct <- modeldf$orig_var_Tij/modeldf$m
+modeldf$ext_invar_a0.5_Tij_pct <- modeldf$ext_invar_a0.5_Tij/modeldf$m
+modeldf$ext_invar_a2_Tij_pct <- modeldf$ext_invar_a2_Tij/modeldf$m
+modeldf$ext_var_a0.5_Tij_pct <- modeldf$ext_var_a0.5_Tij/modeldf$m
+modeldf$ext_var_a2_Tij_pct <- modeldf$ext_var_a2_Tij/modeldf$m
+
+colnames(modeldf) <- c("from","to","r_ij","m","n","Ti","self","s","n_s","orig_invar_P",
+"orig_invar_Tij","orig_var_P","orig_var_Tij","ext_invar_a0.5_P","ext_invar_a0.5_Tij",
+"ext_invar_a2_P","ext_invar_a2_Tij","ext_var_a0.5_P","ext_var_a0.5_Tij","ext_var_a2_P",
+"ext_var_a2_Tij")
+
+library(psych)
+
+x=as.data.frame(modeldf[,c(11,13,15,17,19,21,22:27)])
+
+pairs.panels(x, gap = 0,pch=21)
+
+xx=as.data.frame(modeldf[,c(10,12,14,16,18,20,22:27)])
+
+pairs.panels(xx, gap = 0,pch=21)
+
+xxx=as.data.frame(modeldf[,c(10:13,22:23)])
+
+pairs.panels(xxx, gap = 0,pch=21)
+
+ggplot(data = modeldf,aes(y = ext_invar_a0.5_P, x = r_ij, color=ext_invar_a2_P, size=n)) +
+  geom_point() +
+  labs(y = "ext_invar_a0.5_P", x = "r_ij")+
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  theme_bw()+
+  theme(plot.title=element_text(hjust = 0.5, size=14, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5, face="bold", size=12),
+        axis.title.x = element_text(color="black", size=12, face="bold"),
+        axis.title.y = element_text(color="black", size=12, face="bold"),
+        axis.text.y = element_text(color="black", size=12),
+        axis.text.x = element_text(color="black", size=12))
+
+```
+
+
+
+
+
+```{r, "compare radiation model results w/ different params", eval=FALSE, echo=F, message=FALSE, warning=FALSE}
+
 
 ggplot(test$sflines, aes(Tij)) +
   geom_histogram(color = "#000000", fill = "thistle1", bins = 20) +
@@ -1213,6 +1308,129 @@ ggplot(test$sflines, aes(Tij)) +
 
 
 ```
+
+
+
+```{r}
+add = modeldf %>% select(from,to,s,n_s,orig_invar_P, orig_invar_Tij,orig_var_P, orig_var_Tij)
+colnames(add) <- c("O","D","s","n_s","orig_invar_P", "orig_invar_Tij","orig_var_P", "orig_var_Tij")
+
+pts_sf = st_as_sf(Pts_List[[5]]) %>% 
+              dplyr::select(AggSite,AggID,Period,PeriodNum,Population.s2,
+                            UrbanPop.s2,rPert,Abs_rPert,rPert0,rPert2,Persist,Found,OccuTime,
+                            OccuInertia,PopPressure,PopPressureNW,AGPot.tot,EZ.avg,
+                            SetHierLevel,AGPot.avg,LQ_UrbPop,FLQ_UrbPop,spGini_Pop,
+                            spGini_UrbOccuInertia,centr_clos,centr_eig,ScalResid) %>% 
+  mutate(Grow = ifelse(rPert > 0, 1, 0),
+               Grow = factor(Grow, levels=c(0,1)))
+                                                   
+
+d_mat = TrsprtNet_CDmatList[[5]]
+
+od_sim = si_to_od_dmat(origins = pts_sf, destinations = pts_sf, dmat = d_mat)
+
+od_sim = od_sim %>% left_join(add, by=c("O","D"))
+
+### An unconstrained SIM
+#A simplistic SIM - in this case an inverse power distance decay function (negative exponential is another commonly used decay function) - can be created just based on the distance between points:
+
+si_power = function(d, beta) d^beta
+
+od_calculated = si_calculate(
+  od_sim,
+  fun = si_power,
+  d = distance,
+  beta = -3.8
+  )
+plot(od_calculated["interaction"], logz = TRUE)
+
+#This approach, ignoring all variables at the level of trip origins and destinations, results in flow estimates with no units.
+#Before learning how to run constrained SIMs, let's scale the result by the total flow and see how far we are from reality, just focussing on the interzonal OD pairs:
+
+od_calculated_interzonal = od_calculated %>%filter(O != D) 
+  
+scale_factor = sum(od_calculated_interzonal$orig_invar_Tij, na.rm=T) /
+  sum(od_calculated_interzonal$interaction, na.rm=T)
+od_calculated_interzonal = od_calculated_interzonal %>% 
+  mutate(interaction_scaled = interaction * scale_factor)
+
+od_calculated_interzonal %>% 
+  ggplot() +
+  geom_point(aes(orig_invar_Tij, interaction_scaled))
+cor(od_calculated_interzonal$orig_invar_Tij, od_calculated_interzonal$interaction_scaled)^2
+
+#The results show that a simple unconstrained model, without any parameter fitting, can explain less than 20% of the variability in flows.
+#We can do better!
+
+od_calculated_interzonal<- od_calculated_interzonal %>% 
+  mutate(decay = distance^-3.8) %>% 
+  mutate(decay = decay * (sum(orig_invar_Tij) / sum(decay)))
+cor(od_calculated_interzonal$orig_invar_Tij, od_calculated_interzonal$decay)^2
+  ggplot() +
+  geom_point(od_calculated_interzonal, mapping=aes(distance, orig_invar_Tij)) +
+  geom_line(od_calculated_interzonal, mapping=aes(distance, decay), colour = "red") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x)))
+  
+  od_constrained_p = si_calculate(
+  od_calculated_interzonal,
+  fun = si_power,
+  d = distance,
+  beta = -0.9,
+  constraint_production = origin_Population.s2
+  )
+  cor(od_constrained_p$orig_invar_Tij, od_constrained_p$interaction)^2
+od_constrained_p %>% 
+  ggplot() +
+  geom_point(aes(orig_invar_Tij, interaction))
+
+#An advantage of the flow data used in this example is that we already know the interaction. (This raises the question of why a SIM is needed, answer: to test our models and demonstrate the techniques.)
+
+#We can do this using the nls() function as follows:#
+
+library(minpack.lm)
+f = orig_invar_Tij ~ a * (distance)^b
+m = nlsLM(
+  formula = f,
+  data = od_calculated_interzonal,
+  )
+m
+
+
+
+od_calculated_interzonal %>% 
+  mutate(decay = distance^-0.614) %>% 
+  mutate(decay = decay * 16.539) %>% 
+  ggplot() +
+  geom_point(aes(distance, orig_invar_Tij)) +
+  geom_line(aes(distance, decay), colour = "red") +
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x))) +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = trans_format("log", math_format(e^.x)))
+
+od_pred_const = si_predict(od_calculated_interzonal, model = m,
+  constraint_production = origin_Population.s2)
+cor(od_pred_const$orig_invar_Tij, od_pred_const$interaction)^2
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 p + stat_function(fun = LF) + xlim(250,266) +
     scale_y_continuous(trans = log_trans(), 
                          breaks = trans_breaks("log", function(x) exp(x)),
