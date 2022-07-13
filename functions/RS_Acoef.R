@@ -7,7 +7,7 @@
 #### 
 #### 
 
-pak <- c("rgdal", "sp", "sf", "GISTools", "lwgeom", "tidyverse", "tidyr", "data.table", "zoo")
+pak <- c("rgdal", "sp", "sf", "GISTools", "lwgeom", "tidyverse", "tidyr", "data.table", "zoo", "scales")
 # Install packages not yet installed
 ip <- pak %in% rownames(installed.packages())
 if (any(ip == FALSE)) {
@@ -30,6 +30,13 @@ library(cowplot)
   #z = c(5000, 3000, 2000, 1500, 1000, 800, 500, 500, 500, 200)
   #ids = c(LETTERS[1:length(X)])
   #setup data
+
+z=Poly_List[[2]]$Population.s2
+ids=Poly_List[[2]]$AggSite
+plot_title = paste0(2,". ",nam[2])
+yaxis_title = "Log Population"
+Acoef_rescale = "Zipf"
+
 ###############################################################
 ##########################  RS_Acoef  #########################
 ###############################################################
@@ -66,8 +73,8 @@ RS_Acoef <- function(z,
   # log(Pop smallest settlement)-log(Pop largest settlement)=sqrt(2)
   #and log(Pop smallest settlement)-log(Rank largest settlement)=sqrt(2)
   if (Acoef_rescale == "Zipf"){
-    dfc$LogZ_zipf.pred.resc <- rescale(dfc$LogZ_zipf.pred, to = c(0, sqrt(2)))
-    dfc$LogRank.resc <- rescale(dfc$LogRank, to = c(0, sqrt(2)))
+    dfc$LogZ_zipf.pred.resc <- scales::rescale(dfc$LogZ_zipf.pred, to = c(0, sqrt(2)))
+    dfc$LogRank.resc <- scales::rescale(dfc$LogRank, to = c(0, sqrt(2)))
     
     fit2 <- lm(LogZ_zipf.pred.resc ~ LogZ_zipf.pred, data = dfc)
     dfc$LogZ.resc <- as.numeric(fit2$coefficients[2])*dfc$LogZ + as.numeric(fit2$coefficients[1])
@@ -75,8 +82,8 @@ RS_Acoef <- function(z,
   }
   #alternatively, we could rescale against the OLS line
   if (Acoef_rescale == "OLS"){
-    dfc$LogZ_ols.pred.resc <- rescale(dfc$LogZ_ols.pred, to = c(0, sqrt(2)))
-    dfc$LogRank.resc <- rescale(dfc$LogRank, to = c(0, sqrt(2)))
+    dfc$LogZ_ols.pred.resc <- scales::rescale(dfc$LogZ_ols.pred, to = c(0, sqrt(2)))
+    dfc$LogRank.resc <- scales::rescale(dfc$LogRank, to = c(0, sqrt(2)))
     
     fit2 <- lm(LogZ_ols.pred.resc ~ LogZ_ols.pred, data = dfc)
     dfc$LogZ.resc <- as.numeric(fit2$coefficients[2])*dfc$LogZ + as.numeric(fit2$coefficients[1])
@@ -105,10 +112,10 @@ RS_Acoef <- function(z,
   i <- seq(0, sqrt(2), length.out=500)
   
   # calculating the distance between the density curves
-  h1 <- obs(i)-line(i)
-  h2 <- line(i)-obs(i)
-  h1 <- ifelse(h1 < 0, 0, h1)
-  h2 <- ifelse(h2 < 0, 0, h2)
+  h1a <- obs(i)-line(i)
+  h2a <- line(i)-obs(i)
+  h1 <- ifelse(h1a < 0, 0, h1a)
+  h2 <- ifelse(h2a < 0, 0, h2a)
   
   #and using the trapezoidal rule here to approximate the integrals
   # about the RS line
@@ -118,13 +125,46 @@ RS_Acoef <- function(z,
   #Finally, compute A as the difference A1 - A2
   A <- A1 - A2 
   
+  #class_df <- data.frame(i=i,QuantileX=scales::rescale(i),
+  #                                Position=h1a,
+  #                                A1_Position=h1,
+  #                                A2_Position=h2)
+  #if(abs(class_df[1,c("Position")]) < 0.00001){class_df <- class_df[-1,]}
+  #class_df <- class_df %>%  rowwise() %>% 
+  #                          mutate(PosClassNum=ifelse(Position < 0, 2, 1)) %>%
+  #                          ungroup() %>%
+  #                          mutate(Set = data.table::rleid(PosClassNum)) %>%
+  #                          group_by(Set) %>%
+  #                          summarize(integA1 = trapz(i, A1_Position),
+  #                                    integA2 = trapz(i, A2_Position),
+  #                                    Integral = integA1+integA2,
+  #                                    PosClass = paste0("A",mean(PosClassNum)),
+  #                                    MaxPosition = max(abs(Position)),
+  #                                    PctTotal = max(QuantileX)-min(QuantileX)) %>% ungroup()
+  
+  #classification <- "Unclassified"
+
+  #if (class_df[1,c("PosClass")]=="A2" & class_df[1,c("PctTotal")] >= 0.7){classification <- "Primate"}
+  #if (class_df[1,c("PosClass")]=="A1" & class_df[1,c("PctTotal")] >= 0.7){classification <- "Convex"}
+  #if (class_df[1,c("PosClass")]=="A1" & class_df[2,c("PosClass")]=="A2" & sum(class_df[1:2,c("MaxPosition")]) >= 0.8 & classification == "Unclassified"){classification <- "Convex-Primate"}
+  #if (class_df[1,c("PosClass")]=="A2" & class_df[2,c("PosClass")]=="A1" & sum(class_df[1:2,c("MaxPosition")]) >= 0.8 & classification == "Unclassified"){classification <- "Primo-Convex"}
+  #if (A >= 0.15 & class_df[1,c("PosClass")]=="A1" & class_df[2,c("PosClass")]=="A2" & sum(class_df[,c("integA2")]) <= 0.15 & classification == "Unclassified"){classification <- "Double-Convex"}
+  #if (A <= -0.15 & class_df[1,c("PosClass")]=="A2" & class_df[2,c("PosClass")]=="A1" & sum(class_df[,c("integA1")]) <= 0.15 & classification == "Unclassified"){classification <- "Double-Primate"}
+  
+  #if (class_df$PosClass[1] == "A1" & A >= -0.1 & A <= 0.1 & A1 < 0.15 & A2 < 0.15 & classification == "Unclassified"){classification <- "Snaking Log Normal - Convex Head"}
+  #if (class_df$PosClass[1] == "A2" & A >= -0.1 & A <= 0.1 & A1 < 0.15 & A2 < 0.15 & classification == "Unclassified"){classification <- "Snaking Log Normal - Convex Head"}
+  #if (A >= -0.03 & A <= 0.03 & A1 < 0.07 & A2 < 0.07 & max(class_df$MaxPosition) < 0.25){classification <- "Near Log Normal"}
   
   m <- c("Slope", "Slope_se", "Slope_t", "Slope_p", "Intercept", "R2", "n", 
-         "Ymin", "Ymax", "A1", "A2", "A", "Rescale Line")
+         "Ymin", "Ymax", "A1", "A2", "A", 
+         #"Classification", 
+         "Rescale Line")
   v <- c(fitsum$coefficients[1], fitsum$coefficients[2], fitsum$coefficients[3], 
          fitsum$coefficients[4], fit$offset[1], fitsum$adj.r.squared, 
          length(z), range(dfc$LogZ)[1], range(dfc$LogZ)[2], 
-         A1, A2, A, Acoef_rescale)
+         A1, A2, A, 
+         #classification, 
+         Acoef_rescale)
   model.df <- data.frame(Metric = m, Value = v)
   data.df <- dfc
   out_list <- list()
