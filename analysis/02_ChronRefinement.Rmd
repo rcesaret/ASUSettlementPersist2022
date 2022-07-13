@@ -68,7 +68,9 @@ wd$funcs <- paste0(wd$dir,"functions/")
 ```{r, label='Load Libraries', message=FALSE,warning=FALSE}
 
 # Package names
-packages <- c("rgdal", "sp", "sf", "GISTools", "lwgeom", "tidyverse", "tidyr", "era", "ggnewscale", "gridExtra", "cowplot", "datplot", "ggridges", "scales", "ggstatsplot")
+packages <- c("rgdal", "sp", "sf", "GISTools", "lwgeom", "tidyverse", "tidyr", 
+              "era", "ggnewscale","gridExtra", "cowplot", "datplot", "ggridges",
+              "scales", "ggstatsplot")
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -205,7 +207,9 @@ MP = data.frame(years = c(CHRON$Begin, CHRON$End), era = c(CHRON$Begin.era,CHRON
   MP2$Period <- c('EF', "EF_MF", 'MF', "MF_LF", 'LF', "LF_TF", 'TF', "TF_CL", 'CL', "CL_ET", 'ET', "ET_LTAzI", 'LTAzI', "LTAzI_EA", 'EA', "EA_LA", 'LA')
   MP2 <- MP2 %>% mutate(Mid=(abs(Begin-End)/2)+Begin,
                         Length = (abs(Begin-End)/2))
-  
+  saveRDS(MP2, file = paste0(wd$data_p, "ModellingPeriods_df.RData"))
+  saveRDS(MyBreaks, file = paste0(wd$data_p, "ModellingPeriod_AxisBreaks.RData"))
+  saveRDS(MyLabs, file = paste0(wd$data_p, "ModellingPeriod_AxisLabels.RData"))
   
   ## period (column) names for intervals in AD/BC/CE/BCE
   l1a <- paste(abs(MP2[which(MP2[,2] == "BC" | MP2[,2]=="CE" | MP2[,2]=="BCE"),1]),MP2[which(MP2[,2] == "BC" | MP2[,2]=="CE" | MP2[,2]=="BCE"),2],sep="")
