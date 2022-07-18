@@ -72,10 +72,11 @@ wd$funcs <- paste0(wd$dir,"functions/")
 packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix", 
               "geodist", "gdistance", "lwgeom", "tidyverse", "tidyr", "pacman", 
               "data.table", "RColorBrewer", "cowplot", "stars", "ggnewscale", 
-              "scales", "igraph", "tidygraph", "centiserve", "CINNA", 
-              "sfnetworks", "gravity", "moin", "spflow", "simodels", "viridis",
-              "mgcv", "broom", "ggplotify", "ggiraphExtra", "modelsummary", "od",
-              "minpack.lm")#, "zoo", "ggrepel", "ggridges", "movecost"
+              "scales", "igraph", "tidygraph", "centiserve", "CINNA",
+              "sfnetworks", "SpatialPosition", "lctools", "SpatialAcc", "mgcv",
+              "gravity", "moin", "spflow", "simodels", "viridis", "broom", 
+              "ggplotify", "ggiraphExtra", "modelsummary", "od", "minpack.lm", 
+              "ggfortify", "mgcViz", "gratia", "modelsummary")#, "zoo", "ggrepel", "ggridges", "movecost"
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -89,7 +90,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 rm(packages,installed_packages)
 
 #Read in custom R functions located in the wd$funcs directory folder
-FUNCS <- list("splitByAttributes.R", "Radiation_EstFlows.R", "net_stats2.R", "si_to_od_dmat.R")#,  "SpInt_EstFlows.R"
+FUNCS <- list("splitByAttributes.R", "Radiation_EstFlows.R", "net_stats2.R", "si_to_od_dmat.R", "Est_Beta.R")#,  "SpInt_EstFlows.R"
 invisible(lapply(FUNCS, function(x) source(paste0(wd$funcs,x))))
 rm(FUNCS)
 
@@ -121,15 +122,15 @@ Poly_List <- splitByAttributes(spdata = All_AggPoly, attr = "Period", suffix="_S
 Catch_List <- splitByAttributes(spdata = All_CatchPoly, attr = "Period", suffix="_CatchPoly") 
 
 # convert spatial polygons dataframe to spatial points dataframe
-coor = All_AggPoly@data[,c("East","North")] #create separate dataframe of coordinates
-rownames(coor) <- as.numeric(rownames(coor)) #make sure rownames match
-All_AggPts <- SpatialPointsDataFrame(coor, All_AggPoly@data, match.ID = TRUE) #convert to points
-crs(All_AggPts) <- crs(All_CatchPoly) #set CRS
-All_AggPts = as(st_make_valid(st_as_sf(All_AggPts)), "Spatial") #make sure geometry is valid
-All_AggPts <- All_AggPts[order(All_AggPts$PeriodNum),]#reorder by period
+#coor = All_AggPoly@data[,c("East","North")] #create separate dataframe of coordinates
+#rownames(coor) <- as.numeric(rownames(coor)) #make sure rownames match
+#All_AggPts <- SpatialPointsDataFrame(coor, All_AggPoly@data, match.ID = TRUE) #convert to points
+#crs(All_AggPts) <- crs(All_CatchPoly) #set CRS
+#All_AggPts = as(st_make_valid(st_as_sf(All_AggPts)), "Spatial") #make sure geometry is valid
+#All_AggPts <- All_AggPts[order(All_AggPts$PeriodNum),]#reorder by period
 
 # Split points by Phase, saved as list of spatial points dataframes
-Pts_List <- splitByAttributes(spdata = All_AggPts, attr = "Period", suffix="_Pts")
+#Pts_List <- splitByAttributes(spdata = All_AggPts, attr = "Period", suffix="_Pts")
 
 #Catchment boundary limit polygon
 CatchLims <- readOGR(paste0(wd$data_r,"CatchLims.gpkg"))
@@ -148,42 +149,141 @@ TrsprtNet_lines_sfList <- readRDS(file=paste0(wd$data_p,"TrsprtNet_lines_sfList.
 ```
 
 
-# Modelling Interactions
+# Introduction
 
-Model different theoretical dimensions of interaction
---using well-established covariates and proxies
---using high-performing models 
+At this point, we have two major tasks left for the SBOM survey region trial analysis. **First**, we need to group the settlements of each modelling period into spatially-contiguous "urban (sub-)regions" or "settlement clusters." regional clusters are crucial to the analysis because they partition large datasets into valid groupings of integrated settlements, clarify statistical patterns in large datasets that would be swamped at the settlement-level, and delineate urban system structure/organization across space and time. By calculating (A) region-wide variables and (B) settlement-level variables in relation to regional values, we can calculate metrics that reflect regional differences for use in the final analysis. _This is undertaken in analysis #8._
 
+**Second**, with this regional data in-hand, our ultimate goal is to use statistical models to predict settlement dynamics from all of the available data. In particular, we are interested in predicting persistence variables, growth rates and other time-series variables (regime shifts, regime characteristics, etc.) of individual settlements. _This is undertaken in analyses #9 and #10._
 
+A critical step necessary for achieving both tasks is estimating the strength of social interaction among settlements across space and time. Urban system (sub-)regions are only valid insofar as they represent **_integrated_** groupings of **_systemically interdependent_** settlements. If "integration" is a group-level characteristic structured by pairwise interactions among settlements in various dimensions (e.g. socioeconomic, sociopolitical, etc.), then they must be operationally defined and measured by the relative magnitude of internal vs. external interactions. Aside from their importance for calculating regional metrics for settlements, we might also expect spatial interactions to be key variables in predicting settlement dynamics (i.e. persistance variables, growth rates, etc.)
 
-Radiation Model 
---to model the distance decay function for different spatial interactions
+This leads us to a dilemma: **_how do we estimate dimensional spatial interactions among settlements over time without settlement-level archaeological or historical data?_** While this might be achieved using the detailed artefact data available for certain regions like the US Southwest, the vast majority of cases in our world sample lack such data entirely.
 
-Spatial Interaction Models
---Retail Model
---Doubly Constrained
+## The Methodological Approach Taken Here
 
-
-
-LQs or similar of
-
---Primary Sector Trade
-----AG staple
-----AG type trade
-----Naural resources trade
---Urban productivity specialization
-----Popdens, Agglom Index, Scaling Residuals
-----Transp Network centrality
-----Pop Rural/Urbanization vars
-----
+Use Spatial Interaction models
+--to estimate dimensional interactions among settlements
+--theoretical justification
+--various SI models --> shown to be optimal for different dimensions of spatial interaction using various/different associated variables for those dimensions
+--we can calculate proxy variables for said variables from our data
+--estimate pairwise interactions among settlements along different social dimensions for each modelling period
 
 
-https://cran.r-project.org/web/packages/ggiraphExtra/vignettes/ggPredict.html
+# Background: Spatial Interaction Models (SIMs)
+
+-concepts
+-table
 
 
-## Radiation Models
+## Modelling Framework
+-blah blah
 
-### Background
+@OshanND
+@Dennett2018
+@Oshan2021
+@Berry1967
+@Batty2010
+@Oshan2016
+@Wilson1971
+@Wilson1998
+@Isard1998
+@Wilson2000
+@Wilson2013
+@Sen1995
+@Fotheringham1989
+@Dennett2013
+
+### General Formulation
+-blah blah
+
+In its most general form
+$$
+\mathbf{T_{ij}} = f(V_i) \times f(W_j) \times f(\mathbf{C_{ij}})
+$$
+where
+
+  * $\mathbf{T_{ij}}$ is an $n \times m$ matrix of flows between each $i$ of $n$ origins and each $j$ of $m$ destinations
+  * $V_i$ is an $n \times p$ vector of $p$ origin attributes describing the emissiveness of origin $i$  
+  * $W_j$ is an $m \times p$ vector of $p$ origin attributes describing the attractiveness of destination $j$  
+  * $\mathbf{C_{ij}}$ is an $n \times m$ matrix of the costs (usually distance or time) to overcome the physical separation between each $i$ of $n$ origins and each $j$ of $m$ destinations
+
+-blah blah
+
+### Distance Decay Function
+
+-blah blah
+
+sometimes C_ij is expressed as a "normalized distance" = C_ij/D, where D_ij are the distances and D is a "distance scale"
+--controls the inflection point of sigmoidal decay curve in Ariadne model
+
+
+When compared to the exponential form [equation(2)],what
+wetermthe ariadne form [equation(3)] has lowpenalties for
+short-distance exchange but with a sharper change around dis-
+tance scale D to a region where long-distance exchange is heavily
+penalized. For instance, we imagine that if D represents the typical
+distance traveled in a day overland in this region for our era, then
+it seems reasonable to impose a sharper difference between 1- and
+2-day travel. Thisseemstoustobemoreappropriateforthecasein
+hand,buttranslatingqualitativeexpertjudgmentsaboutthecosts
+ofexchangeintoaspecificformforthedeterrencefunctioninour
+modelisclearlyanothersourceofuncertainty.Wecanchangeof
+deterrencefunctionstotryandevaluatehowimportantthissource
+ofuncertaintyis,andthatiswhyweusetwoforms,theexponential
+form[equation(2)]andtheariadneform[equation(3)].
+
+Power:
+$$
+f(\mathbf{C_{ij}})=\mathbf{C_{ij}}^{-\beta}=\frac{1}{\mathbf{C_{ij}}^{\beta}}
+$$
+Exponential:
+$$
+f(\mathbf{C_{ij}})=e~^{-\beta~\mathbf{C_{ij}}} =\frac{1}{e~^{\beta~\mathbf{C_{ij}}}}
+$$
+Sigmoidal:
+$$
+f(\mathbf{C_{ij}})= ((1+(\mathbf{C_{ij}}/D))^\alpha)^{-\gamma}
+$$
+
+where 
+  * $\beta$ is a parameter representing the impact of movement costs on flows.
+
+
+-blah blah
+
+### Wilson's "Family of Models"
+
+-blah blah
+-blah blah
+Wilson [-@Wilson1971] analytically derived a “family” of gravity-type SI models
+
+Unconstrained:
+$$\mathbf{T_{ij}} = k V_i^{\mu} W_j^{\alpha} f(\mathbf{C_{ij}})$$
+Production-constrained:
+$$\mathbf{T_{ij}} = A_i O_i W_j^{\alpha} f(\mathbf{C_{ij}}) \\ A_i = \left( \sum_{j=1}^{n} W_j^{\alpha} f(\mathbf{C_{ij}}) \right)^{-1}$$
+Attraction-constrained:
+$$\mathbf{T_{ij}} = B_j D_j V_i^{\mu} f(\mathbf{C_{ij}}) \\ B_j = \left( \sum_{i=1}^{m} V_i^{\mu} f(\mathbf{C_{ij}}) \right)^{-1}$$
+Doubly-constrained:
+$$\mathbf{T_{ij}} = A_i B_j O_i D_j f(\mathbf{C_{ij}}) \\ A_i = \left( \sum_{j=1}^{n} W_j^{\alpha} f(\mathbf{C_{ij}}) \right)^{-1} \\ B_j = \left( \sum_{i=1}^{m} V_i^{\mu} f(\mathbf{C_{ij}}) \right)^{-1}$$
+where
+
+  * $O_i$ is an $n \times 1$ vector of the total number of flows emanating from origin $i$  
+  * $D_j$ is an $m \times 1$ vector of the total number of flows terminating at destination $j$  
+  * $A_i$ is an $n \times 1$ vector of the origin balancing factors that ensures the total out-flows are preserved in the predicted flows
+  * $B_j$ is an $m \times 1$ vector of the destination balancing factors that ensures the total in-flows are preserved in the predicted flows
+  * $\mu$ is a $p \times 1$ vector of parameters representing the effect of $p$ origin attributes on flows
+  * $\alpha$ is a $p \times 1$ vector of parameters representing the effect of $p$ destination attributes on flows
+  * $k$ is a scaling factor to be estimated to ensure the total observed and predicted flows are consistent
+
+-blah blah
+-blah blah
+TABLE linking models to phenomena
+
+
+### Intervening Opportunities (IO)???
+
+
+### Radiation Model
 
 This model was created explicitly as an alternative to various gravity models and, in certain cases, was demonstrated to generate improved empirical predictions of human population movement between origins and destinations. This model shares some basic features with gravity models but importantly, the approach includes no parameters at all. Instead, this model uses simply measures of population at a set of sites and the distances between them. 
 
@@ -197,7 +297,7 @@ Model of socioeconomic spatial interaction
 
 This model is inspired by a diffusion model where each individual living in an unit i has a certain probability of being “absorbed” by another unit j according to the spatial distribution of socioeconomic opportunities. The original radiation model is free of parameters and, therefore, it does not require calibration. The conditional interaction (radiation/absorbtion) probability is
 $$
-\mathrm{P}(1 \mid m_i, m_j, s_{ij}) = \frac{m_in_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})}
+\mathrm{P}(1 \mid m_i, m_j, s_{ij}) = \frac{m_in_j}{(m_i + s_{ij})(m_i + n_j + s_{ij})} 
 $$
 where $m_i$ is the origin population, $n_j$ is the destination population, and $s_{ij}$ is the total population of all other competing destinations within a circle centered at origin $i$ whose radius is the distance between origin $i$ and destination $j$. 
 
@@ -224,18 +324,193 @@ $$
 $$
 where the new parameter, $\alpha$, models the impact of rival employment opportunities between origin and destination. To calibrate the $\alpha$ parameter in the absence of data, Yang et al. [-@Yang2014] follow gravity model methods to propose $\alpha$ as proportional to the average commuting distance, $l$, assumed to be the radius of the average area of the spatial units of analysis (census tracts). This makes $l= \sqrt{A} $, which enabled them to estimate from empirical data the average value of alpha as $\alpha=0.0085~l^{1.33} $. For the modern data, MSA-scale values of $\alpha$ ranged between 0 and 2. 
 
+## Calibration Framework
 
- lower alpha exponents = faster rate of distance decay in flow strength for short distances
- higher alpha exponents = slow rate of dist decay at short distances with steep falloff for long distances
- Not much difference between the scale variant + invariant models
- some but not huge difference between original and extended models BECAUSE the dominant factor controlling interaction strength is the size of the source!! Small settlements have few people to send!!
+Regression is perhaps the most frequently used calibration method due to its flexibility
+
+
+linear programming and non-linear optimization are also possible (i.e., Wilson & Senior, 1974; Batty
+& Mackie, 1972).
+
+Equation (2) can be linearized by taking the logarithm of both sides, yielding the
+so-called log-linear gravity model,
+$$
+\mathrm{log_e}(\mathbf{T_{ij}}) = k + \mu~\mathrm{log_e}(V_i) + \alpha~\mathrm{log_e}(W_j) + \beta~\mathrm{log_e}(\mathbf{C_{ij}})
+$$
+which can be expressed more generally as a log-normal regression specification and included within
+an ordinary least-squares regression specification as
+$$
+\mathrm{log_e}(\mathbf{T_{ij}}) = k + \mu~\mathrm{log_e}(V_i) + \alpha~\mathrm{log_e}(W_j) + \beta~\mathrm{log_e}(\mathbf{C_{ij}})+\epsilon_{ij}
+$$
+where $\epsilon$ is a normally distributed error term with a mean of 0
+
+However, a Poisson regression specification was proposed for the family of SI models
+over ordinary least squares regression because flows are often counts of people or objects and should
+be modeled as discrete entities and Poisson regression avoids the potential issue of taking the
+logarithm of zero-valued flows (Flowerdew & Aitkin, 1982; Flowerdew & Lovett, 1988;
+Fotheringham & O’Kelly, 1989; Silva & Tenreyro 2006; Farmer & Oshan, 2017). Another advantage
+of Poisson regression is that adding origin fixed effects and/or destination fixed effects (i.e., binary
+indicators or dummy variables) achieves the same objective as the balancing factors 𝐴! and/or 𝐵" in
+equations (4-6) to uphold the desired constraints (Tiefelsdorf & Boots, 1995).
+
+
+
+
+### Calibrating SIMs in R
+
+
+[@Kalogirou2020]
+[@SpatialAcc]
+SpatialAcc: Spatial Accessibility Measures
+http://lctools.science/ = lctools+SpatialAcc+SpatialML
+
+[@SpatialPosition]
+https://cran.r-project.org/web/packages/SpatialPosition/index.html
+https://cran.r-project.org/web/packages/SpatialPosition/vignettes/SpatialPosition.html
+
+[@spflow]
+https://github.com/LukeCe/spflow
+https://lukece.github.io/spflow/articles/paris_commute_flows.html
+https://cloud.r-project.org/web/packages/spflow/index.html
+devtools::install_github("LukeCe/spflow")
+https://www.tse-fr.eu/fr/publications/revisiting-estimation-methods-spatial-econometric-interaction-models
+https://onlinelibrary.wiley.com/doi/10.1111/j.1467-9787.2008.00573.x
+
+[@gravity]
+https://cran.r-project.org/web/packages/gravity/index.html
+
+
+[@simodels]
+[@od]
+https://cran.r-project.org/web/packages/simodels/index.html
+https://robinlovelace.github.io/simodels/articles/sims-first-principles.html
+https://cloud.r-project.org/web/packages/simodels/vignettes/sims-first-principles.html
+https://github.com/Robinlovelace/simodels
+https://robinlovelace.github.io/simodels/
+
+
+https://github.com/COVID-19-Mobility-Data-Network/mobility/
+devtools::install_github('COVID-19-Mobility-Data-Network/mobility')
+https://covid-19-mobility-data-network.github.io/mobility/index.html
+
+
+
+[@moin]
+
+https://gitlab.com/CRC1266-A2/moin/-/tree/master
+devtools::install_git("https://gitlab.com/CRC1266-A2/moin")
+https://rdrr.io/github/CRC1266-A2/moin/f/
+https://github.com/juhly/moin/blob/master/README.md
+https://github.com/juhly/moin
+devtools::install_github("CRC1266-A2/moin")
+
+
+https://github.com/adamdennett/LondonSchoolsSIM
+https://github.com/adamdennett/SIModelling
+https://rpubs.com/adam_dennett/257231
+https://rpubs.com/adam_dennett/259068
+https://rpubs.com/adam_dennett/376877
+
+
+
+
+  
+## SIMs in Archaeology
+
+-blah blah
+-blah blah
+
+@Rivers2013
+@Evans2012
+@Bevan2013
+@Evans2017
+@Brughmans_Peeples_2022
+@Peeples_Brughmans_2022
+@Rihll1987
+@Gauthier2021
+Gauthier poster and GitHub
+@moin
+
+Citations for simulations
+
+
+
+# Proposed Methods
+
+Model different theoretical dimensions of interaction
+--using well-established covariates and proxies
+--using high-performing models 
+
+## Dimensions of Interaction
+
+
+Sociopolitical Institutions
+-Production-constrained SIM
+--attractiveness = f(settlement hierarchy level, population, urban population)
+----difference in; calculated in od dataframe! 
+--emissiveness = f(settlement hierarchy level, population, urban population)
+
+THIS IS NOT SOCIOPOLITICAL CONTROL OR POLITY!!
+--this is integration with hierarchical social-political-cultural-juridicial-administrative-governance institutions
+--these are hierarchical --> integration with closer centers with DIVERGENT VALUE
+--Attractiveness = abs(pop_i*SettHeirLevel_i - pop_j*SettHeirLevel_j)
+--Emissiveness = pop_i*SettHeirLevel_i
+
+
+
+Agricultural Flows
+-Production-constrained SIM
+--attractiveness = f(Catch_Popdens, population, urban population, PopPressure, PopPressureNW, Catch_Popdens)
+--emissiveness = f(Catchment_ha, CatchmentBeyond_ha, AGPot.tot, AGPot.avg, AGPotNW.tot, AGPotNW.avg, population, Catch_Popdens)
+
+attractiveness = population + urbPop^1.2 * PopPressure
+emissiveness = AG surplus = AG Production - AG Consumption = 
+          (Catch_Popdens / pop ??) AGPot.avg * Catchment_ha - pop
+
+
+Socioeconomic Flows
+-Radiation Model and/or Production-constrained SIM
+-max of two models, divided by rowsum??
+--attractiveness = f(settlement hierarchy level, population, urban population, pop/urban accessibility, urbaniz ratio, transport net centrality)
+----difference in EZ.avg; calculated in od dataframe! 
+--emissiveness = f(settlement hierarchy level, population, urban population, pop/urban accessibility, urbaniz ratio, transport net centrality)
+----difference in EZ.avg; calculated in od dataframe! 
+
+attractiveness =  (abs(Ez.avg_i - Ez.avg_i)+1)* [accessibility(pop^1.2) OR pop^1.2]
+emissiveness = pop^1.2
+
+
+
+
+
+
+
+Radiation Model 
+--to model the distance decay function for different spatial interactions
+
+
+
+https://cran.r-project.org/web/packages/ggiraphExtra/vignettes/ggPredict.html
+
+
+## Radiation Models
+
+### Background
+
+
+
+
+
 
 We have defined a function for calculating radiation among a set of sites using just two inputs:
 
 * **`pop`** is a vector of population values.
 * **`d_mat`** is a distance matrix among all nodes.
 
-```{r, "compare radiation model results w/ different params", eval=FALSE, echo=F, message=FALSE, warning=FALSE}
+
+```{r, "radiation model symmetry", eval=FALSE, echo=F, message=FALSE, warning=FALSE}
+
+#test to check the degree of symmetry
 
 test = Radiation_EstFlows(df = Poly_List[[1]]@data,var = "Population.s2",
                        d_mat = TrsprtNet_CDmatList[[1]],xcoords = Poly_List[[1]]@data$East,
@@ -243,7 +518,18 @@ test = Radiation_EstFlows(df = Poly_List[[1]]@data,var = "Population.s2",
                        scale = "none",commuters = "none",outputs = "adjmat")
 test[["adjmat"]] - t(test[["adjmat"]])
 test[["adjmat"]] / t(test[["adjmat"]])
-                       
+test[["adjmat"]] + t(test[["adjmat"]])
+
+```
+
+Not at all symmetrical
+
+when NOT using conditional probs (i.e. using actual parameterized flows)
+you could add the matrix of flows to its transpose to create the 
+total (undirected) volume of pairwise flows
+
+
+```{r, "compare radiation model results w/ different params", eval=FALSE, echo=F, message=FALSE, warning=FALSE}
 
 df = Poly_List[[5]]@data
 var = "Population.s2"
@@ -313,6 +599,8 @@ xxx=as.data.frame(modeldf[,c(10:13,22:23)])
 
 pairs.panels(xxx, gap = 0,pch=21)
 
+detach("package:psych", unload = TRUE)
+
 ggplot(data = modeldf,aes(y = ext_invar_a0.5_P, x = r_ij, color=ext_invar_a2_P, size=n)) +
   geom_point() +
   labs(y = "ext_invar_a0.5_P", x = "r_ij")+
@@ -329,6 +617,359 @@ ggplot(data = modeldf,aes(y = ext_invar_a0.5_P, x = r_ij, color=ext_invar_a2_P, 
         axis.text.x = element_text(color="black", size=12))
 
 ```
+
+  * lower alpha exponents = faster rate of distance decay in flow strength for short distances
+  * higher alpha exponents = slow rate of dist decay at short distances with steep falloff for long distances
+  * Not much difference between the scale variant + invariant models
+  * some but not huge difference between original and extended models BECAUSE the dominant factor controlling interaction strength is the sizes of the origin and destination!! Small settlements have few people to send!!
+  
+  
+## ???
+
+Radiation model doesnt require parameter fitting, and provides a good fit for flows empirically
+
+We can use radiation model outputs to estimate likely/reasonable parameters for distance decay using exponential and power functions
+
+Use radiation model conditional probabilities rather than estimated flows because
+  * this isolates the distance decay of the model the most
+  * conditional probabilities already take into account relative size + Intervening opportunities (=dist decay in the radiation model)
+  * dont cloud interaction flows with further size effects, which swamp the distribution
+
+
+Illustrative to compare radiation model outputs to fitted exponential and power functions across model types and parameters (original vs extended; alpha values)
+  * shows us how the radiation model changes under different model types and parameters (original vs extended; alpha values)
+  * shows us how using exponential and power functions would yield a divergent model of interaction flows
+  
+We can then in-turn use these heuristics to select optimal decay functions and parameter values for our different interaction dimensions from theoretical expectations about the impact of cost-distance on those dimensions
+
+Units are hrs; rule of thumb 5km/hr rough average; so 1 hr = e^0 hrs ~= 5km 
+
+
+
+DO THESE NEED TO BE ESTIMATED WITH THE ACTUAL PROXY FLOWS INSTEAD???
+--YOU SHOULD AT LEAST SEE IF IT CHANGES THE SLOPE+INTERCEPT....
+  * NEED TO MODIFY Radiation_EstFlows.R to take separate m, n and T_i params AND in calculations..
+  * Est_Beta.R throughout to take something other than conditional probs = m+n+TI inputs
+  * poisson regression
+
+```{r, "compare radiation model distance decay across parameters", message=FALSE, warning=FALSE}
+
+p=5
+
+tmp1 <- Est_Beta(df = Poly_List[[p]]@data,d_mat = TrsprtNet_CDmatList[[p]],
+                     type = "rad_orig_prob")
+
+tmp2 <- Est_Beta(df = Poly_List[[p]]@data,d_mat = TrsprtNet_CDmatList[[p]],
+                     type = "rad_ext_prob_a0.5")
+
+tmp3 <- Est_Beta(df = Poly_List[[p]]@data,d_mat = TrsprtNet_CDmatList[[p]],
+                     type = "rad_ext_prob_a2")
+
+## inspect separate plots
+tmp1[[1]]
+tmp2[[1]]
+tmp3[[1]]
+
+### compare fitted curves
+rbind(tmp1[[3]],tmp2[[3]],tmp3[[3]])
+
+
+
+
+```
+  
+Sociopolitical Administration
+--power function decay
+--should not have the precipitous falloff with cost-distance of the exponential model @2-3 hrs bc the logistical constraints of administration have more to do with the influence of rival settlements (Intervening opportunities) than physical costs -- particularly at the distances being considered here
+--likewise, should not have the delayed falloff with distance at intermediate scales because closer settlements should not necessarily be weighted towards each other as compared to the influence of attractiveness
+--at very small scales, the relation is a given
+--this should lead to sharper boundaries along mutual-attractiveness isotones rather than gradual cost-distance gradients
+--the power function's monotonic log-log relation nicely captures this comparative invariance of institutional relations to distance 
+--parameterized to rad_ext_prob_a0.5 because this is the most linear log-log decay, achieving the greatest R2 margin over 
+
+Agricultural Flows
+--sharp exponential decay = rad_ext_prob_a2
+-due to logistical constraints of staple transport + storage + ubiquitous supply and demand
+-at short distances there should be dampened penalty because of cost-benefit -- if a surplus must be produced, then it must be transported some distance -- the closer the better
+
+Socioeconomic Flows
+-orig transport model
+-Intervening opportunities
+-empirically proven for longer distance flows, not insensitive to shorter distance flows
+-dominated by scale effects
+  
+```{r, "compare radiation model distance decay across periods", message=FALSE, warning=FALSE}
+
+tmp1 <- Est_Beta(df = Poly_List[[5]]@data,d_mat = TrsprtNet_CDmatList[[5]],
+                     type = "rad_orig_prob")
+
+tmp2 <- Est_Beta(df = Poly_List[[5]]@data,d_mat = TrsprtNet_CDmatList[[5]],
+                     type = "rad_ext_prob_a0.5")
+
+tmp3 <- Est_Beta(df = Poly_List[[5]]@data,d_mat = TrsprtNet_CDmatList[[5]],
+                     type = "rad_ext_prob_a2")
+
+
+
+tmp1 <- Est_Beta(df = Poly_List[[5]]@data,d_mat = TrsprtNet_CDmatList[[5]],
+                     type = "rad_ext_prob_a2")
+
+tmp2 <- Est_Beta(df = Poly_List[[7]]@data,d_mat = TrsprtNet_CDmatList[[7]],
+                     type = "rad_ext_prob_a2")
+
+tmp3 <- Est_Beta(df = Poly_List[[9]]@data,d_mat = TrsprtNet_CDmatList[[9]],
+                     type = "rad_ext_prob_a2")
+
+tmp4 <- Est_Beta(df = Poly_List[[11]]@data,d_mat = TrsprtNet_CDmatList[[11]],
+                     type = "rad_ext_prob_a2")
+
+
+```
+
+
+
+## script estimating gravity model flows
+
+--SpInt_EstFlows.R
+taking beta function params
+peeples/moin/rhill_wilson_algebraic retail model
+network stats + network outputs as with Radiation_EstFlows
+
+--SpInt.MapPlot.R
+edges aggregated to symmetrical for plotting
+custom node size variable
+scatterplot plots dist decay beta function OR gam for transpot model
+short bottom panel = equation + model info (passed from SpInt_EstFlows.R)
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+```{r, "radiation model GAM for Dist Decay", eval=FALSE, echo=F, message=FALSE, warning=FALSE}
+df = Poly_List[[5]]@data
+var = "Population.s2"
+d_mat = TrsprtNet_CDmatList[[5]]
+xc=Poly_List[[5]]@data$East
+yc=Poly_List[[5]]@data$North
+crsc=26914
+
+rad_orig_prob = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=F,scale="none", 
+                          commuters="none",outputs ="sflines")
+rad_ext_prob_a0.5 = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc, extended=T, scale="none", alpha=0.5,
+                          commuters="none",outputs ="sflines")
+rad_ext_prob_a2 = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc, extended=T, scale="none", alpha=2,
+                          commuters="none",outputs ="sflines")
+
+
+```
+  
+```{r}
+df <- rad_orig_prob[[1]]
+df2 <- df[df$P > 0, ]
+df2$Log_P <- log(df2$P)
+df2$Log_r_ij <- log(df2$r_ij)
+
+gam_model <- gam(Log_P ~ s(Log_r_ij), data = df2, method = "REML")
+
+gratia::draw(gam_model, residuals=T)
+
+summary(gam_model)
+
+gam.check(gam_model)
+
+gratia::appraise(gam_model)
+
+```
+
+  
+```{r}
+df <- rad_orig_prob[[1]]
+df2 <- df[df$P > 0, ]
+df2$Log_P <- log(df2$P)
+df2$Log_r_ij <- log(df2$r_ij)
+
+power_model <- lm(Log_P ~ Log_r_ij, data = df2)
+
+ggPredict(power_model,point=T,se=TRUE,interactive=F) + geom_line(size=1.2, color="red") 
+
+summary(power_model)
+
+ggplot2::autoplot(power_model)
+
+```
+  
+  
+  
+  
+```{r}
+df <- rad_orig_prob[[1]]
+df2 <- df[df$P > 0, ]
+df2$Log_P <- log(df2$P)
+df2$Log_r_ij <- log(df2$r_ij)
+
+
+W = 0.27^(1:nrow(df2))
+exp_model <- lm(Log_P ~ r_ij, data = df2, weights=W)
+
+ggPredict(exp_model,point=T,se=TRUE,interactive=F, weights=W) + geom_line(size=1.2, color="red") #+ scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)), labels = trans_format("log", math_format(e^.x)))
+
+summary(exp_model)
+
+ggplot2::autoplot(exp_model)
+
+```
+  
+```{r}
+df = Poly_List[[5]]@data
+var = "Population.s2"
+d_mat = TrsprtNet_CDmatList[[5]]
+xc=Poly_List[[5]]@data$East
+yc=Poly_List[[5]]@data$North
+crsc=26914
+
+rad_orig_prob = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc,extended=F,scale="none", 
+                          commuters="none",outputs ="sflines")
+rad_ext_prob_a0.5 = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc, extended=T, scale="none", alpha=0.5,
+                          commuters="none",outputs ="sflines")
+rad_ext_prob_a2 = Radiation_EstFlows(df=df,var=var,d_mat=d_mat,xcoords=xc,ycoords=yc,
+                          crs_coords=crsc, extended=T, scale="none", alpha=2,
+                          commuters="none",outputs ="sflines")
+
+df <- rad_orig_prob[[1]]
+df2 <- df[df$P > 0, ]
+df2$Log_P <- log(df2$P)
+df2$Log_r_ij <- log(df2$r_ij)
+
+################
+
+gam_model <- gam(Log_P ~ s(Log_r_ij), data = df2, method = "REML")
+
+gratia::draw(gam_model, residuals=T)
+
+summary(gam_model)
+
+gam.check(gam_model)
+
+gratia::appraise(gam_model)
+
+#############
+
+power_model <- lm(Log_P ~ Log_r_ij, data = df2)
+#power_model <- glm(P ~ Log_r_ij, data = df2, family = gaussian(link = 'log'))
+
+ggPredict(power_model,point=T,se=TRUE,interactive=F) + geom_line(size=1.2, color="red") 
+#ggPredict(power_model,point=T,se=TRUE,interactive=F) + geom_line(size=1.2, color="red") + scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)), labels = trans_format("log", math_format(e^.x)))
+
+summary(power_model)
+with(summary(exp_model), 1 - deviance/null.deviance)
+
+ggplot2::autoplot(power_model)
+
+#################
+#exp_model <- lm(Log_P ~ r_ij, data = df2)
+#W = 0.00001^(1:nrow(df2))
+#exp_model <- lm(P ~ r_ij, family = gaussian(link = 'log'), data = df2, weights=W)
+#exp_model <- stats:nls()
+
+exp_model <- glm(P ~ r_ij, family = gaussian(link = 'log'), data = df2)
+#equation: P = Intercept*exp(x*b)
+#estimated equation: log(P) = log(Intercept) + r_ij*b
+#reported intercept is log-transformed
+
+ggPredict(exp_model,point=T,se=TRUE,interactive=F) + geom_line(size=1.2, color="red") +
+  scale_y_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)), labels = trans_format("log", math_format(e^.x)))+ 
+  scale_x_continuous(trans = log_trans(), breaks = trans_breaks("log", function(x) exp(x)), labels = trans_format("log", math_format(e^.x)))
+
+summary(exp_model)
+s=summary(exp_model)
+
+with(summary(exp_model), 1 - deviance/null.deviance)
+
+#ggplot2::autoplot(exp_model)
+
+plot(df2$r_ij,df2$Log_P)
+lines(df2$r_ij,log(exp_model$fitted.values),col="red")
+
+plot(log(df2$r_ij),df2$Log_P)
+lines(log(df2$r_ij),log(exp_model$fitted.values),col="red")
+
+##################
+
+nn=500
+Log_x = seq(min(df2$Log_r_ij),max(df2$Log_r_ij),length.out = nn)
+x = exp(Log_x)
+
+GAM_y = as.numeric(predict.gam(gam_model,data.frame(Log_r_ij=Log_x)))
+GAM_se = (predict.gam(gam_model,data.frame(Log_r_ij=Log_x),se.fit	=T)$se.fit)
+GAM_CIh =  GAM_y + (qnorm(0.975)*GAM_se)
+GAM_CIl =  GAM_y - (qnorm(0.975)*GAM_se)
+
+Power_y = as.numeric(predict(power_model,data.frame(Log_r_ij=Log_x)))
+Power_se = (predict(power_model,data.frame(Log_r_ij=Log_x),se.fit	=T)$se.fit)
+Power_CIh =  Power_y + (qnorm(0.975)*Power_se)
+Power_CIl =  Power_y - (qnorm(0.975)*Power_se)
+
+#EXP_y = (s$coefficients[1])+(s$coefficients[2]*x)
+#EXP_y = log(1/(1+exp(-(s$coefficients[2]*x+s$coefficients[1]))))
+  #as.numeric(predict(exp_model,data.frame(r_ij=x))))
+
+EXP_y = (as.numeric(predict(exp_model,data.frame(r_ij=x))))
+EXP_se = (predict(exp_model,data.frame(r_ij=x),se.fit	=T)$se.fit)
+EXP_CIh =  EXP_y + (qnorm(0.975)*EXP_se)
+EXP_CIl =  EXP_y - (qnorm(0.975)*EXP_se)
+
+
+pltmod = data.frame(Log_X = c(Log_x,Log_x,Log_x),
+                    Model = c(rep("Exponential",nn),rep("Power",nn),rep("GAM",nn)),
+                    Predict = c(EXP_y, Power_y, GAM_y),
+                    CI95_h = c(EXP_CIh,Power_CIh,GAM_CIh),
+                    CI95_l = c(EXP_CIl,Power_CIl,GAM_CIl))
+
+ggplot() + geom_point(data=df2, aes(y=Log_P, x=Log_r_ij)) +
+  geom_line(data=pltmod, aes(x=Log_X, y=Predict, color=Model), size=1.2)+
+  geom_ribbon(data=pltmod, aes(x = Log_X, ymin = CI95_l, ymax = CI95_h, fill=Model), alpha = 0.2)+
+  
+
+
+## Turn results into
+#### display tables for ggplot
+#### output tables for df
+
+x = seq(min(df2$r_ij),max(df2$r_ij),length.out = 500)
+
+
+b <- getViz(gam_model)
+o <- plot( sm(b, 1) )+l_fitLine()
+o+p2
+
+p1 = gratia::draw(gam_model, residuals=T)
+p2 = ggPredict(power_model,point=T,se=TRUE,interactive=F) + geom_line(size=1.2, color="red") 
+
+p1+
+```
+  
+
+  
+  
+  
+  
+  
+  
+  
+
 
 
 

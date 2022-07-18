@@ -1091,15 +1091,6 @@ doi = {10.1038/nature05302}
   year={2014}
 }
 
-@article{Simini2012,
-  title={A universal model for mobility and migration patterns},
-  author={Simini, Filippo and Gonz{\'a}lez, Marta C. and Maritan, Amos and Barab{\'a}si, Albert-L{\'a}szl{\'o}},
-  journal={Nature},
-  volume={484},
-  number={7392},
-  pages={96--100},
-  year={2012}
-}
 
 @article{Rihll1987,
   title={Spatial Interaction and Structural Models in Historical Analysis: Some Possibilities and an Example},
@@ -1333,4 +1324,58 @@ doi = {10.1080/00420987320080471}
   issn = {0966-6923},
   doi = {https://doi.org/10.1016/j.jtrangeo.2015.12.008},
   author = {Maxime Lenormand and Aleix Bassolas and José J. Ramasco},
+}
+
+@article{Yang2014,
+  title={Limits of predictability in commuting flows in the absence of data for calibration},
+  author={Yang, Yingxiang and Herrera, Carlos and Eagle, Nathan and Gonz{\'a}lez, Marta C.},
+  journal={Scientific Reports},
+  volume={4},
+  number={1},
+  pages={1--9},
+  year={2014},
+  doi={https://doi.org/10.1038/srep05662}
+}
+
+@article{Masucci2013,
+  title={Gravity versus radiation models: On the importance of scale and heterogeneity in commuting flows},
+  author={Masucci, A. Paolo and Serras, Joan and Johansson, Anders and Batty, Michael},
+  journal={Physical Review E},
+  volume={88},
+  number={2},
+  pages={022812},
+  year={2013}
+}
+
+
+@article{Simini2012,
+  title={A universal model for mobility and migration patterns},
+  author={Simini, Filippo and Gonz{\'a}lez, Marta C. and Maritan, Amos and Barab{\'a}si, Albert-L{\'a}szl{\'o}},
+  journal={Nature},
+  volume={484},
+  number={7392},
+  pages={96--100},
+  year={2012}
+}
+
+@article{Lenormand2012,
+    doi = {10.1371/journal.pone.0045985},
+    author = {Lenormand, Maxime and Huet, Sylvie and Gargiulo, Floriana and Deffuant, Guillaume},
+    journal = {PLOS ONE},
+    title = {A Universal Model of Commuting Networks},
+    year = {2012},
+    volume = {7},
+    url = {https://doi.org/10.1371/journal.pone.0045985},
+    pages = {1--7},
+    number = {10}
+}
+
+@article{Liang2013,
+  title={Unraveling the origin of exponential law in intra-urban human mobility},
+  author={Liang, Xiao and Zhao, Jichang and Dong, Li and Xu, Ke},
+  journal={Scientific Reports},
+  volume={3},
+  number={1},
+  pages={1--7},
+  year={2013}
 }
