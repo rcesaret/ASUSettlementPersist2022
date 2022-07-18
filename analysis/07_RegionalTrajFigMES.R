@@ -176,19 +176,19 @@ ModellingPeriods_df2[1,1] <- -1375
 labz = data.frame(
   Metric=c("Pop","UrbPop","UrbRatio","AtkinsonPop","nSetHierLevel","Grow.PctPop",
   "AvgOccuTime","TotOccuInertia","Persist.PctPop","Found.PctPop"),
-  MyLabels=c("Total Population\n& Urban Population","Total Population\n& Urban Population","Urbanization Ratio",
-  "Atkinson Inequality Index\nfor Settlement Population","Settlement Hierarchy Levels",
-  "Growing Settlements\nPercent of Population",
-  "Average Settlement Occupation\nYears Since Foundation","Total Occupational Inertia\n(Integral of Settlement Population)",
-  "Persisting Settlements\nPercent of Population","Newly Founded Settlements\nPercent of Population"),
+  MyLabels=c("Total Population\n& Urban Population","Total Population\n& Urban Population","Urbanization Ratio\n(Urban Pop / Total Pop)",
+             "Settlement Population Inequality\n(Atkinson Index)","Settlement Hierarchy\n(Ordinal Levels)",
+             "Growing Settlements\n(Percent of Population)",
+             "Average Occupation Length\n(Years Since Foundation)","Integral of Settlement Population\n(Person Years since Founding)",
+             "Persisting Settlements\n(Percent of Population)","Newly Founded Settlements\n(Percent of Population)"),
   y=c(0,0,0,0,0,0,0,0,0,0))
 
 df2=df2%>%left_join(labz, by="Metric")%>% 
-  mutate(MyLabels=factor(MyLabels,levels=c("Total Population\n& Urban Population","Urbanization Ratio",
-                                           "Atkinson Inequality Index\nfor Settlement Population","Settlement Hierarchy Levels",
-                                           "Growing Settlements\nPercent of Population",
-                                           "Average Settlement Occupation\nYears Since Foundation","Total Occupational Inertia\n(Integral of Settlement Population)",
-                                           "Persisting Settlements\nPercent of Population","Newly Founded Settlements\nPercent of Population")))
+  mutate(MyLabels=factor(MyLabels,levels=c("Total Population\n& Urban Population","Urbanization Ratio\n(Urban Pop / Total Pop)",
+                                           "Settlement Population Inequality\n(Atkinson Index)","Settlement Hierarchy\n(Ordinal Levels)",
+                                           "Growing Settlements\n(Percent of Population)",
+                                           "Average Occupation Length\n(Years Since Foundation)","Integral of Settlement Population\n(Person Years since Founding)",
+                                           "Persisting Settlements\n(Percent of Population)","Newly Founded Settlements\n(Percent of Population)")))
 
 #Theil Generalised Entropy Inequality Index for Settlement Population
 ModellingPeriod_AxisLabels2 = ModellingPeriod_AxisLabels
@@ -204,8 +204,8 @@ ModellingPeriod_AxisLabels2[c(5,7,9,11,13,15,17)] = ""
   guides(fill="none")+
   scale_x_continuous(limits= c(-1400,1520),breaks = ModellingPeriod_AxisBreaks,labels = ModellingPeriod_AxisLabels2)+
   facet_wrap(~MyLabels, ncol=3, scales='free_y')+
-  labs(y='',x= "Time (Years BC/AD)", title="Time Series of Regional-Scale Variables",
-       subtitle="Southern Basin of Mexico (SBOM)")+
+  labs(y='',x= "Time (Years BC/AD)", title="Time Series of Selected Regional-Scale Variables",
+       subtitle="Southern Basin of Mexico (SBOM), c.1600 BC - AD 1520")+
   theme_bw()+
   theme(strip.text.x = element_text(color="black", size=11, face="bold"),
     legend.position = "none",strip.background = element_blank(),

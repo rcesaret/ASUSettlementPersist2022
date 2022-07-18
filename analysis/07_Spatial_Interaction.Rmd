@@ -647,10 +647,11 @@ Units are hrs; rule of thumb 5km/hr rough average; so 1 hr = e^0 hrs ~= 5km
 
 
 DO THESE NEED TO BE ESTIMATED WITH THE ACTUAL PROXY FLOWS INSTEAD???
---YOU SHOULD AT LEAST SEE IF IT CHANGES THE SLOPE+INTERCEPT....
+--YOU SHOULD AT LEAST SEE HOW MUCH IT CHANGES THE SLOPE+INTERCEPT....
   * NEED TO MODIFY Radiation_EstFlows.R to take separate m, n and T_i params AND in calculations..
   * Est_Beta.R throughout to take something other than conditional probs = m+n+TI inputs
   * poisson regression
+  * calculate input variables
 
 ```{r, "compare radiation model distance decay across parameters", message=FALSE, warning=FALSE}
 
@@ -741,7 +742,9 @@ custom node size variable
 scatterplot plots dist decay beta function OR gam for transpot model
 short bottom panel = equation + model info (passed from SpInt_EstFlows.R)
   
-  
+loop over each metric by period and output flow dimension
+--add node stats to main data
+--save nets and sflines as lists --> RDS
   
   
   
