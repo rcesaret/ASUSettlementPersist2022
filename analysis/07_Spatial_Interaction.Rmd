@@ -199,6 +199,8 @@ The figure below, taken from Oshan [-@OshanND], nicely illustrates the basic fra
 knitr::include_graphics(paste0(wd$figs,"OshanSIMfig.png"), FALSE)
 ```
 
+Most current approaches to SIMs see the aggregate flows being modelled as complex systems -- emergent system-level structures produced by diverse but constrained micro-level behaviors [@Wilson2000]. At the micro-level, the constraints producing the emergent system structure are grounded in a decision process where actors face a trade-off between the costs and benefits of interaction with a set of competing destinations [@Fotheringham1989]. Due to the diversity of contexts, preferences and constraints of specific actors, these micro-level behaviors are averse to prediction and strong deterministic regularities. However, at the macro-level, strong patterns do emerge. As such, researchers have tended to adopt a probablistic framework focusing on explicit modeling of macro-level structures as statistical averages/trends produced by the overall distribution of actor decisions and constraints [@Sen1995]. SIMs are therefore best suited to macro-level research questions regarding the spatial structure of systems.
+
 In general, researchers generally use SIMs to analyze a spatial dataset comprised of locational attributes and observed flows among a set of origin and destination locales. After specifying the model and its variables, the model is then calibrated using multiple regression -- predicting the observed flows from the specified SIM by estimating parameter values. These topics are covered in section 3.1 and 3.2. In section 3.3, I cover the use of SIMs in archaeology, with specific focus on how SIMs can be specified and calibrated in the absence of observed flow data.
 
 
@@ -232,9 +234,9 @@ The additions of the generalized model are subtle but important. First, the mode
 
 ### Wilson's "Family of Models"
 
-Building on this foundation, Wilson's [-@Wilson1970; -@Wilson1971] watershed "family" of SIMs introduced three new variants of the generalized gravity model that form the foundation of the contemporary SIM framework in [economic] geography. These variants differ from the generalized gravity model by introducing further constraints to ensure that the number of predicted flows match the number of observed flows **_at the level of each origin/destination_**. While parameter $k$ in the generalized gravity model does this at the _global level_, the flows to and from each origin/destination locale predicted by the generalized gravity model may vary (sometimes considerably) from the observed flows. By introducing balancing factors for individual origin/destination locales, Wilson's [-@Wilson1970; -@Wilson1971] variants are able to preseve the locally observed flow frequencies in the flows predicted by the SIM. The generalized gravity model is thus often referred to as the "unconstrained model" in Wilson's four variant a "family of models:"
+Building on this foundation, Wilson's [-@Wilson1970; -@Wilson1971] watershed "family" of SIMs introduced three new variants of the generalized gravity model that form the foundation of the contemporary SIM framework in [economic] geography. These variants differ from the generalized gravity model by introducing further constraints to ensure that the number of predicted flows match the number of observed flows **_at the level of each origin/destination_**. While parameter $k$ in the generalized gravity model does this at the _global level_, the flows to and from each origin/destination locale predicted by the generalized gravity model may vary (sometimes considerably) from the observed flows. By introducing balancing factors for individual origin/destination locales, Wilson's [-@Wilson1970; -@Wilson1971] variants are able to preseve the locally observed flow frequencies in the flows predicted by the SIM. The generalized gravity model is thus often referred to as the "unconstrained" or "total flow constrained" model in Wilson's four variant a "family of models:"
 
-  1. Generalized gravity model (or 'Unconstrained' model)
+  1. Generalized gravity model (or 'Unconstrained' or 'total flow constrained' model)
   2. Production-constrained -- where out-flows are constrained by banancing factors, but in-flows are not
   3. Attraction-constrained -- where in-flows are constrained by banancing factors, but out-flows are not
   4. Production-Attraction-constrained (or ‘Doubly-constrained’) -- where both in-flows and out-flows are constrained by banancing factors
@@ -254,95 +256,67 @@ where
   * $A_i$ is an $n \times 1$ vector of the origin balancing factors that ensures the total out-flows are preserved in the predicted flows
   * $B_j$ is an $m \times 1$ vector of the destination balancing factors that ensures the total in-flows are preserved in the predicted flows
 
+Thus, we have added just four new terms. $O_i$ and $D_j$ are the observed numbers of flows, while $A_i$ and $B_j$ are constraints that ensure total observed and predicted flows are consistent. 
 
-Discuss balancing factors / constraints and their estimation
+As explained by Fotheringham and O'Kelly [-@Fotheringham1989], the greater the number of parameters of any statistical model, the higher its predictive power. All else being equal, such models will better predict the observed data with a better goodness of fit. In this respect, the doubly-constrained model (with the most parameters) has the greatest predictive power, while the unconstrained (generalized gravity) model will yield poorer predictions of the empirical data. 
 
+However, with respect to the number of model parameters, there is an inherent trade-off between a model's predictive power and its explanatory power. As such, the generalized gravity model, with its lack of constraints, enables the researcher to make inferences about all aspects of a system -- the causes of attractiveness, emissiveness and flows. By contrast, the fixed inflows and outflows of the doubly-constrained model means that the emissiveness of origins and attractiveness of destinations are given exogenously. The purpose of the doubly constrained model is therefore more about predicting or allocating flows than explaining them _per se_ [@Fotheringham1989]. 
 
+For these reasons, the production-constrained and attraction-constrained SIMs have garnered perhaps the most attention from geographers and economic geographers. Due to their ability to explain certain dimensions of a system while holding other parts of the system constant, they are particularly adept at answering research questions about the causes of inflows and outflows [@Fotheringham1989]. Moreover, the production-constrained and attraction-constrained SIMs also require the least amount of data to calibrate, as inflows or outflows can be unknown (respectively). By contrast, the doubly-constrained model is most often used in the context of transportation geography to analyze traffic, commuting, travel and migration flows within transport infrastructure networks. This context often has the most data available, and is more concerned with urban infrastructure planning than with theoretical explanation.
 
+Largely neglected by geographers due to the lower levels of predictive power, the unconstrained model is most used by economists in the contexts of regional commodity flow analysis and international trade. This is because these fields predominantly want to understand the system-level causes of higher or lower flow volumes among nations or regions.
 
-employ entropy maximization constraints derived from statistical mechanics and information theory [@Wilson1970].
+Thus, choice between these four SIM variants depends on a number of factors, among them
 
+  1. the analytical goals and research questions being asked
+  2. the empirical context and available data
+  3. the phenomena/dimensions being modeled
 
+which are compared among the four models in the table below. 
 
+```{r, 'SIM Comparison Table', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"SIM_Compare_table.png"), FALSE)
+```
 
+While in a technical sense all SIMs are agnostic to the theoretical class of phenomena/dimensions being modeled, their comparative advantages and distadvantages have led to certain SIM variants being used for certain theoretical contexts. For example, the production-constrained model has seen widest application in the context of retail/marketing location. With retail/marketing centers as destinations with unknown inflows but known characteristics, and consumer populations as origins with known outflows and proxies for demand, the causes of consumer choice of retail/marketing centers can be neatly analyzed. As shown by Wilson [@Wilson2000], the canonical Central Place Theory models of marketing center location/hierarchy can be reproduced and calibrated using the production-constrained model _without the need for isomorphic spatial configurations or giving preference to ideal type geometries_.
 
+Similarly, the attraction-constrained model has seen widest application in the context of residential and industrial/commercial/agricultural location and land use. 
 
-
-Each of these different models excels at answering different research questions in different contexts.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@OshanND
-@Dennett2018
-@Oshan2021
-@Berry1967
-@Batty2010
-@Oshan2016
-@Wilson1971
-@Wilson1998
-@Isard1998
-@Wilson2000
-@Wilson2013
-@Sen1995
-@Fotheringham1989
-@Dennett2013
-
-
-
-
-
+With places of employment (firms) as destinations with known employment 'inflows,' and spatial zones as origins with unknown outflows but known characteristics (e.g. supply, income, demand, prices, population/commuters), we can analyze the optimal location of firms with respect to the spatial constraints of resources (labor/employees, supply, etc.). As shown by Wilson [@Wilson2000], the canonical models of industrial, agricultural and residential location (e.g. the AMM model, von Thunen, Weber and Losch) can be reproduced and calibrated using the attraction-constrained model _without the need for idealized spatial configurations or ideal type geometries_.
 
 
 ### Distance Decay Functions
 
+Distance decay functions, also commonly known as "deterrence" functions [@Sen1995], specify the cost of overcoming the separation between origins and destinations. A wide variety of distance decay functions have been developed, each with advantages and disadvantages that lend them to particular theoretical and empirical contexts. Of these, the exponential decay function is the most common, followed by power decay function, while others are commonly seen overall (but much less common individually).
 
-
-
-
-
-
-
-
-
-
-Power:
+The power decay function is scale invariant power law given by
 $$
 f(\mathbf{C_{ij}})=\mathbf{C_{ij}}^{-\beta}=\frac{1}{\mathbf{C_{ij}}^{\beta}}
 $$
-
-
-
-
-
-where 
-  * $\beta$ is a parameter representing the impact of movement costs on flows.
+where $\beta$ is a parameter representing the impact of movement costs on flows.
   
-  
+•	behavioral invariance with cost-distance scale
+•	this type of invariance is very questionable for small cost values 
+•	mean interaction activity between origins and destinations with very small values of interaction costs bbecome unrealistically larger than all other mean interaction levels. 
+•	Thus widely recognized that power deterrence functions are not appropriate for modeling interactions involving small cost values
+•	common finding: power function overestimates low cost distance flows and overestimates high cost distance flows [@Fotheringham1989]
 
 
-
-shifted power-deterrence function
+A number of alternative specifications of the power decay function have been proposed to remedy these shortcomings [see @Sen1995]. One of these is the 'shifted' power decay function given by
 $$
 f(\mathbf{C_{ij}})=\mathbf{(\epsilon +C_{ij})}^{-\beta}
 $$
-
-
-Champernowne POWER deterrence function.
+where $\epsilon > 0$ is a constant positive basal interaction cost to each flow. A very similar variant is the Champernowne power deterrence function given by
 $$
-f(\mathbf{C_{ij}})=\mathbf{[\epsilon +(C_{ij})^\beta]}^{-1}
+f(\mathbf{C_{ij}})=\mathbf{[\epsilon +(C_{ij})^\beta]}^{-1} 
 $$
 
+•	exponential deterrence function 
+•	unlike the power specification above,the parameter beta in this case must be a dimensional parameter with specific value depending on the choice of units for interaction costs [@Sen1995]
+•	(2.119) is a meaningfully parameterized function with respect to extensively measurable interaction costs if and only if all transformations of measurement units are taken to be absorbed in the definition of beta[@Sen1995]
+•	calibrated exponential function parameter estimates not directly convertable to different units or different spatial scales, whereas power function is [@Fotheringham1989]
+•	if probabilistic variations in micro interactions are assumed to depend only MAINLY on average interaction costs and activity levels, then the overwhelmingly most probable patterns of macro interaction take the form of exponential gravity models[@Sen1995]
+•	at the macro level, gravity models with exponential deterrence functions may in fact arise from a wide range of micro interaction behavior[@Sen1995]
 
 
 Exponential:
@@ -352,17 +326,8 @@ $$
 
 Two-Parameter Exponential:
 $$
-f(\mathbf{C_{ij}})=\alpha~e~^{-\beta~\mathbf{C_{ij}}} 
+f(\mathbf{C_{ij}})=\alpha~e~^{-\beta~\mathbf{C_{ij}}}  
 $$
-
-
-
-
-Two-Parameter Exponential:
-$$
-f(\mathbf{C_{ij}})=\alpha~e~^{-\beta~\mathbf{C_{ij}}} 
-$$
-
 exponential-square root decay function:
 $$
 f(\mathbf{C_{ij}})=e~^{-\beta~\sqrt{\mathbf{C_{ij}}}}  
@@ -371,10 +336,32 @@ https://journals.sagepub.com/doi/pdf/10.1177/0160017610387296
 Accessibility and Impedance Forms- Empirical Applications to the German Commuting Network
 
 
+Exponential vs. Power
+[@Fotheringham1989]
+Trip matrices consist of the aggregation of a large number of individual movements. The use of a negative exponential distance decay functionis consistent with the assumption that there is a constant distance decay parameter for all trip makers in the system. Thus exponential function is most appropriate when all trip makers (flows) share the same relatively homogeneous suite of constraints, costs and benefits. The inverse power function is more appropriate when
+--trip makers are heterogenous or subject to divergent constraints
+--distance decay parameters for individuals are distributed according to a gamma distribution (right skew; from log normalish to power law pareto)
+
+changes in costs --> two possible results:
+1) has a huge effect on destination choice, restructuring the relative flows 
+2) little-to-no impact on relative distribution of flows /relative frequency of destination choice
+Also two possible kinds of cost-increase:
+A) Additive (orig cost + constant)
+B) multiplicative (orig cost * constant)
+
 ```{r, 'Fotheringham & O'Kelly 1989 Decay Chart', echo=FALSE, out.width = '100%'}
 knitr::include_graphics(paste0(wd$figs,"FotheringhamDecay.png"), FALSE)
 ```
 
+consensus: exponential function is better for short-distance interactions, power more appropriate for longer distance interactions [@Fotheringham1989]
+
+TANNER FUNCTION
+--two-parameter family of power-exponential deterrence functions
+--multiplicative combination of power and exponential decay functions
+--advantageous from a statistical viewpoint when comparing the relative appropriateness of power specifications and
+exponential specifications 
+--this combined form may in certain cases have behavioral meaning in its own right
+https://core.ac.uk/download/pdf/290093434.pdf
 
 Tanner Function:
 $$
@@ -383,9 +370,31 @@ $$
 
 Shifted Tanner Function:
 $$
-f(\mathbf{C_{ij}})= ( \epsilon + \mathbf{C_{ij}})^{-\alpha}~e~^{-\beta~\mathbf{C_{ij}}} 
+f(\mathbf{C_{ij}})= ( \epsilon + \mathbf{C_{ij}})^{-\alpha}~e~^{-\beta~\mathbf{C_{ij}}}  
 $$
 
+
+
+two-parameter family of gamma decay functions
+nearly identical to Tanner but with positive sign to power decay
+non-monotone deterrence function
+non-monotone deterrence functions can arise directly from behavioral considerations 
+
+For example, with respect to travel by specific modes (say by car), one is generally unlikely
+to see very short trips (say one or two city blocks). Moreover, even in cases
+where individuals exhibit monotone deterrence behavior, population heterogeneities
+can lead to significant non-monotonicities in aggregate travel
+behavior. For example, it has been shown by Harris (1964) and Choukroun
+(1975) that mixtures of subpopulations characterized by exponential deterrence
+functions with different sensitivity parameters can result in aggregate
+interaction behavior characterized by gamma-type deterrence functions.
+Hence, the general multivariate exponential specification in (2.121) is seen
+to provide a flexible unifying framework within which a variety of different
+specifications can be treated. Of course, (2.125) can also be shifted by
+the addition of a known shift-quantity f to Cij. Section 5.3.2 presents an
+example where the use of such a shifted gamma deterrence function considerably
+improves the fit of a gravity model over the use of a simple gamma
+deterrence function.
 
 Gamma Function:
 $$
@@ -397,6 +406,8 @@ Shifted Gamma Function:
 $$
 f(\mathbf{C_{ij}})= ( \epsilon + \mathbf{C_{ij}})^{\alpha}~e~^{-\beta~\mathbf{C_{ij}}} 
 $$
+
+
 Gaussian decay function: 
 $$
 f(\mathbf{C_{ij}})=e~^{-\beta~{\mathbf{C_{ij}}}^2} 
@@ -416,11 +427,12 @@ f(\mathbf{C_{ij}})=e~^{-\beta~(\mathrm{log}{\mathbf{C_{ij}}})^2}
 $$
 Accessibility and Impedance Forms: Empirical Applications to the German Commuting Network
 
-
 Logistic:
 $$
 f(\mathbf{C_{ij}})= \frac{1}{1+e~^{-\beta~(\mathbf{C_{ij}}-\alpha)}}=\frac{e~^{\beta~(\mathbf{C_{ij}}-\alpha)}}{1+e~^{\beta~(\mathbf{C_{ij}}-\alpha)}}
 $$
+https://onlinelibrary.wiley.com/doi/pdf/10.1111/1467-9787.00124
+https://aetransport.org/public/downloads/E-4Eh/5559-5218a23724e7d.pdf
 
 
 Sigmoidal:
@@ -428,9 +440,72 @@ $$
 f(\mathbf{C_{ij}})= \frac{1}{(1+(\mathbf{C_{ij}}/D)^\alpha)^{\gamma}}
 $$
 
+o	Ariadne model
+sometimes C_ij is expressed as a "normalized distance" = C_ij/D, where D_ij are the distances and D is a "distance scale"
+--controls the inflection point of sigmoidal decay curve in Ariadne model
+When compared to the exponential form [equation(2)],what
+wetermthe ariadne form [equation(3)] has lowpenalties for
+short-distance exchange but with a sharper change around dis-
+tance scale D to a region where long-distance exchange is heavily
+penalized. For instance, we imagine that if D represents the typical
+distance traveled in a day overland in this region for our era, then
+it seems reasonable to impose a sharper difference between 1- and
+2-day travel. 
+
+
 ### The Spatial Structure of Intervening Opportunities
 
+[@OshanND]
+Traditional gravity-type SI models assume that the volume of flows between two locations is independent of the other locations in the system. That is, individuals consider all locations in the system and evaluate them independently when selecting a destination. The competing destinations model (Fotheringham, 1983a, 1983b, 1984, 1986a; Fotheringham & O'Kelly, 1989) considers that in reality spatial decision-making often arises from a hierarchical two-stage or multi-stage decision making process. Since individuals may not be able evaluate all alternative locations, it is likely that they instead first select a region or cluster of locations and then subsequently choose an individual destination from within that cluster. The effect is that as the accessibility of a particular destination, 𝑗, to all other potential destinations increases, 𝑗 may experience greater competition from other destinations, and therefore the volume of flows to 𝑗would be smaller than predicted by a traditional SI model. Practically, this effect is captured by introducing a new variable into SI models to measure destination accessibility, 𝐴!" , and can be thought of as the likelihood that other destinations are also considered along with destination 𝑗 (Fotheringham & O’Kelly, 1989). A failure to account for spatial structure can result in biased parameter estimates. Furthermore, the bias can be categorized in terms of the perception of destination clusters where there are competition effects (i.e., negative exponent on 𝐴!") or agglomeration effects (i.e., positive exponent on 𝐴!"). The type of effect that arises is typically dependent upon the type of SI process being modeled; however, competition is observed more often in empirical settings, which may be driven by the behavioral tendency of individuals to underestimate the overall attractiveness of large clusters (Fotheringham et al., 2007).
 
+THE REST IS ALL FROM [@Oshan2021]
+
+Fotheringham (1981) = spatial autocorrelation in the locational attributes = multicollinearity between accessibility and distance. 
+
+discourse between Sheppard (1982) and Fotheringham (1982) spatial autocorrelation in the residuals can indicate that there is one of  several types of misspecification that can bias parameter estimates (e.g. omitted variables or incorrect functional form); however, observing spatial autocorrelation in the independent variables is not sufficient to diagnose such misspecification(s). 
+
+the concept of spatial autocorrelation was now unnecessary in this context: the spatial structure effect described by Fotheringham, (1981) had been identified as a misspecification arising due to the omission of a model term that captures location accessibility. 
+
+It was demonstrated that the inclusion of a variable that measures each destination’s accessibility to all other destinations can greatly reduce the spatial variation in local distance-decay parameter estimates and remove unintuitive patterns, and was therefore dubbed the Competing Destinations (CD) model (Fotheringham, 1983).
+
+The core tenets of the CD model are that: 
+(i) the relative configuration of destinations with respect to each other can affect an individual’s propensity to select a particular destination; and
+(ii) including a destination accessibility term in SI models can capture this factor and mitigate the observed spatial structure effect (Fotheringham, 1983). 
+
+Accessibility is often defined based on a combination of physical locations and attribute values.
+
+While spatial systems typically do have attribute spatial variation that may contribute to the spatial structure effect, it is ultimately driven by relative spatial organization and how individuals perceive the overall system.
+The behavioral foundation of the CD model is that spatial decisions, such as location choice, often arise from a hierarchical twostage or multi-stage decision-making process as a spatial information processing strategy when there are many choices to evaluate (Curtis and Fotheringham, 1995; Fotheringham and Curtis, 1992, 1999; Hirtle and Jonides, 1985; McNamara, 1986; Walker et al., 1990). Individuals first select one or more clusters of locations and then subsequently choose an individual destination from within these clusters. 
+
+The effect is that as the accessibility of a particular destination, j, to all other potential destinations increases, j will experience an increase or decrease in the number of flows than it would otherwise expect if it existed independently (i.e. not a member of any clusters) (Fotheringham and O’Kelly, 1989).
+
+Destination accessibility can be defined as Aij in equation (8) and added to the SI models introduced here, where Aij is thought of as the likelihood that other destinations are also considered along with destination j. For an unconstrained log-linear SI model, for example, this results in:
+
+accessibility $A_{ij}$ given by
+$$
+A_{ij}=\sum_{k=1}^n W_k d_{jk}^\sigma
+$$
+where
+
+  * $W_k$ is the attractiveness at each alternative destination $k$
+  * $d_{jk}$ is the distance to each alternative destination $k$
+  * $\sigma$ is a is a parameter that controls the scale over which destinations compete with each other, which in practice is often set to -1 or calibrated iteratively with the parameters
+
+A failure to account for destination accessibility when spatial structure effects are present generally biases origin-specific distance-decay parameter estimates upwards for accessible origins and downward for inaccessible origins. The strength of this bias is shown by Fotheringham (1984) to depend on the strength of two relationships: that between the volume of flows and destination accessibility and that between destination accessibility and distance from the origin to each destination. It is this bias that causes the unintuitive spatial patterns observed in origin-specific distance-decay parameter estimates, such as positive estimates for the most accessible origins (Fotheringham, 1981).
+
+$$
+\mathrm{log}(\mathbf{T_{ij}})=k+\mu~\mathrm{log}(V_i)+\alpha~\mathrm{log}(W_j)+\beta~\mathrm{log}(\mathbf{C_{ij}})+\delta~\mathrm{log}(A_{ij})+\epsilon
+$$
+where $\delta$ is the parameter corresponding to destination accessibility
+
+ destination accessibility bias can be categorized in terms of its rela tionship to the volume of flows where competition effects are associated with a negative relationship (i.e. negative δ) and agglom eration effects are associated with a positive relationship (i.e. positive δ)
+
+Another
+proposed strategy to investigate heterogeneity amongst SI processes is to incorporate the
+geographically weighted regression methodology (Fotheringham et al., 2002) into SI models
+(Nakaya, 2001; Nissi & Sarra, 2011; Kalogirou, 2015; Kordi & Fotheringham, 2016; Zhang, Cheng,
+& Jin, 2019; Zhang, Cheng, Jin, et al., 2019).
+GWR Citations and explanation HERE: http://lctools.science/lctools/
 
 
 ### Radiation Model
@@ -521,8 +596,49 @@ SI models, producing results equivalent to those
 obtained using nonlinear optimization (Tiefelsdorf
 and Boots, 1995).
 
+the balancing factors in the doubly–constrained model (6.1-6.2) are interdependent and need to
+be computed iteratively when they are being calculated directly. 
+
 
 The parameters for all models in the family are estimated from empirical data using some form of linear regression—usually maximum likelihood estimators (MLE) specifying parametric distributions matching the data. Maximum entropy constraints are usually fitted using either Lagrange multipliers or equivalent numerical search/convergence algorithms
+
+
+#### A Note on Balancing Factors and Maximum Entropy
+
+
+Models based on statistical equilibrium principles from statistical mechanics, was first proposed by Wilson (1967; 1970)
+max entropy = 'most probable state' approach
+
+The essence of the derivation is to solve an optimization problem that finds the most probable configuration of flows between a set of locations out of all possible configurations, while making minimal assumptions about the system
+
+employ entropy maximization constraints derived from statistical mechanics and information theory [@Wilson1970].
+
+Entropy-maximising methods can be used to derive robust most-probable state models of large population systems.
+
+
+The production-constrained and attraction-constrained models  particularly useful for building models that
+allocate flows either to a set of destinations or from a set of origins, respectively.
+
+The doublyconstrained
+model conserves both the inflows and the outflows at each location and is therefore
+sometimes referred to as the trip distribution model. An increase in constraints is typically associated
+with increased predictive power but is also associated with fewer estimated parameters and a decrease
+in the potential to gain insight into the SI system (Fotheringham & O’Kelly, 1989).
+
+
+
+In this context, the statistical frameworks used to estimate SIMs 
+
+In the context of statistical modeling, maximum entropy methods provide a systematic way to model general patterns from a sample of idiosyncratic data using the fewest possible assumptions. The principle of maximum entropy can be thought of as an approach to statistical modeling that takes a conservative epistemological position on the problem of overfitting. The degree to which a statistical model should fit the data depends on whether the research question addresses the particular occurrence(s) represented in the data, or whether you’re treating the data as a representative sample of some wider phenomenon. ‘Overfitting’ usually involves using an overly complex model to explain patterns in the data that are idiosyncratic to the sample (i.e. caused by sampling error or other selection biases). This is a minor problem when comparing or testing hypotheses about the specific empirical cases represented by a dataset. A close fit between model and data enables us to make arguments about what caused the data—either that a theoretical model explains the observed reality, or that a statistical model accurately characterizes the relationship between the observed variables. In such cases, we want statistical models to explain most of the variability in the observed data, and the model complexity threshold of overfitting is often intuitively-clear. 
+
+But problems arise when using a sample with some unknown degree of error to address the more general processes that produced them. Say for example you wanted to estimate patterns across a region, but you only have data from a sample of subregions. Extrapolating this data imposes the idiosyncrasies of specific locales on the rest of the region. This is textbook overfitting. One common way of dealing with this problem is to use complex statistical models to estimate trends in the unknown data using other variables known to covary with the patterns in question. Yet this kind of predictive modeling necessitates the specification of highly-specific quantitative assumptions from a large number of alternatives. Without more data to evaluate model specifications, choosing the ‘right’ specifications involves some degree arbitrariness and uncertainty. While these predictive models can have great power and utility, the risk of overfitting is high.
+What maximum entropy provides is a systematic method to model general patterns from a sample of idiosyncratic data using the fewest possible assumptions. 
+Not just a means of modelling missing or unknown data, but also as a kind of null model 
+
+This difference can be thought of in terms of probability. Should we treat a specific outcome as highly probable, or is it important to think of it as merely one possible instantiation of many? This distinction is fundamental to the epistemology of the historical sciences, where we often debate about the degree to which particular historical events were caused by broader systemic forces or idiosyncratic historical contingencies.
+
+
+
 
 ### Calibrating SIMs in R
 
@@ -600,23 +716,6 @@ https://rpubs.com/adam_dennett/376877
 https://findingspress.org/article/8416-accessibility-toolbox-for-r-and-arcgis?attachment_id=21364
 https://github.com/higgicd/Accessibility_Toolbox
 https://github.com/atfutures/dodgr
-
-
-### Theory and Interpretation
-
-Most current approaches to SIMs see the aggregate flows being modelled as complex systems -- emergent system-level structures produced by diverse but constrained micro-level behaviors [@Wilson2000]. At the micro-level, the constraints producing the emergent system structure are grounded in a decision process where actors face a trade-off between the costs and benefits of interaction with a set of competing destinations [@Fotheringham1989]. Due to the diversity of contexts, preferences and constraints of specific actors, these micro-level behaviors are averse to prediction and strong deterministic regularities. However, at the macro-level, strong patterns do emerge. As such, researchers have tended to adopt a probablistic framework focusing on explicit modeling of macro-level structures as statistical averages/trends produced by the overall distribution of actor decisions and constraints [@Sen1995]. SIMs are therefore best suited to macro-level research questions regarding the spatial structure of systems.
-
-In this context, the statistical frameworks used to estimate SIMs 
-
-In the context of statistical modeling, maximum entropy methods provide a systematic way to model general patterns from a sample of idiosyncratic data using the fewest possible assumptions. The principle of maximum entropy can be thought of as an approach to statistical modeling that takes a conservative epistemological position on the problem of overfitting. The degree to which a statistical model should fit the data depends on whether the research question addresses the particular occurrence(s) represented in the data, or whether you’re treating the data as a representative sample of some wider phenomenon. ‘Overfitting’ usually involves using an overly complex model to explain patterns in the data that are idiosyncratic to the sample (i.e. caused by sampling error or other selection biases). This is a minor problem when comparing or testing hypotheses about the specific empirical cases represented by a dataset. A close fit between model and data enables us to make arguments about what caused the data—either that a theoretical model explains the observed reality, or that a statistical model accurately characterizes the relationship between the observed variables. In such cases, we want statistical models to explain most of the variability in the observed data, and the model complexity threshold of overfitting is often intuitively-clear. 
-
-But problems arise when using a sample with some unknown degree of error to address the more general processes that produced them. Say for example you wanted to estimate patterns across a region, but you only have data from a sample of subregions. Extrapolating this data imposes the idiosyncrasies of specific locales on the rest of the region. This is textbook overfitting. One common way of dealing with this problem is to use complex statistical models to estimate trends in the unknown data using other variables known to covary with the patterns in question. Yet this kind of predictive modeling necessitates the specification of highly-specific quantitative assumptions from a large number of alternatives. Without more data to evaluate model specifications, choosing the ‘right’ specifications involves some degree arbitrariness and uncertainty. While these predictive models can have great power and utility, the risk of overfitting is high.
-What maximum entropy provides is a systematic method to model general patterns from a sample of idiosyncratic data using the fewest possible assumptions. 
-Not just a means of modelling missing or unknown data, but also as a kind of null model 
-
-This difference can be thought of in terms of probability. Should we treat a specific outcome as highly probable, or is it important to think of it as merely one possible instantiation of many? This distinction is fundamental to the epistemology of the historical sciences, where we often debate about the degree to which particular historical events were caused by broader systemic forces or idiosyncratic historical contingencies.
-
-
 
 
 ## SIMs in Archaeology
