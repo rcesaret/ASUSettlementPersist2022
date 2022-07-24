@@ -76,7 +76,7 @@ packages <- c("rgdal", "rgeos", "sp", "sf", "GISTools", "raster", "Matrix",
               "sfnetworks", "SpatialPosition", "lctools", "SpatialAcc", "mgcv",
               "gravity", "moin", "spflow", "simodels", "viridis", "broom", 
               "ggplotify", "ggiraphExtra", "modelsummary", "od", "minpack.lm", 
-              "ggfortify", "mgcViz", "gratia", "modelsummary")#, "zoo", "ggrepel", "ggridges", "movecost"
+              "ggfortify", "mgcViz", "gratia", "modelsummary", "ggsn")#, "zoo", "ggrepel", "ggridges", "movecost"
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -157,26 +157,54 @@ At this point, we have two major tasks left for the SBOM survey region trial ana
 
 A critical step necessary for achieving both tasks is estimating the strength of social interaction among settlements across space and time. Urban system (sub-)regions are only valid insofar as they represent **_integrated_** groupings of **_systemically interdependent_** settlements. If "integration" is a group-level characteristic structured by pairwise interactions among settlements in various dimensions (e.g. socioeconomic, sociopolitical, etc.), then they must be operationally defined and measured by the relative magnitude of internal vs. external interactions. Aside from their importance for calculating regional metrics for settlements, we might also expect spatial interactions to be key variables in predicting settlement dynamics (i.e. persistance variables, growth rates, etc.)
 
-This leads us to a dilemma: **_how do we estimate dimensional spatial interactions among settlements over time without settlement-level archaeological or historical data?_** While this might be achieved using the detailed artefact data available for certain regions like the US Southwest, the vast majority of cases in our world sample lack such data entirely.
+_How do we estimate dimensional spatial interactions among settlements over time without settlement-level archaeological or historical data?_ While this might be achieved using the detailed artifact data available for certain regions like the US Southwest, the vast majority of cases in our world sample lack such data entirely.
 
-## The Methodological Approach Taken Here
+Fortunately, **Spatial Interaction Models (SIMs)** provide a framework to resolve this dilemma. SIMs are quantitative models used to explain and predict flows of people, information or goods among a set of geographical locations. Over 50 years of empirical studies have led to the development of a large corpus of methods and theory to guide the calibration of SIMs to model different kinds of interactions in a given context [@Fotheringham1989; @Sen1995]. The effectiveness of SIMs in estimating dimensional flows is attested by their wide use not only for research but for economic policy, urban planning and transport infrastructure engineering. Moreover, SIMs themselves are generic to human interactions in space -- independent of modern technology and social organization -- and therefore have also seen diffuse applications to historical and archaeological contexts [@Wilson2000; @Wilson2012; @Rihll1987]. Different kinds of spatial flows are systematically related to different SIMs and predictor variables. Most predictor variables are already calculated in our dataset, and others can be proxied from theoretical relationships with our data. Most importantly, we can use extant published SIM methods to calibrate SIMs, estimate parameters and predict flows _even in the absence of flow/interaction data_. 
 
-Use Spatial Interaction models
---to estimate dimensional interactions among settlements
---theoretical justification
---various SI models --> shown to be optimal for different dimensions of spatial interaction using various/different associated variables for those dimensions
---we can calculate proxy variables for said variables from our data
---estimate pairwise interactions among settlements along different social dimensions for each modelling period
+In what follows, I methodically explain, justify and carry out SIM-based estimation of flows for the SBOM trial study dataset. First, I review the literature on SIMs in some detail in order to heuristically guide model selection and calibration. Next, I outline the proposed methods, operationalize interaction dimensions, derive expectations and calculate variables for the interaction/flow dimensions we want to model from the archaeological data. Finally, the proposed methods are implemented step-by-step in R to estimate pairwise interactions among settlements along different social dimensions for each modelling period using various R packages and custom-made functions.
 
 
 # Background: Spatial Interaction Models (SIMs)
 
+
 -concepts
 -table
 
+**Figure taken directly from [@OshanND]**
+```{r, 'Oshan n.d. SIM Figure', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"OshanSIMfig.png"), FALSE)
+```
 
-## Modelling Framework
--blah blah
+Variables
+
+**Table taken directly from [@OshanND]**
+```{r, 'Oshan n.d. SIM Table', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"OshanSIMtab.png"), FALSE)
+```
+
+
+
+While all these examples of interactions are unilateral (directed) in nature,
+one may also consider a range of bilateral (symmetric) interactions.
+Examples here include the formation of friendships or marriages between
+individuals, economic contracts between firms, or even treaties between
+nations. In such bilateral interactions, the distinction between 'actors' and
+'opportunities' is generally quite arbitrary. Hence these terms serve only
+as convenient labels for distinguishing the relevant parties. Such bilateral
+examples also illustrate the relevance of nonphysical spatial separation. In
+marriage, for example, differences in cultural or religious backgrounds may
+affect the likelihood that any given individuals will marry. Hence such attributes
+of individuals can in principle constitute relevant dimensions of
+spatial separation.
+
+
+
+
+migration, shopping, travel to work, choice of healthcare services, recreation, movement of goods / commodity flows, telephone calls, choice of university by students, airline passenger traffic, attendance at events such as conferences
+
+
+
+
 
 @OshanND
 @Dennett2018
@@ -193,69 +221,44 @@ Use Spatial Interaction models
 @Fotheringham1989
 @Dennett2013
 
+
+## Modelling Framework
+
+
 ### General Formulation
--blah blah
 
 In its most general form
+
 $$
 \mathbf{T_{ij}} = f(V_i) \times f(W_j) \times f(\mathbf{C_{ij}})
 $$
+
 where
 
   * $\mathbf{T_{ij}}$ is an $n \times m$ matrix of flows between each $i$ of $n$ origins and each $j$ of $m$ destinations
   * $V_i$ is an $n \times p$ vector of $p$ origin attributes describing the emissiveness of origin $i$  
-  * $W_j$ is an $m \times p$ vector of $p$ origin attributes describing the attractiveness of destination $j$  
+  * $W_j$ is an $m \times p$ vector of $p$ destination attributes describing the attractiveness of destination $j$  
   * $\mathbf{C_{ij}}$ is an $n \times m$ matrix of the costs (usually distance or time) to overcome the physical separation between each $i$ of $n$ origins and each $j$ of $m$ destinations
 
--blah blah
-
-### Distance Decay Function
-
--blah blah
-
-sometimes C_ij is expressed as a "normalized distance" = C_ij/D, where D_ij are the distances and D is a "distance scale"
---controls the inflection point of sigmoidal decay curve in Ariadne model
 
 
-When compared to the exponential form [equation(2)],what
-wetermthe ariadne form [equation(3)] has lowpenalties for
-short-distance exchange but with a sharper change around dis-
-tance scale D to a region where long-distance exchange is heavily
-penalized. For instance, we imagine that if D represents the typical
-distance traveled in a day overland in this region for our era, then
-it seems reasonable to impose a sharper difference between 1- and
-2-day travel. Thisseemstoustobemoreappropriateforthecasein
-hand,buttranslatingqualitativeexpertjudgmentsaboutthecosts
-ofexchangeintoaspecificformforthedeterrencefunctioninour
-modelisclearlyanothersourceofuncertainty.Wecanchangeof
-deterrencefunctionstotryandevaluatehowimportantthissource
-ofuncertaintyis,andthatiswhyweusetwoforms,theexponential
-form[equation(2)]andtheariadneform[equation(3)].
-
-Power:
-$$
-f(\mathbf{C_{ij}})=\mathbf{C_{ij}}^{-\beta}=\frac{1}{\mathbf{C_{ij}}^{\beta}}
-$$
-Exponential:
-$$
-f(\mathbf{C_{ij}})=e~^{-\beta~\mathbf{C_{ij}}} =\frac{1}{e~^{\beta~\mathbf{C_{ij}}}}
-$$
-Sigmoidal:
-$$
-f(\mathbf{C_{ij}})= ((1+(\mathbf{C_{ij}}/D))^\alpha)^{-\gamma}
-$$
-
-where 
-  * $\beta$ is a parameter representing the impact of movement costs on flows.
 
 
--blah blah
+
+
+
+
+
+
+
 
 ### Wilson's "Family of Models"
 
--blah blah
--blah blah
-Wilson [-@Wilson1971] analytically derived a “family” of gravity-type SI models
+
+
+
+
+
 
 Unconstrained:
 $$\mathbf{T_{ij}} = k V_i^{\mu} W_j^{\alpha} f(\mathbf{C_{ij}})$$
@@ -275,15 +278,141 @@ where
   * $\alpha$ is a $p \times 1$ vector of parameters representing the effect of $p$ destination attributes on flows
   * $k$ is a scaling factor to be estimated to ensure the total observed and predicted flows are consistent
 
--blah blah
--blah blah
-TABLE linking models to phenomena
 
 
-### Intervening Opportunities (IO)???
+
+### Distance Decay Functions
+
+
+
+
+
+
+
+
+
+
+
+Power:
+$$
+f(\mathbf{C_{ij}})=\mathbf{C_{ij}}^{-\beta}=\frac{1}{\mathbf{C_{ij}}^{\beta}}
+$$
+
+
+
+
+
+where 
+  * $\beta$ is a parameter representing the impact of movement costs on flows.
+  
+  
+
+
+
+shifted power-deterrence function
+$$
+f(\mathbf{C_{ij}})=\mathbf{(\epsilon +C_{ij})}^{-\beta}
+$$
+
+
+Champernowne POWER deterrence function.
+$$
+f(\mathbf{C_{ij}})=\mathbf{[\epsilon +(C_{ij})^\beta]}^{-1}
+$$
+
+
+
+Exponential:
+$$
+f(\mathbf{C_{ij}})=e~^{-\beta~\mathbf{C_{ij}}} =\frac{1}{e~^{\beta~\mathbf{C_{ij}}}}
+$$
+
+Two-Parameter Exponential:
+$$
+f(\mathbf{C_{ij}})=\alpha~e~^{-\beta~\mathbf{C_{ij}}} 
+$$
+
+
+
+
+Two-Parameter Exponential:
+$$
+f(\mathbf{C_{ij}})=\alpha~e~^{-\beta~\mathbf{C_{ij}}} 
+$$
+
+exponential-square root decay function:
+$$
+f(\mathbf{C_{ij}})=e~^{-\beta~\sqrt{\mathbf{C_{ij}}}}  
+$$
+https://journals.sagepub.com/doi/pdf/10.1177/0160017610387296
+Accessibility and Impedance Forms- Empirical Applications to the German Commuting Network
+
+
+```{r, 'Fotheringham & O'Kelly 1989 Decay Chart', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"FotheringhamDecay.png"), FALSE)
+```
+
+
+Tanner Function:
+$$
+f(\mathbf{C_{ij}})= \mathbf{C_{ij}}^{-\alpha}~e~^{-\beta~\mathbf{C_{ij}}} 
+$$
+
+Shifted Tanner Function:
+$$
+f(\mathbf{C_{ij}})= ( \epsilon + \mathbf{C_{ij}})^{-\alpha}~e~^{-\beta~\mathbf{C_{ij}}} 
+$$
+
+
+Gamma Function:
+$$
+f(\mathbf{C_{ij}})= \mathbf{C_{ij}}^{\alpha}~e~^{-\beta~\mathbf{C_{ij}}} 
+$$
+
+
+Shifted Gamma Function:
+$$
+f(\mathbf{C_{ij}})= ( \epsilon + \mathbf{C_{ij}})^{\alpha}~e~^{-\beta~\mathbf{C_{ij}}} 
+$$
+Gaussian decay function: 
+$$
+f(\mathbf{C_{ij}})=e~^{-\beta~{\mathbf{C_{ij}}}^2} 
+$$
+Accessibility and Impedance Forms: Empirical Applications to the German Commuting Network
+https://journals.sagepub.com/doi/pdf/10.1177/0160017610387296
+
+Modified Gaussian:
+$$
+f(\mathbf{C_{ij}})=e~^{-{\mathbf{C_{ij}}}^2/\beta~} 
+$$
+https://findingspress.org/article/8416-accessibility-toolbox-for-r-and-arcgis?attachment_id=21364
+
+Log-normal decay function
+$$
+f(\mathbf{C_{ij}})=e~^{-\beta~(\mathrm{log}{\mathbf{C_{ij}}})^2}  
+$$
+Accessibility and Impedance Forms: Empirical Applications to the German Commuting Network
+
+
+Logistic:
+$$
+f(\mathbf{C_{ij}})= \frac{1}{1+e~^{-\beta~(\mathbf{C_{ij}}-\alpha)}}=\frac{e~^{\beta~(\mathbf{C_{ij}}-\alpha)}}{1+e~^{\beta~(\mathbf{C_{ij}}-\alpha)}}
+$$
+
+
+Sigmoidal:
+$$
+f(\mathbf{C_{ij}})= \frac{1}{(1+(\mathbf{C_{ij}}/D)^\alpha)^{\gamma}}
+$$
+
+### The Spatial Structure of Intervening Opportunities
+
+
 
 
 ### Radiation Model
+
+https://covid-19-mobility-data-network.github.io/mobility/articles/V5_list_models.html
 
 This model was created explicitly as an alternative to various gravity models and, in certain cases, was demonstrated to generate improved empirical predictions of human population movement between origins and destinations. This model shares some basic features with gravity models but importantly, the approach includes no parameters at all. Instead, this model uses simply measures of population at a set of sites and the distances between them. 
 
@@ -324,6 +453,8 @@ $$
 $$
 where the new parameter, $\alpha$, models the impact of rival employment opportunities between origin and destination. To calibrate the $\alpha$ parameter in the absence of data, Yang et al. [-@Yang2014] follow gravity model methods to propose $\alpha$ as proportional to the average commuting distance, $l$, assumed to be the radius of the average area of the spatial units of analysis (census tracts). This makes $l= \sqrt{A} $, which enabled them to estimate from empirical data the average value of alpha as $\alpha=0.0085~l^{1.33} $. For the modern data, MSA-scale values of $\alpha$ ranged between 0 and 2. 
 
+
+
 ## Calibration Framework
 
 Regression is perhaps the most frequently used calibration method due to its flexibility
@@ -352,6 +483,20 @@ Fotheringham & O’Kelly, 1989; Silva & Tenreyro 2006; Farmer & Oshan, 2017). An
 of Poisson regression is that adding origin fixed effects and/or destination fixed effects (i.e., binary
 indicators or dummy variables) achieves the same objective as the balancing factors 𝐴! and/or 𝐵" in
 equations (4-6) to uphold the desired constraints (Tiefelsdorf & Boots, 1995).
+
+Poisson log-linear regression calibration framework
+is also popular because it more realistically
+models discrete entities (i.e. flows of
+people), avoids the issue of zero flows that cannot
+be logged, and is not subject to transformation
+bias for the dependent variable (Flowerdew
+and Aitkin, 1982; Flowerdew and Lovett, 1988).
+Using binary indicator variables for each origin
+and/or destination within Poisson regression
+yields the constrained variants of the family of
+SI models, producing results equivalent to those
+obtained using nonlinear optimization (Tiefelsdorf
+and Boots, 1995).
 
 
 
@@ -405,17 +550,39 @@ https://github.com/juhly/moin
 devtools::install_github("CRC1266-A2/moin")
 
 
+
+Crymble, A. (2019). Introduction to Gravity Models of Migration & Trade.
+Programming Historian.
+https://programminghistorian.org/en/lessons/gravity-model
+
+
+Siah, J. (2018). RPubs—Lab 10: Spatial Interaction Modeling in R.
+https://rpubs.com/Striker/makingmaps_lab10
+
+
+
+Dennett, A. (2012). Estimating flows between geographical locations:‘get me started
+in’spatial interaction modelling (Working Paper No. 184; CASA Working Paper
+Series). Citeseer.
+
+Dennett, A. (2018). Modelling population flows using spatial interaction models.
+http://minerva-access.unimelb.edu.au/handle/11343/233564
+
 https://github.com/adamdennett/LondonSchoolsSIM
 https://github.com/adamdennett/SIModelling
 https://rpubs.com/adam_dennett/257231
 https://rpubs.com/adam_dennett/259068
 https://rpubs.com/adam_dennett/376877
 
-
-
-
+https://findingspress.org/article/8416-accessibility-toolbox-for-r-and-arcgis?attachment_id=21364
+https://github.com/higgicd/Accessibility_Toolbox
+https://github.com/atfutures/dodgr
   
 ## SIMs in Archaeology
+
+
+
+### Calibrating SIMs in the absence of flow data
 
 -blah blah
 -blah blah
@@ -443,8 +610,52 @@ Model different theoretical dimensions of interaction
 
 ## Dimensions of Interaction
 
+--retail + urban services (Production-constrained); proxy for emissiveness?? == market integration
+--AG trade (Attraction-constrained) = urban demand; AG supply surplus
+--commodity flows (radiation) --> commuters as a function of prior two SIMs node stats and accessibility(pop^1.2); accessibility(pop^1.2)= m and n
+--migration (doubly constrained) see excel sheet
 
-Sociopolitical Institutions
+
+
+
+
+
+
+
+spatial interaction inexorably linked with economic development through the process of specialization
+---Smithian growth
+very low levels of economic development of div of labor = high self sufficiency = low levels of spatial interaction
+Smithian growth --> increased specialization --> productivity = scale, extent and integration of market = trade and communication
+at the lower level, learning by doing = 
+
+Smithian growth is intimately connected to the origins
+of agglomeration effects. At the macro-level, specialization is driven by the growth of markets and
+demand (Kelly 1997; Persson 2010). But at the microlevel, specialization is driven by “learning by doing”–
+the generation of specialized knowledge that enables
+production to be focused on increasingly specific outputs. This involves imitating and learning from others,
+refining processes, streamlining logistics, and innovating production practices (Arrow 1962; Solow 1997).
+Agglomeration effects are a catalyst of learning by
+doing. Whereas Smithian growth involves learning by
+doing within a formal occupation, agglomeration
+effects enhance the flow of information and skills
+among them. Agglomeration effects produce a feedback that diffuse specialized knowledge throughout
+the local network of individuals, firms, and institutions. Urban agglomeration economies are thus a
+non-market-mediated catalyst of Smithian growth,
+and the result of this Smithian-Agglomeration positive
+feedback is IRS (Bettencourt 2013; Bettencourt,
+Samaniego, and Youn 2014; Fujita, Krugman, and
+Venables 1999; Lobo et al. 2013).
+
+spatial interaction = scale, extent and integration of market
+
+
+Fotheringham --> migration section; migration and economic development
+
+Fotheringham --> retail section; economic development?
+
+
+### Sociopolitical Institutions
+
 -Production-constrained SIM
 --attractiveness = f(settlement hierarchy level, population, urban population)
 ----difference in; calculated in od dataframe! 
@@ -458,7 +669,8 @@ THIS IS NOT SOCIOPOLITICAL CONTROL OR POLITY!!
 
 
 
-Agricultural Flows
+### Agricultural Flows
+
 -Production-constrained SIM
 --attractiveness = f(Catch_Popdens, population, urban population, PopPressure, PopPressureNW, Catch_Popdens)
 --emissiveness = f(Catchment_ha, CatchmentBeyond_ha, AGPot.tot, AGPot.avg, AGPotNW.tot, AGPotNW.avg, population, Catch_Popdens)
@@ -468,7 +680,7 @@ emissiveness = AG surplus = AG Production - AG Consumption =
           (Catch_Popdens / pop ??) AGPot.avg * Catchment_ha - pop
 
 
-Socioeconomic Flows
+### Socioeconomic Flows
 -Radiation Model and/or Production-constrained SIM
 -max of two models, divided by rowsum??
 --attractiveness = f(settlement hierarchy level, population, urban population, pop/urban accessibility, urbaniz ratio, transport net centrality)
@@ -1217,6 +1429,7 @@ ggpmap<-ggsave("CL_RadDistDecayPlot.png", plot = ggplt, device = "png", path = w
 
 test$sflines$Log_Tij <- log(test$sflines$Tij)
 sflines2 <- test$sflines[test$sflines$Log_Tij > 2,]
+
 ggp_map <- ggplot() +  geom_stars(data = Hillshade.s)+
   scale_fill_gradientn(colours = c("turquoise3", "black", "gray60"), 
                values = scales::rescale(c(-9999, -161, 254)), guide="none")+

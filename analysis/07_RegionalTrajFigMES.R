@@ -11,7 +11,7 @@ ModellingPeriods_df <- readRDS(file=paste0(wd$data_p,"ModellingPeriods_df.RData"
 
 want <- c("AggSite","AggID","Period","PeriodType","PeriodNum","SubOccSeqLoc",
   "ComponentNum","Area_ha","Population.s2","Log_Population.s2","UrbanPop.s2",
-  "PopDens.s2","rPert","Urb_rPert","Abs_rPert","LogAbs_rPert","PopBwCont",
+  "PopDens.s2","r12_Pert","rPert","Urb_rPert","Abs_rPert","LogAbs_rPert","PopBwCont",
   "PopFwCont","AreaBwCont","AreaFwCont","Found","FoundInit","Abandon","Persist",
   
   "OccuTime","OccuInertia","UrbOccuTime","UrbOccuInertia",
@@ -106,7 +106,9 @@ df <- All_AggPoly@data %>%
                   LAsymSetHierLevel = Lasym(SetHierLevel),
                   MeanSetHierLevel = mean(SetHierLevel, na.rm = TRUE),
                   sdSetHierLevel = sd(SetHierLevel, na.rm = TRUE),
-                  nSetHierLevel = max(SetHierLevel, na.rm = TRUE)) %>% ungroup()
+                  nSetHierLevel = max(SetHierLevel, na.rm = TRUE),
+                  MeanrPert12 = mean(r12_Pert, na.rm=T),
+                  MedrPert12 = median(r12_Pert, na.rm=T)) %>% ungroup()
   
   
 nam <- df$Period
@@ -148,11 +150,13 @@ df$RS_R2 <- as.numeric(RSA_df$R2)
 
 #Urban growth rate
 #Pop growth rate
-#Q$TotPop_r12_Pert <- NA
+df$TotPop_r12_Pert <- NA
+df$len <- NA
 #Q$UrbPop_r12_Pert <- NA
-#for (i in 1:(nrow(Q)-1)) {
-#  Q$TotPop_r12_Pert[i] <- ((Q$Pop[i+1]/Q$Pop[i])^(1/(abs((Q$Mid[i]) - (Q$Mid[i+1])))))-1
-#}
+for (i in 1:(nrow(df)-1)) {
+  df$len[i] <- abs((df$Mid[i]) - (df$Mid[i+1]))
+  df$TotPop_r12_Pert[i] <- ((df$Pop[i+1]/df$Pop[i])^(1/(abs((df$Mid[i]) - (df$Mid[i+1])))))-1
+}
 #for (i in 1:(nrow(Q)-1)) {
 #  Q$UrbPop_r12_Pert[i] <- ((Q$UrbPop[i+1]/Q$UrbPop[i])^(1/(abs((Q$Mid[i]) - (Q$Mid[i+1])))))-1
 #}
