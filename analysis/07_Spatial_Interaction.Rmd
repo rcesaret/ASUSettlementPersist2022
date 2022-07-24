@@ -159,48 +159,125 @@ A critical step necessary for achieving both tasks is estimating the strength of
 
 _How do we estimate dimensional spatial interactions among settlements over time without settlement-level archaeological or historical data?_ While this might be achieved using the detailed artifact data available for certain regions like the US Southwest, the vast majority of cases in our world sample lack such data entirely.
 
-Fortunately, **Spatial Interaction Models (SIMs)** provide a framework to resolve this dilemma. SIMs are quantitative models used to explain and predict flows of people, information or goods among a set of geographical locations. Over 50 years of empirical studies have led to the development of a large corpus of methods and theory to guide the calibration of SIMs to model different kinds of interactions in a given context [@Fotheringham1989; @Sen1995]. The effectiveness of SIMs in estimating dimensional flows is attested by their wide use not only for research but for economic policy, urban planning and transport infrastructure engineering. Moreover, SIMs themselves are generic to human interactions in space -- independent of modern technology and social organization -- and therefore have also seen diffuse applications to historical and archaeological contexts [@Wilson2000; @Wilson2012; @Rihll1987]. Different kinds of spatial flows are systematically related to different SIMs and predictor variables. Most predictor variables are already calculated in our dataset, and others can be proxied from theoretical relationships with our data. Most importantly, we can use extant published SIM methods to calibrate SIMs, estimate parameters and predict flows _even in the absence of flow/interaction data_. 
+Fortunately, **Spatial Interaction Models (SIMs)** provide a framework to resolve this dilemma. SIMs are quantitative models used to explain and predict flows of people, information or goods among a set of geographical locations. Since the 1950s and 60s, a growing body of SIM methodological innovations, empirical research and theoretical advances has made a huge impact on the development of several disciplines. In the context of international economics, SIM hypothesis testing has facilitated theoretical developments on the causes and prediction of trade flows [see e.g. @Head2014; @VanBergeijk2010]. In the context of geography, SIM analyses have been central to explaining and predicting patterned variation in human migration and transportation [see e.g. @Barbosa2018; @Erlander1990]. In the context of economic geography, SIM methods have revolutionized the theory building and analysis of land use, mobility, marketing, commodity flows and the geographical structure of production, markets and population  [see e.g. @Fotheringham1989; @Sen1995; @Wilson2000]. The effectiveness of SIMs in estimating and interpreting spatial flows is attested by their wide use not only in scientific research but policy making, urban/infrastructure planning and business strategy. 
+
+Guided by these developments, the predictive power of SIMs makes them ideally-suited to modelling various dimensions of spatial interaction in archaeology. Indeed, SIMs are generic to human interactions in space -- independent of modern technology and social organization -- and therefore have also seen diffuse applications to historical and archaeological contexts [@Wilson2000; @Wilson2012; @Rihll1987; @Lovett1985; @Crymble2018; @Rivers2013; @Evans2012; @Bevan2013; @Evans2017; @Gauthier2021]. SIM empirical research and theory has demonstrated that different kinds of spatial flows are systematically related to different SIMs and predictor variables. Many of the relevant predictor variables necessary to estimate socioeconomic flows are already calculated in our dataset, and others can be proxied from theoretical relationships with our data. Moreover, as demonstrated in the following section, we can adapt published methods to calibrate SIMs, estimate parameters and predict flows _even in the absence of archaeological flow/interaction data_. 
 
 In what follows, I methodically explain, justify and carry out SIM-based estimation of flows for the SBOM trial study dataset. First, I review the literature on SIMs in some detail in order to heuristically guide model selection and calibration. Next, I outline the proposed methods, operationalize interaction dimensions, derive expectations and calculate variables for the interaction/flow dimensions we want to model from the archaeological data. Finally, the proposed methods are implemented step-by-step in R to estimate pairwise interactions among settlements along different social dimensions for each modelling period using various R packages and custom-made functions.
 
 
 # Background: Spatial Interaction Models (SIMs)
 
+Spatial interaction modelling encompasses a flexible research paradigm aimed at explaining and predicting the structure of flows/interactions among populations of actors across space. In their most common form, SIMs model the volume of some specific directional flow (e.g. trade, migration, travel) as a function of
 
--concepts
--table
+  1. push factors controlling the 'emmissiveness' or 'propulsiveness' of origin locations
+  2. pull factors controlling the 'attractiveness' of destination locations
+  3. the cost of overcoming the separation between origins and destinations (commonly expressed in terms of distance, money or time)
+  
+In their most general form, SIMs can thus be specified as
+$$
+\mathbf{T_{ij}} = f(V_i) \times f(W_j) \times f(\mathbf{C_{ij}})
+$$
+where
+
+  * $\mathbf{T_{ij}}$ is an $n \times m$ matrix of flows between each $i$ of $n$ origins and each $j$ of $m$ destinations
+  * $V_i$ is an $n \times p$ vector of $p$ origin attributes describing the emissiveness of origin $i$  
+  * $W_j$ is an $m \times p$ vector of $p$ destination attributes describing the attractiveness of destination $j$  
+  * $\mathbf{C_{ij}}$ is an $n \times m$ matrix of the costs (usually distance or time) to overcome the physical separation between each $i$ of $n$ origins and each $j$ of $m$ destinations
+  
+As such, the core formulation of a SIM involves some set of flows/interactions being predicted by the product of functions for origin emissiveness, destination attractiveness and spatial deterrence (distance decay). Each of these can be represented by one or more variables. The flows/interactions being modeled could be anything -- from highly specific (e.g. attendance at an academic conference) to extremely general (e.g. telephone calls). The choice of predictor variables is of course contingent on the kind of flows being modeled (discussed in the following sections), a sample of which are offered for common dimensions in the table below taken from [@OshanND].
+
+**Table taken directly from [@OshanND]**
+```{r, 'Oshan n.d. SIM Table', echo=FALSE, out.width = '100%'}
+knitr::include_graphics(paste0(wd$figs,"OshanSIMtab.png"), FALSE)
+```
+ 
+The figure below, taken from Oshan [-@OshanND], nicely illustrates the basic framework. As a network of spatial flows, interactions can be represented as origin-destination ('O-D') matrices equivalent to a network adjacency matrix. Origin nodes and destination nodes need not be the same, and are sometimes completely different in certain contexts. SIMs can be used to analyze both directed and undirected (symmetrical) flows at any internally-consistent level of spatial aggregation / scale. SIMs are most commonly used used to analyze stationary flow/interaction patterns over time intervals not time that do not undergo significant structural changes [@Sen1995]. As such, these periods are understood as short-term equilibria like those postulated by canonical models of economic geography [e.g. @Alonso1964; @Muth1969; @Mills1967; @vonThunen1910; @Hotelling1929; @Christaller1933; @Losch1940; @Weber1909]. While dynamic applications of SIMs do exist, structural changes over time are most commonly addressed by comparing the SIM results of static periods.
 
 **Figure taken directly from [@OshanND]**
 ```{r, 'Oshan n.d. SIM Figure', echo=FALSE, out.width = '100%'}
 knitr::include_graphics(paste0(wd$figs,"OshanSIMfig.png"), FALSE)
 ```
 
-Variables
-
-**Table taken directly from [@OshanND]**
-```{r, 'Oshan n.d. SIM Table', echo=FALSE, out.width = '100%'}
-knitr::include_graphics(paste0(wd$figs,"OshanSIMtab.png"), FALSE)
-```
+In general, researchers generally use SIMs to analyze a spatial dataset comprised of locational attributes and observed flows among a set of origin and destination locales. After specifying the model and its variables, the model is then calibrated using multiple regression -- predicting the observed flows from the specified SIM by estimating parameter values. These topics are covered in section 3.1 and 3.2. In section 3.3, I cover the use of SIMs in archaeology, with specific focus on how SIMs can be specified and calibrated in the absence of observed flow data.
 
 
+## Modelling Framework
 
-While all these examples of interactions are unilateral (directed) in nature,
-one may also consider a range of bilateral (symmetric) interactions.
-Examples here include the formation of friendships or marriages between
-individuals, economic contracts between firms, or even treaties between
-nations. In such bilateral interactions, the distinction between 'actors' and
-'opportunities' is generally quite arbitrary. Hence these terms serve only
-as convenient labels for distinguishing the relevant parties. Such bilateral
-examples also illustrate the relevance of nonphysical spatial separation. In
-marriage, for example, differences in cultural or religious backgrounds may
-affect the likelihood that any given individuals will marry. Hence such attributes
-of individuals can in principle constitute relevant dimensions of
-spatial separation.
+Since the integrative synthesis of Wilson [-@Wilson1970; -@Wilson1971], SIMs have often been described as a “family of models” that share a common framework. The common framework of this family is the so-called ‘gravity model’ of spatial interaction that crystallized in economic geography during the the 1940s and 50s [e.g. @Carrothers1956; @Olsson1965; @Isard1960; @Stewart1941, @Zipf1946; @Dodd1950]. The gravity model shares its basic mathematical form with Newtonian gravitation, thus modelling interactions between human populations in analogy to the gravitational force attracting two masses. The classic gravity model is given by the equation
+$$
+I_{ij}=\frac{P_i P_j}{d_{ij}^2}=P_iP_jd_{ij}^{-2}
+$$
+where $I$ is some interaction or flow from origin $i$ to destination $j$, $P_i$ and $P_j$ are their respective populations and $d_{ij}$ is the distance between them.
 
 
+### Generalized Gravity Model (or 'Unconstrained' SIM)
+
+Subsequent refinements of the classical gravity model have given way to a 'generalized gravity model.' Using a new notation system, this generalized gravity model takes the form
+$$\mathbf{T_{ij}} = k V_i^{\mu} W_j^{\alpha} f(\mathbf{C_{ij}})$$
+where
+
+  * $\mathbf{T_{ij}}$ is an $n \times m$ matrix of flows between each $i$ of $n$ origins and each $j$ of $m$ destinations
+  * $V_i$ is an $n \times p$ vector of $p$ origin attributes describing the emissiveness of origin $i$  
+  * $W_j$ is an $m \times p$ vector of $p$ destination attributes describing the attractiveness of destination $j$  
+  * $\mathbf{C_{ij}}$ is an $n \times m$ matrix of the costs (usually distance or time) to overcome the physical separation between each $i$ of $n$ origins and each $j$ of $m$
+  * $\mu$ is a $p \times 1$ vector of parameters representing the effect of $p$ origin attributes on flows
+  * $\alpha$ is a $p \times 1$ vector of parameters representing the effect of $p$ destination attributes on flows
+  * $k$ is a constant scaling factor to ensure the total observed and predicted flows are consistent
+  
+It should be noted that different scholars and disciplines have employed a wide range of different variable names and notations for SIMs. Those employed here (for the most part) follow the increasingly standardized notation of geography and economic geography [see e.g. @Wilson1970; @Fotheringham1989; @Sen1995].
+
+The additions of the generalized model are subtle but important. First, the model can now incorporate multiple origin and destination attributes as necessary. Second, the addition of parameters $\mu$ and $\alpha$ give the model flexibility with respect to the influence of each origin and destination attribute on flows. Third, distance $d_{ij}$ is replaced by a cointextually operationalized cost-distance $\mathbf{C_{ij}}$ (which can still use geographical distance as a proxy for cost-distance). Fourth, whereas the classical model directly specifies an inverse distance squared 'distance decay' function (also known as a 'deterrence' function), the generalized model is agnostic to its appropriate form (As explained in the following section, distance decay functions can take a wide range of forms specific to particular contexts). Finally, the addition of the constant parameter $k$ makes sure that the global total number of predicted flows is the same as the the global total number of observed flows.
 
 
-migration, shopping, travel to work, choice of healthcare services, recreation, movement of goods / commodity flows, telephone calls, choice of university by students, airline passenger traffic, attendance at events such as conferences
+### Wilson's "Family of Models"
+
+Building on this foundation, Wilson's [-@Wilson1970; -@Wilson1971] watershed "family" of SIMs introduced three new variants of the generalized gravity model that form the foundation of the contemporary SIM framework in [economic] geography. These variants differ from the generalized gravity model by introducing further constraints to ensure that the number of predicted flows match the number of observed flows **_at the level of each origin/destination_**. While parameter $k$ in the generalized gravity model does this at the _global level_, the flows to and from each origin/destination locale predicted by the generalized gravity model may vary (sometimes considerably) from the observed flows. By introducing balancing factors for individual origin/destination locales, Wilson's [-@Wilson1970; -@Wilson1971] variants are able to preseve the locally observed flow frequencies in the flows predicted by the SIM. The generalized gravity model is thus often referred to as the "unconstrained model" in Wilson's four variant a "family of models:"
+
+  1. Generalized gravity model (or 'Unconstrained' model)
+  2. Production-constrained -- where out-flows are constrained by banancing factors, but in-flows are not
+  3. Attraction-constrained -- where in-flows are constrained by banancing factors, but out-flows are not
+  4. Production-Attraction-constrained (or ‘Doubly-constrained’) -- where both in-flows and out-flows are constrained by banancing factors
+  
+The latter three constrained variants of Wilson [-@Wilson1970; -@Wilson1971] are specified (in generalized form) as follows:
+
+Production-constrained:
+$$\mathbf{T_{ij}} = A_i O_i W_j^{\alpha} f(\mathbf{C_{ij}}) \\ A_i = \left( \sum_{j=1}^{n} W_j^{\alpha} f(\mathbf{C_{ij}}) \right)^{-1}$$
+Attraction-constrained:
+$$\mathbf{T_{ij}} = B_j D_j V_i^{\mu} f(\mathbf{C_{ij}}) \\ B_j = \left( \sum_{i=1}^{m} V_i^{\mu} f(\mathbf{C_{ij}}) \right)^{-1}$$
+Doubly-constrained SIM:
+$$\mathbf{T_{ij}} = A_i B_j O_i D_j f(\mathbf{C_{ij}}) \\ A_i = \left( \sum_{j=1}^{n} W_j^{\alpha} f(\mathbf{C_{ij}}) \right)^{-1} \\ B_j = \left( \sum_{i=1}^{m} V_i^{\mu} f(\mathbf{C_{ij}}) \right)^{-1}$$
+where
+
+  * $O_i$ is an $n \times 1$ vector of the total number of flows emanating from origin $i$  
+  * $D_j$ is an $m \times 1$ vector of the total number of flows terminating at destination $j$  
+  * $A_i$ is an $n \times 1$ vector of the origin balancing factors that ensures the total out-flows are preserved in the predicted flows
+  * $B_j$ is an $m \times 1$ vector of the destination balancing factors that ensures the total in-flows are preserved in the predicted flows
+
+
+Discuss balancing factors / constraints and their estimation
+
+
+
+
+employ entropy maximization constraints derived from statistical mechanics and information theory [@Wilson1970].
+
+
+
+
+
+
+
+Each of these different models excels at answering different research questions in different contexts.
+
+
+
+
+
+
+
+
+
 
 
 
@@ -222,61 +299,7 @@ migration, shopping, travel to work, choice of healthcare services, recreation, 
 @Dennett2013
 
 
-## Modelling Framework
 
-
-### General Formulation
-
-In its most general form
-
-$$
-\mathbf{T_{ij}} = f(V_i) \times f(W_j) \times f(\mathbf{C_{ij}})
-$$
-
-where
-
-  * $\mathbf{T_{ij}}$ is an $n \times m$ matrix of flows between each $i$ of $n$ origins and each $j$ of $m$ destinations
-  * $V_i$ is an $n \times p$ vector of $p$ origin attributes describing the emissiveness of origin $i$  
-  * $W_j$ is an $m \times p$ vector of $p$ destination attributes describing the attractiveness of destination $j$  
-  * $\mathbf{C_{ij}}$ is an $n \times m$ matrix of the costs (usually distance or time) to overcome the physical separation between each $i$ of $n$ origins and each $j$ of $m$ destinations
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Wilson's "Family of Models"
-
-
-
-
-
-
-
-Unconstrained:
-$$\mathbf{T_{ij}} = k V_i^{\mu} W_j^{\alpha} f(\mathbf{C_{ij}})$$
-Production-constrained:
-$$\mathbf{T_{ij}} = A_i O_i W_j^{\alpha} f(\mathbf{C_{ij}}) \\ A_i = \left( \sum_{j=1}^{n} W_j^{\alpha} f(\mathbf{C_{ij}}) \right)^{-1}$$
-Attraction-constrained:
-$$\mathbf{T_{ij}} = B_j D_j V_i^{\mu} f(\mathbf{C_{ij}}) \\ B_j = \left( \sum_{i=1}^{m} V_i^{\mu} f(\mathbf{C_{ij}}) \right)^{-1}$$
-Doubly-constrained:
-$$\mathbf{T_{ij}} = A_i B_j O_i D_j f(\mathbf{C_{ij}}) \\ A_i = \left( \sum_{j=1}^{n} W_j^{\alpha} f(\mathbf{C_{ij}}) \right)^{-1} \\ B_j = \left( \sum_{i=1}^{m} V_i^{\mu} f(\mathbf{C_{ij}}) \right)^{-1}$$
-where
-
-  * $O_i$ is an $n \times 1$ vector of the total number of flows emanating from origin $i$  
-  * $D_j$ is an $m \times 1$ vector of the total number of flows terminating at destination $j$  
-  * $A_i$ is an $n \times 1$ vector of the origin balancing factors that ensures the total out-flows are preserved in the predicted flows
-  * $B_j$ is an $m \times 1$ vector of the destination balancing factors that ensures the total in-flows are preserved in the predicted flows
-  * $\mu$ is a $p \times 1$ vector of parameters representing the effect of $p$ origin attributes on flows
-  * $\alpha$ is a $p \times 1$ vector of parameters representing the effect of $p$ destination attributes on flows
-  * $k$ is a scaling factor to be estimated to ensure the total observed and predicted flows are consistent
 
 
 
@@ -499,7 +522,7 @@ obtained using nonlinear optimization (Tiefelsdorf
 and Boots, 1995).
 
 
-
+The parameters for all models in the family are estimated from empirical data using some form of linear regression—usually maximum likelihood estimators (MLE) specifying parametric distributions matching the data. Maximum entropy constraints are usually fitted using either Lagrange multipliers or equivalent numerical search/convergence algorithms
 
 ### Calibrating SIMs in R
 
@@ -577,7 +600,25 @@ https://rpubs.com/adam_dennett/376877
 https://findingspress.org/article/8416-accessibility-toolbox-for-r-and-arcgis?attachment_id=21364
 https://github.com/higgicd/Accessibility_Toolbox
 https://github.com/atfutures/dodgr
-  
+
+
+### Theory and Interpretation
+
+Most current approaches to SIMs see the aggregate flows being modelled as complex systems -- emergent system-level structures produced by diverse but constrained micro-level behaviors [@Wilson2000]. At the micro-level, the constraints producing the emergent system structure are grounded in a decision process where actors face a trade-off between the costs and benefits of interaction with a set of competing destinations [@Fotheringham1989]. Due to the diversity of contexts, preferences and constraints of specific actors, these micro-level behaviors are averse to prediction and strong deterministic regularities. However, at the macro-level, strong patterns do emerge. As such, researchers have tended to adopt a probablistic framework focusing on explicit modeling of macro-level structures as statistical averages/trends produced by the overall distribution of actor decisions and constraints [@Sen1995]. SIMs are therefore best suited to macro-level research questions regarding the spatial structure of systems.
+
+In this context, the statistical frameworks used to estimate SIMs 
+
+In the context of statistical modeling, maximum entropy methods provide a systematic way to model general patterns from a sample of idiosyncratic data using the fewest possible assumptions. The principle of maximum entropy can be thought of as an approach to statistical modeling that takes a conservative epistemological position on the problem of overfitting. The degree to which a statistical model should fit the data depends on whether the research question addresses the particular occurrence(s) represented in the data, or whether you’re treating the data as a representative sample of some wider phenomenon. ‘Overfitting’ usually involves using an overly complex model to explain patterns in the data that are idiosyncratic to the sample (i.e. caused by sampling error or other selection biases). This is a minor problem when comparing or testing hypotheses about the specific empirical cases represented by a dataset. A close fit between model and data enables us to make arguments about what caused the data—either that a theoretical model explains the observed reality, or that a statistical model accurately characterizes the relationship between the observed variables. In such cases, we want statistical models to explain most of the variability in the observed data, and the model complexity threshold of overfitting is often intuitively-clear. 
+
+But problems arise when using a sample with some unknown degree of error to address the more general processes that produced them. Say for example you wanted to estimate patterns across a region, but you only have data from a sample of subregions. Extrapolating this data imposes the idiosyncrasies of specific locales on the rest of the region. This is textbook overfitting. One common way of dealing with this problem is to use complex statistical models to estimate trends in the unknown data using other variables known to covary with the patterns in question. Yet this kind of predictive modeling necessitates the specification of highly-specific quantitative assumptions from a large number of alternatives. Without more data to evaluate model specifications, choosing the ‘right’ specifications involves some degree arbitrariness and uncertainty. While these predictive models can have great power and utility, the risk of overfitting is high.
+What maximum entropy provides is a systematic method to model general patterns from a sample of idiosyncratic data using the fewest possible assumptions. 
+Not just a means of modelling missing or unknown data, but also as a kind of null model 
+
+This difference can be thought of in terms of probability. Should we treat a specific outcome as highly probable, or is it important to think of it as merely one possible instantiation of many? This distinction is fundamental to the epistemology of the historical sciences, where we often debate about the degree to which particular historical events were caused by broader systemic forces or idiosyncratic historical contingencies.
+
+
+
+
 ## SIMs in Archaeology
 
 

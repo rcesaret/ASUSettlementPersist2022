@@ -673,7 +673,7 @@ doi = {10.1038/nature05302}
   publisher={Routledge}
 }
 
-@book{Wilson1998,
+@book{Wilson2000,
   title={Complex Spatial Systems: The Modelling Foundations of Urban and Regional Analysis},
   author={Wilson, Alan Geoffrey},
   year={2000},
@@ -1378,4 +1378,59 @@ doi = {10.1080/00420987320080471}
   number={1},
   pages={1--7},
   year={2013}
+}
+
+@Manual{SpatialAcc,
+  title = {SpatialAcc: Spatial Accessibility Measures},
+  author = {Stamatis Kalogirou},
+  year = {2020},
+  note = {R package version 0.1-4},
+  url = {https://CRAN.R-project.org/package=SpatialAcc},
+}
+
+@Manual{SpatialPosition,
+  title = {SpatialPosition: Spatial Position Models},
+  author = {Timothée Giraud and Hadrien Commenges},
+  year = {2021},
+  note = {R package version 2.1.1},
+  url = {https://CRAN.R-project.org/package=SpatialPosition},
+}
+
+@Manual{spflow,
+  title = {spflow: Spatial Econometric Interaction Models},
+  author = {Lukas Dargel and Thibault Laurent},
+  year = {2021},
+  note = {R package version 0.1.0.9000},
+  url = {https://github.com/LukeCe/spflow},
+}
+
+@Manual{gravity,
+  title = {gravity: Estimation Methods for Gravity Models},
+  author = {Anna-Lena Woelwer and Jan Pablo Burgard and Joshua Kunst and Mauricio Vargas},
+  year = {2022},
+  note = {R package version 1.0},
+  url = {https://CRAN.R-project.org/package=gravity},
+}
+
+@Manual{simodels,
+  title = {simodels: Flexible Framework for Developing Spatial Interaction Models},
+  author = {Robin Lovelace and Jakub Nowosad},
+  year = {2022},
+  note = {R package version 0.0.4},
+  url = {https://CRAN.R-project.org/package=simodels},
+}
+
+@Manual{od,
+  title = {od: Manipulate and Map Origin-Destination Data},
+  author = {Robin Lovelace},
+  year = {2022},
+  note = {R package version 0.4.0},
+  url = {https://CRAN.R-project.org/package=od},
+}
+
+@Manual{moin,
+  title = {moin: Modelling Interactions},
+  author = {Daniel Knitter and Michael Bilger and Franziska Faupel and Dorothee Fehling and Chiara Girotto and Benedikt Grammer and Wolfgang Hamer and Martin Hinz and Oliver Nakoinz and Petr Pajdla and Kai Radloff and Hendrik Raese and Ray Rivers and Joe Roe and Georg Roth and Carolin Tietze and Juliane Watson and Clemens Schmid},
+  year = {2018},
+  note = {R package version 0.2},
 }
