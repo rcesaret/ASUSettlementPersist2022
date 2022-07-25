@@ -965,6 +965,16 @@ doi = {10.1038/nature05302}
   year={2018}
 }
 
+@article{Dennett2013,
+  title={A multilevel spatial interaction modelling framework for estimating interregional migration in Europe},
+  author={Dennett, Adam and Wilson, Alan Geoffrey},
+  journal={Environment and Planning A},
+  volume={45},
+  number={6},
+  pages={1491--1507},
+  year={2013}
+}
+
 @book{Batty2013b,
   title={The New Science of Cities},
   author={Batty, Michael},
@@ -1433,4 +1443,49 @@ doi = {10.1080/00420987320080471}
   author = {Daniel Knitter and Michael Bilger and Franziska Faupel and Dorothee Fehling and Chiara Girotto and Benedikt Grammer and Wolfgang Hamer and Martin Hinz and Oliver Nakoinz and Petr Pajdla and Kai Radloff and Hendrik Raese and Ray Rivers and Joe Roe and Georg Roth and Carolin Tietze and Juliane Watson and Clemens Schmid},
   year = {2018},
   note = {R package version 0.2},
+}
+
+@article{Wilson2012,
+  title={Geographical modeling for archaeology and history: two case studies},
+  author={Wilson, Alan},
+  journal={Advances in Complex Systems},
+  volume={15},
+  number={01n02},
+  pages={1150008},
+  year={2012},
+  publisher={World Scientific}
+}
+
+@incollection{Head2014,
+  title = {Chapter 3 - Gravity Equations: Workhorse,Toolkit, and Cookbook},
+  editor = {Gita Gopinath and Elhanan Helpman and Kenneth Rogoff},
+  series = {Handbook of International Economics},
+  publisher = {Elsevier},
+  volume = {4},
+  pages = {131--195},
+  year = {2014},
+  booktitle = {Handbook of International Economics},
+  doi = {https://doi.org/10.1016/B978-0-444-54314-1.00003-3},
+  author = {Keith Head and Thierry Mayer}
+}
+
+@incollection{Head2014,
+  title = {Chapter 3 - Gravity Equations: Workhorse,Toolkit, and Cookbook},
+  editor = {Gita Gopinath and Elhanan Helpman and Kenneth Rogoff},
+  series = {Handbook of International Economics},
+  publisher = {Elsevier},
+  volume = {4},
+  pages = {131--195},
+  year = {2014},
+  booktitle = {Handbook of International Economics},
+  doi = {https://doi.org/10.1016/B978-0-444-54314-1.00003-3},
+  author = {Keith Head and Thierry Mayer}
+}
+
+@book{VanBergeijk2010,
+  title={The Gravity Model in International Trade: Advances and Applications},
+  editor={Van Bergeijk, Peter A. G. and Brakman, Steven},
+  year={2010},
+  publisher={Cambridge University Press},
+  address = {Cambridge}
 }
